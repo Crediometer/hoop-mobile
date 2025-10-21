@@ -17,32 +17,29 @@ class _SignupStep3PersonalInfoScreenState
 
   // controllers
   final TextEditingController _dobController = TextEditingController();
-  final TextEditingController _addressController = TextEditingController();
+  final TextEditingController _occupationController = TextEditingController();
   final TextEditingController _bvnController = TextEditingController();
+  final TextEditingController _bioController = TextEditingController();
 
   // selections
   String? _selectedGender;
-  String? _selectedState;
-  String? _selectedLga;
 
   // data
-  final int totalSteps = 5;
+  final int totalSteps = 6;
   final int currentStep = 3;
 
   final List<String> genders = ['Male', 'Female', 'Other'];
-  final List<String> states = ['Lagos', 'Abuja', 'Kano'];
-
-  final Map<String, List<String>> lgasByState = {
-    'Lagos': ['ikeja', 'lekki', 'mainland'],
-    'Abuja': ['Gwagwalada', 'Kuje', 'Municipal'],
-    'Kano': ['Dala', 'Gwale', 'Kano Municipal'],
-  };
+  
+  // Location data
+  String? _locationLat;
+  String? _locationLng;
 
   @override
   void dispose() {
     _dobController.dispose();
-    _addressController.dispose();
+    _occupationController.dispose();
     _bvnController.dispose();
+    _bioController.dispose();
     super.dispose();
   }
 
@@ -70,10 +67,11 @@ class _SignupStep3PersonalInfoScreenState
     }
   }
 
-  void _onStateChanged(String? value) {
+  void _getCurrentLocation() {
+    // Mock location for demo - in real app, use geolocator package
     setState(() {
-      _selectedState = value;
-      _selectedLga = null; // reset LGA when state changes
+      _locationLat = "31.5353";
+      _locationLng = "74.2893";
     });
   }
 
@@ -87,29 +85,15 @@ void _onSubmit() {
     return;
   }
 
-  if (_selectedState == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please select your state')),
-    );
-    return;
-  }
-
-  if (_selectedLga == null) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Please select your LGA')),
-    );
-    return;
-  }
-
-  // All good — gather data
-  final payload = {
-    'dob': _dobController.text,
-    'gender': _selectedGender,
-    'address': _addressController.text,
-    'state': _selectedState,
-    'lga': _selectedLga,
-    'bvn': _bvnController.text,
-  };
+  // All good — gather data (for future API call)
+  // final payload = {
+  //   'dob': _dobController.text,
+  //   'gender': _selectedGender,
+  //   'occupation': _occupationController.text,
+  //   'bvn': _bvnController.text,
+  //   'bio': _bioController.text,
+  //   'location': _locationLat != null ? '$_locationLat, $_locationLng' : null,
+  // };
 
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text('Personal info saved')),
@@ -127,10 +111,6 @@ void _onSubmit() {
 
   @override
   Widget build(BuildContext context) {
-    final lgaOptions = (_selectedState != null)
-        ? lgasByState[_selectedState!] ?? []
-        : [];
-
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -143,34 +123,6 @@ void _onSubmit() {
                 totalSteps: totalSteps,
               ),
               const SizedBox(height: 12),
-
-              // user svg like icon
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C1F2E),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.person_outline,
-                    size: 40,
-                    color: Colors.blueAccent,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-
-              const Text(
-                'Personal Information',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Help us verify your identity',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              const SizedBox(height: 24),
 
               Form(
                 key: _formKey,
@@ -190,7 +142,7 @@ void _onSubmit() {
                       readOnly: true,
                       onTap: _pickDateOfBirth,
                       decoration: InputDecoration(
-                        hintText: 'Select your date of birth',
+                        hintText: 'mm/dd/yyyy',
                         suffixIcon: IconButton(
                           icon: const Icon(
                             Icons.calendar_today,
@@ -230,75 +182,23 @@ void _onSubmit() {
                     ),
                     const SizedBox(height: 18),
 
-                    // Address
+                    // Occupation
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'Address',
+                        'Occupation',
                         style: TextStyle(color: Colors.grey[400]),
                       ),
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
-                      controller: _addressController,
+                      controller: _occupationController,
                       decoration: const InputDecoration(
-                        hintText: 'Enter your address',
+                        hintText: 'Enter your occupation',
                       ),
                       validator: (v) => (v == null || v.isEmpty)
-                          ? 'Please enter your address'
+                          ? 'Please enter your occupation'
                           : null,
-                    ),
-                    const SizedBox(height: 18),
-
-                    // State
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'State',
-                        style: TextStyle(color: Colors.grey[400]),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _selectedState,
-                      items: states
-                          .map(
-                            (s) => DropdownMenuItem(value: s, child: Text(s)),
-                          )
-                          .toList(),
-                      onChanged: _onStateChanged,
-                      decoration: const InputDecoration(
-                        hintText: 'Select state',
-                      ),
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Select state' : null,
-                    ),
-                    const SizedBox(height: 18),
-
-                    // LGA
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'LGA',
-                        style: TextStyle(color: Colors.grey[400]),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      value: _selectedLga,
-                      items: lgaOptions
-                          .map(
-                            (l) => DropdownMenuItem<String>(
-                              value: l,
-                              child: Text(l),
-                            ),
-                          )
-                          .toList(),
-
-                      onChanged: (val) => setState(() => _selectedLga = val),
-                      decoration: const InputDecoration(hintText: 'Select LGA'),
-                      validator: (v) =>
-                          (v == null || v.isEmpty) ? 'Select LGA' : null,
                     ),
                     const SizedBox(height: 18),
 
@@ -306,7 +206,7 @@ void _onSubmit() {
                     Align(
                       alignment: Alignment.centerLeft,
                       child: Text(
-                        'BVN (Bank Verification Number)',
+                        'BVN',
                         style: TextStyle(color: Colors.grey[400]),
                       ),
                     ),
@@ -315,7 +215,7 @@ void _onSubmit() {
                       controller: _bvnController,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
-                        hintText: 'Enter your BVN',
+                        hintText: 'Enter 11-digit BVN',
                       ),
                       maxLength: 11,
                       validator: (v) {
@@ -326,9 +226,88 @@ void _onSubmit() {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 18),
 
-                    const SizedBox(height: 22),
+                    // Bio
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Bio',
+                        style: TextStyle(color: Colors.grey[400]),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: _bioController,
+                      maxLines: 3,
+                      decoration: const InputDecoration(
+                        hintText: 'Tell us about yourself',
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+
+                    // Location Permission Section
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Location Permission Required',
+                            style: TextStyle(
+                              color: Colors.black,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.check_circle,
+                                color: _locationLat != null ? Colors.green : Colors.grey,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _locationLat != null 
+                                    ? 'Location captured: $_locationLat, $_locationLng'
+                                    : 'Location not captured',
+                                style: TextStyle(
+                                  color: _locationLat != null ? Colors.grey[600] : Colors.grey[400],
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (_locationLat == null) ...[
+                            const SizedBox(height: 8),
+                            GestureDetector(
+                              onTap: _getCurrentLocation,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.blue,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: const Text(
+                                  'Get Location',
+                                  style: TextStyle(color: Colors.white, fontSize: 12),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Continue Button
                     SizedBox(
                       width: double.infinity,
                       height: 48,
@@ -343,12 +322,11 @@ void _onSubmit() {
                         ),
                         onPressed: _onSubmit,
                         child: const Text(
-                          'Next',
+                          'Continue',
                           style: TextStyle(fontSize: 16),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 12),
                   ],
                 ),
               ),

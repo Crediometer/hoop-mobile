@@ -66,101 +66,194 @@ class _SignupStep4FacialVerificationScreenState
                 currentStep: currentStep,
                 totalSteps: totalSteps,
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 40),
 
-              // Face icon
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C1F2E),
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Icon(
-                    Icons.face_retouching_natural_outlined,
-                    size: 40,
-                    color: Colors.blueAccent,
-                  ),
+              // White Card Container
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ),
-              const SizedBox(height: 20),
-
-              const Center(
-                child: Text(
-                  'Facial Verification',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                ),
-              ),
-              const SizedBox(height: 8),
-              const Center(
-                child: Text(
-                  'Help us verify your identity with a quick selfie',
-                  style: TextStyle(color: Colors.grey, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              GestureDetector(
-                onTap: _pickImage,
-                child: Container(
-                  height: 250,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1C1F2E),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.blueAccent.withOpacity(0.3)),
-                  ),
-                  child: _imageBytes == null
-                      ? Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.camera_alt_outlined,
-                                color: Colors.grey, size: 48),
-                            SizedBox(height: 12),
-                            Text(
-                              'Tap to capture or select your face',
-                              style: TextStyle(color: Colors.grey),
+                child: Column(
+                  children: [
+                    // Red line placeholder (camera feed area)
+                    Container(
+                      height: 200,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: _imageBytes == null
+                          ? const Center(
+                              child: Text(
+                                'Camera Feed Area',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            )
+                          : ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.memory(
+                                _imageBytes!,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                                height: double.infinity,
+                              ),
                             ),
-                          ],
-                        )
-                      : ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: Image.memory(
-                            _imageBytes!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: double.infinity,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Instruction text
+                    const Text(
+                      'Click below to start camera',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 16,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+
+                    // Start Camera Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 48,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF1E3A8A),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
                           ),
                         ),
+                        onPressed: _pickImage,
+                        child: const Text(
+                          'Start Camera',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // Verification Tips Section
+                    Row(
+                      children: [
+                        const Icon(
+                          Icons.lightbulb_outline,
+                          color: Colors.amber,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Verification Tips:',
+                          style: TextStyle(
+                            color: Colors.black87,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+
+                    // Tips List
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: const [
+                        _VerificationTip(
+                          boldText: 'Head turning:',
+                          normalText: ' Slowly turn left, then right clearly',
+                        ),
+                        SizedBox(height: 8),
+                        _VerificationTip(
+                          boldText: 'Mouth open:',
+                          normalText: ' Open wide like saying "Ah" at dentist',
+                        ),
+                        SizedBox(height: 8),
+                        _VerificationTip(
+                          boldText: 'Smile:',
+                          normalText: ' Show a clear, natural smile with teeth',
+                        ),
+                        SizedBox(height: 8),
+                        _VerificationTip(
+                          boldText: 'Good lighting:',
+                          normalText: ' Face towards light source',
+                        ),
+                        SizedBox(height: 8),
+                        _VerificationTip(
+                          boldText: 'Steady movements:',
+                          normalText: ' Move slowly and clearly',
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 30),
 
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E3A8A),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              // Next Button (only show if image is captured)
+              if (_imageBytes != null)
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E3A8A),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 8,
+                      shadowColor: Colors.blueAccent.withOpacity(0.5),
                     ),
-                    elevation: 8,
-                    shadowColor: Colors.blueAccent.withOpacity(0.5),
-                  ),
-                  onPressed: _onSubmit,
-                  child: const Text(
-                    'Next',
-                    style: TextStyle(fontSize: 16),
+                    onPressed: _onSubmit,
+                    child: const Text(
+                      'Next',
+                      style: TextStyle(fontSize: 16),
+                    ),
                   ),
                 ),
-              ),
             ],
           ),
         ),
       ),
     );
   }
+}
 
+class _VerificationTip extends StatelessWidget {
+  final String boldText;
+  final String normalText;
+
+  const _VerificationTip({
+    required this.boldText,
+    required this.normalText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return RichText(
+      text: TextSpan(
+        style: const TextStyle(
+          color: Colors.black87,
+          fontSize: 13,
+        ),
+        children: [
+          TextSpan(
+            text: boldText,
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: normalText),
+        ],
+      ),
+    );
+  }
 }

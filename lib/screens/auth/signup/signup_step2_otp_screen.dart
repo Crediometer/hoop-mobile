@@ -4,14 +4,15 @@ import 'package:hoop/screens/auth/signup/signup_step3_personal_info_screen.dart'
 import 'package:hoop/widgets/progress_bar.dart';
 
 class SignupStep2OtpScreen extends StatefulWidget {
-  const SignupStep2OtpScreen({super.key});
+  final String email;
+  const SignupStep2OtpScreen({super.key, required this.email});
 
   @override
   State<SignupStep2OtpScreen> createState() => _SignupStep2OtpScreenState();
 }
 
 class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
-  final int totalSteps = 5;
+  final int totalSteps = 6;
   final int currentStep = 2;
   final int otpLength = 6;
   final List<TextEditingController> _otpControllers = [];
@@ -98,7 +99,7 @@ void verifyOtp() {
               const SizedBox(height: 20),
 
               const Text(
-                "Verify Your Phone",
+                "Verify Your Email Address",
                 style: TextStyle(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -108,6 +109,11 @@ void verifyOtp() {
               const Text(
                 "We sent a verification code to",
                 style: TextStyle(color: Colors.grey, fontSize: 14),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.email,
+                style: const TextStyle(color: Colors.blueAccent, fontSize: 14),
               ),
               const SizedBox(height: 32),
 

@@ -13,18 +13,22 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
   final _formKey = GlobalKey<FormState>();
   bool agreeToTerms = false;
   bool isPasswordVisible = false;
+  bool isConfirmPasswordVisible = false;
 
   final TextEditingController firstNameController = TextEditingController();
   final TextEditingController lastNameController = TextEditingController();
   final TextEditingController emailController = TextEditingController();
   final TextEditingController phoneController = TextEditingController();
   final TextEditingController passwordController = TextEditingController();
+  final TextEditingController confirmPasswordController = TextEditingController();
 
   void goToNextStep() {
     if (_formKey.currentState!.validate() && agreeToTerms) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => const SignupStep2OtpScreen()),
+        MaterialPageRoute(
+          builder: (context) => SignupStep2OtpScreen(email: emailController.text.trim()),
+        ),
       );
     } else if (!agreeToTerms) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -34,6 +38,13 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
       );
     }
   }
+
+  // Password validation methods
+  bool get hasMinLength => passwordController.text.length >= 8;
+  bool get hasUppercase => passwordController.text.contains(RegExp(r'[A-Z]'));
+  bool get hasLowercase => passwordController.text.contains(RegExp(r'[a-z]'));
+  bool get hasNumber => passwordController.text.contains(RegExp(r'[0-9]'));
+  bool get hasSpecialChar => passwordController.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
 
   @override
   Widget build(BuildContext context) {
@@ -45,7 +56,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Progress Bar
-              const SignupProgressBar(currentStep: 1, totalSteps: 5),
+              const SignupProgressBar(currentStep: 1, totalSteps: 6),
 
               const Text(
                 "Create Account",
@@ -152,6 +163,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                     TextFormField(
                       controller: passwordController,
                       obscureText: !isPasswordVisible,
+                      onChanged: (value) => setState(() {}), // Trigger rebuild for validation UI
                       decoration: InputDecoration(
                         hintText: "Create a strong password",
                         suffixIcon: IconButton(
@@ -168,9 +180,17 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                           },
                         ),
                       ),
-                      validator: (value) => value!.length < 8
-                          ? "Password must be at least 8 characters"
-                          : null,
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Please enter a password";
+                        }
+                        if (!hasMinLength) return "Password must be at least 8 characters";
+                        if (!hasUppercase) return "Password must contain uppercase letter";
+                        if (!hasLowercase) return "Password must contain lowercase letter";
+                        if (!hasNumber) return "Password must contain a number";
+                        if (!hasSpecialChar) return "Password must contain a special character";
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 8),
                     const Align(
@@ -179,6 +199,107 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                         "Must be at least 8 characters with numbers and symbols",
                         style: TextStyle(color: Colors.grey, fontSize: 12),
                       ),
+                    ),
+                    const SizedBox(height: 8),
+                    
+                    // Password validation UI - only show when user starts typing
+                    if (passwordController.text.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1C1F2E),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              "Password must contain:",
+                              style: TextStyle(color: Colors.white, fontSize: 12),
+                            ),
+                            const SizedBox(height: 12),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      _PasswordRequirement(
+                                        text: "8+ characters",
+                                        isValid: hasMinLength,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _PasswordRequirement(
+                                        text: "Lowercase letter",
+                                        isValid: hasLowercase,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _PasswordRequirement(
+                                        text: "Special character",
+                                        isValid: hasSpecialChar,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    children: [
+                                      _PasswordRequirement(
+                                        text: "Uppercase letter",
+                                        isValid: hasUppercase,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      _PasswordRequirement(
+                                        text: "Number",
+                                        isValid: hasNumber,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    const SizedBox(height: 16),
+
+                    // Confirm Password
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        "Confirm Password",
+                        style: TextStyle(color: Colors.grey[400]),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    TextFormField(
+                      controller: confirmPasswordController,
+                      obscureText: !isConfirmPasswordVisible,
+                      decoration: InputDecoration(
+                        hintText: "Confirm your password",
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            isConfirmPasswordVisible
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                            color: Colors.grey,
+                          ),
+                          onPressed: () {
+                            setState(() {
+                              isConfirmPasswordVisible = !isConfirmPasswordVisible;
+                            });
+                          },
+                        ),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return "Please confirm your password";
+                        }
+                        if (value != passwordController.text) {
+                          return "Passwords do not match";
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 16),
 
@@ -229,7 +350,7 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                         ),
                         onPressed: goToNextStep,
                         child: const Text(
-                          "Create Account",
+                          "Send Verfication Code >",
                           style: TextStyle(fontSize: 16),
                         ),
                       ),
@@ -241,6 +362,47 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _PasswordRequirement extends StatelessWidget {
+  final String text;
+  final bool isValid;
+
+  const _PasswordRequirement({
+    required this.text,
+    required this.isValid,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            color: isValid ? Colors.green : Colors.grey[600],
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: isValid
+              ? const Icon(
+                  Icons.check,
+                  color: Colors.white,
+                  size: 12,
+                )
+              : null,
+        ),
+        const SizedBox(width: 8),
+        Text(
+          text,
+          style: TextStyle(
+            color: isValid ? Colors.green : Colors.white,
+            fontSize: 12,
+          ),
+        ),
+      ],
     );
   }
 }
