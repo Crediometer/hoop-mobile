@@ -2,7 +2,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:hoop/widgets/progress_bar.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:hoop/screens/auth/signup/signup_step5_primary_account_screen.dart';
 
 class SignupStep4FacialVerificationScreen extends StatefulWidget {
   const SignupStep4FacialVerificationScreen({super.key});
@@ -15,11 +14,9 @@ class SignupStep4FacialVerificationScreen extends StatefulWidget {
 class _SignupStep4FacialVerificationScreenState
     extends State<SignupStep4FacialVerificationScreen> {
   final ImagePicker _picker = ImagePicker();
-
-  // Stores selected image bytes for both web and mobile
   Uint8List? _imageBytes;
 
-  final int totalSteps = 6;
+  final int totalSteps = 4;
   final int currentStep = 4;
 
   Future<void> _pickImage() async {
@@ -37,25 +34,35 @@ class _SignupStep4FacialVerificationScreenState
     }
   }
 
-  void _onSubmit() {
-    if (_imageBytes == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please upload your facial image')),
-      );
-      return;
-    }
-
-    // ✅ Navigate to next screen (Step 5)
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => const SignupStep5PrimaryAccountScreen(),
+void _onSubmit() {
+  if (_imageBytes == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please upload your facial image'),
+        backgroundColor: Colors.redAccent,
       ),
     );
+    return;
   }
+
+  // ✅ Show success toast instead of moving next
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(
+      content: Text('Signup Successfully 🎉'),
+      backgroundColor: Colors.green,
+      duration: Duration(seconds: 2),
+    ),
+  );
+}
+
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 24.0),
@@ -68,52 +75,88 @@ class _SignupStep4FacialVerificationScreenState
               ),
               const SizedBox(height: 40),
 
-              // White Card Container
+              // Card Container
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(24),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: theme.cardColor,
                   borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    if (!isDark)
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                  ],
                 ),
                 child: Column(
                   children: [
-                    // Red line placeholder (camera feed area)
-                    Container(
-                      height: 200,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: _imageBytes == null
-                          ? const Center(
-                              child: Text(
-                                'Camera Feed Area',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
+                    // Camera area
+                    Stack(
+                      children: [
+                        Container(
+                          height: 200,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: isDark
+                                ? const Color(0xFF1C1F2E)
+                                : Colors.grey[200],
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: _imageBytes == null
+                              ? Center(
+                                  child: Text(
+                                    'Camera Feed Area',
+                                    style: TextStyle(
+                                      color:
+                                          isDark ? Colors.white70 : Colors.black87,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                )
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.memory(
+                                    _imageBytes!,
+                                    fit: BoxFit.cover,
+                                  ),
                                 ),
-                              ),
-                            )
-                          : ClipRRect(
+                        ),
+                        Positioned(
+                          left: 8,
+                          right: 8,
+                          bottom: 8,
+                          child: Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.55),
                               borderRadius: BorderRadius.circular(8),
-                              child: Image.memory(
-                                _imageBytes!,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                height: double.infinity,
-                              ),
                             ),
+                            child: const Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _OverlayTip(
+                                    text:
+                                        'Slowly turn left, then right clearly'),
+                                SizedBox(height: 6),
+                                _OverlayTip(
+                                    text:
+                                        'Show a clear, natural smile with teeth'),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 20),
 
-                    // Instruction text
-                    const Text(
+                    Text(
                       'Click below to start camera',
                       style: TextStyle(
-                        color: Colors.grey,
+                        color: isDark ? Colors.grey[400] : Colors.grey[700],
                         fontSize: 16,
                       ),
                       textAlign: TextAlign.center,
@@ -126,7 +169,7 @@ class _SignupStep4FacialVerificationScreenState
                       height: 48,
                       child: ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1E3A8A),
+                          backgroundColor: const Color(0xFF1347CD),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -144,19 +187,15 @@ class _SignupStep4FacialVerificationScreenState
                     ),
                     const SizedBox(height: 24),
 
-                    // Verification Tips Section
                     Row(
                       children: [
-                        const Icon(
-                          Icons.lightbulb_outline,
-                          color: Colors.amber,
-                          size: 20,
-                        ),
+                        const Icon(Icons.lightbulb_outline,
+                            color: Colors.amber, size: 20),
                         const SizedBox(width: 8),
-                        const Text(
+                        Text(
                           'Verification Tips:',
                           style: TextStyle(
-                            color: Colors.black87,
+                            color: isDark ? Colors.white : Colors.black87,
                             fontSize: 14,
                             fontWeight: FontWeight.w600,
                           ),
@@ -165,7 +204,6 @@ class _SignupStep4FacialVerificationScreenState
                     ),
                     const SizedBox(height: 12),
 
-                    // Tips List
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
@@ -176,17 +214,17 @@ class _SignupStep4FacialVerificationScreenState
                         SizedBox(height: 8),
                         _VerificationTip(
                           boldText: 'Mouth open:',
-                          normalText: ' Open wide like saying "Ah" at dentist',
+                          normalText: ' Open wide like saying "Ah"',
                         ),
                         SizedBox(height: 8),
                         _VerificationTip(
                           boldText: 'Smile:',
-                          normalText: ' Show a clear, natural smile with teeth',
+                          normalText: ' Show a natural smile with teeth',
                         ),
                         SizedBox(height: 8),
                         _VerificationTip(
                           boldText: 'Good lighting:',
-                          normalText: ' Face towards light source',
+                          normalText: ' Face towards a light source',
                         ),
                         SizedBox(height: 8),
                         _VerificationTip(
@@ -200,14 +238,13 @@ class _SignupStep4FacialVerificationScreenState
               ),
               const SizedBox(height: 30),
 
-              // Next Button (only show if image is captured)
               if (_imageBytes != null)
                 SizedBox(
                   width: double.infinity,
                   height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1E3A8A),
+                      backgroundColor: const Color(0xFF1347CD),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -217,7 +254,7 @@ class _SignupStep4FacialVerificationScreenState
                     onPressed: _onSubmit,
                     child: const Text(
                       'Next',
-                      style: TextStyle(fontSize: 16),
+                      style: TextStyle(fontSize: 16, color: Colors.white),
                     ),
                   ),
                 ),
@@ -240,10 +277,13 @@ class _VerificationTip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return RichText(
       text: TextSpan(
-        style: const TextStyle(
-          color: Colors.black87,
+        style: TextStyle(
+          color: isDark ? Colors.white70 : Colors.black87,
           fontSize: 13,
         ),
         children: [
@@ -254,6 +294,27 @@ class _VerificationTip extends StatelessWidget {
           TextSpan(text: normalText),
         ],
       ),
+    );
+  }
+}
+
+class _OverlayTip extends StatelessWidget {
+  final String text;
+  const _OverlayTip({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        const Icon(Icons.check_circle, color: Colors.greenAccent, size: 16),
+        const SizedBox(width: 6),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(color: Colors.white, fontSize: 12),
+          ),
+        ),
+      ],
     );
   }
 }

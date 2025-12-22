@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:hoop/screens/auth/signup/ignup_step1_screen.dart';
+import 'package:hoop/screens/features/home_screen.dart';
+import 'package:hoop/widgets/progress_bar.dart'; // ✅ Import the progress bar
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,18 +18,38 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 🔹 Detect system brightness
+    final bool isDarkMode =
+        MediaQuery.of(context).platformBrightness == Brightness.dark;
+
+    // 🔹 Define colors dynamically
+    final backgroundColor = isDarkMode
+        ? const Color(0xFF0C0E1A)
+        : Colors.grey[100];
+    final cardColor = isDarkMode ? const Color(0xFF1C1F2E) : Colors.white;
+    final textColor = isDarkMode ? Colors.white : Colors.black;
+    final hintColor = isDarkMode ? Colors.grey : Colors.grey[700];
+    final borderColor = isDarkMode
+        ? Colors.white24
+        : Colors.grey.withOpacity(0.4);
+
     return Scaffold(
-      body: Center(
+      backgroundColor: backgroundColor,
+      body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // Lock Icon
+              // ✅ Progress Bar at Top (Full)
+              const SignupProgressBar(currentStep: 1, totalSteps: 1),
+              const SizedBox(height: 12),
+
+              // 🔒 Lock Icon Container
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF1C1F2E),
+                  color: cardColor,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Icon(
@@ -38,66 +60,60 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
 
-              const Text(
+              Text(
                 "Welcome Back",
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: textColor,
+                ),
               ),
               const SizedBox(height: 8),
-              const Text(
+              Text(
                 "Sign in to your Hoop account",
-                style: TextStyle(color: Colors.grey, fontSize: 14),
+                style: TextStyle(color: hintColor, fontSize: 14),
               ),
               const SizedBox(height: 32),
 
-              // Email / Phone Field
+              // 📧 Email / Phone
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   "Email or Phone",
-                  style: TextStyle(color: Colors.grey[400]),
+                  style: TextStyle(color: hintColor),
                 ),
               ),
               const SizedBox(height: 8),
-              TextField(
+              _buildTextField(
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  hintText: "Enter your email or phone",
-                ),
+                hintText: "Enter your email or phone",
+                isDarkMode: isDarkMode,
               ),
               const SizedBox(height: 20),
 
-              // Password Field
+              // 🔑 Password
               Align(
                 alignment: Alignment.centerLeft,
-                child: Text(
-                  "Password",
-                  style: TextStyle(color: Colors.grey[400]),
-                ),
+                child: Text("Password", style: TextStyle(color: hintColor)),
               ),
               const SizedBox(height: 8),
-              TextField(
+              _buildTextField(
                 controller: _passwordController,
+                hintText: "Enter your password",
                 obscureText: !isPasswordVisible,
-                decoration: InputDecoration(
-                  hintText: "Enter your password",
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      isPasswordVisible
-                          ? Icons.visibility
-                          : Icons.visibility_off,
-                      color: Colors.grey,
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        isPasswordVisible = !isPasswordVisible;
-                      });
-                    },
+                isDarkMode: isDarkMode,
+                suffixIcon: IconButton(
+                  icon: Icon(
+                    isPasswordVisible ? Icons.visibility : Icons.visibility_off,
+                    color: hintColor,
                   ),
+                  onPressed: () =>
+                      setState(() => isPasswordVisible = !isPasswordVisible),
                 ),
               ),
               const SizedBox(height: 8),
 
-              // Remember Me and Forgot Password
+              // ✅ Remember Me + Forgot Password
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -105,14 +121,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     children: [
                       Checkbox(
                         value: rememberMe,
-                        onChanged: (value) {
-                          setState(() {
-                            rememberMe = value ?? false;
-                          });
-                        },
+                        onChanged: (value) =>
+                            setState(() => rememberMe = value ?? false),
                         activeColor: Colors.blueAccent,
                       ),
-                      const Text("Remember me"),
+                      Text("Remember me", style: TextStyle(color: hintColor)),
                     ],
                   ),
                   TextButton(
@@ -126,32 +139,57 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Sign In Button
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF1E3A8A),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              // 🚀 Sign In Button
+              // 🚀 Sign In Button
+              GestureDetector(
+                onTap: () {
+                  // After validation or API login, go to the main app
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => const HomeScreen()),
+                  );
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  width: double.infinity,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF0a1866), Color(0xFF1347cd)],
+                      begin: Alignment.centerLeft,
+                      end: Alignment.centerRight,
                     ),
-                    elevation: 8,
-                    shadowColor: Colors.blueAccent.withOpacity(0.5),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.blueAccent.withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
                   ),
-                  onPressed: () {
-                    // Handle login logic
-                  },
-                  child: const Text("Sign In", style: TextStyle(fontSize: 16)),
+                  alignment: Alignment.center,
+                  child: const Text(
+                    "Sign In →",
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(height: 20),
 
-              // Sign Up Link
+              const SizedBox(height: 24),
+
+              // 📝 Sign Up Link
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text("Don't have an account? "),
+                  Text(
+                    "Don't have an account? ",
+                    style: TextStyle(color: hintColor),
+                  ),
                   GestureDetector(
                     onTap: () {
                       Navigator.push(
@@ -161,16 +199,56 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       );
                     },
-
                     child: const Text(
                       "Sign Up",
-                      style: TextStyle(color: Colors.blueAccent),
+                      style: TextStyle(
+                        color: Colors.blueAccent,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  // 🔹 Reusable TextField (Dark/Light aware)
+  Widget _buildTextField({
+    required TextEditingController controller,
+    String? hintText,
+    bool obscureText = false,
+    bool isDarkMode = true,
+    Widget? suffixIcon,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
+      decoration: InputDecoration(
+        hintText: hintText,
+        hintStyle: TextStyle(
+          color: isDarkMode ? Colors.grey : Colors.grey[600],
+        ),
+        filled: true,
+        fillColor: isDarkMode ? const Color(0xFF1C1F2E) : Colors.grey[200],
+        suffixIcon: suffixIcon,
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: BorderSide(
+            color: isDarkMode ? Colors.white24 : Colors.grey.withOpacity(0.4),
+          ),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(20),
+          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
+        ),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 14,
+          vertical: 14,
         ),
       ),
     );

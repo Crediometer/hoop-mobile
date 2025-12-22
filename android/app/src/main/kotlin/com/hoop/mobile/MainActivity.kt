@@ -1,4 +1,4 @@
-package com.example.hoop
+package com.hoop.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 
