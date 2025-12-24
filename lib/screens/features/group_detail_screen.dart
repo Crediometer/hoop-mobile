@@ -87,7 +87,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                     decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: Colors.white.withOpacity(0.2),
                         width: 1,
@@ -192,7 +192,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     color: const Color(0xFFFFD54F),
                     width: 2.5,
                   ),
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Row(
                   children: [
@@ -294,7 +294,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 children: [

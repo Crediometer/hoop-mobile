@@ -149,7 +149,7 @@ class _ShinersTabState extends State<ShinersTab> {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: isDark
             ? null
             : [
@@ -417,7 +417,7 @@ class _ShinersTabState extends State<ShinersTab> {
                           color: isDark
                               ? Colors.white.withOpacity(0.1)
                               : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           tag,

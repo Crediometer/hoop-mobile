@@ -77,7 +77,7 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 12),
               decoration: BoxDecoration(
                 color: fieldBg,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
@@ -113,7 +113,7 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             Container(
               decoration: BoxDecoration(
                 color: fieldBg,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: TextField(
                 controller: accountNumberController,
@@ -141,7 +141,7 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             Container(
               decoration: BoxDecoration(
                 color: fieldBg,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: TextField(
                 controller: accountNameController,
@@ -163,7 +163,7 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF141827) : const Color(0xFFF3F6FB),
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
                 border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
               ),
               child: Row(

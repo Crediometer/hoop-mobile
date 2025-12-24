@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/inputs/input.dart';
 import 'package:hoop/screens/auth/signup/ignup_step1_screen.dart';
 import 'package:hoop/screens/features/home_screen.dart';
 import 'package:hoop/widgets/progress_bar.dart'; // ✅ Import the progress bar
@@ -13,7 +14,7 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-  bool rememberMe = false;
+
   bool isPasswordVisible = false;
 
   @override
@@ -23,15 +24,13 @@ class _LoginScreenState extends State<LoginScreen> {
         MediaQuery.of(context).platformBrightness == Brightness.dark;
 
     // 🔹 Define colors dynamically
-    final backgroundColor = isDarkMode
-        ? const Color(0xFF0C0E1A)
-        : Colors.grey[100];
+    final backgroundColor =
+        isDarkMode ? const Color(0xFF0C0E1A) : Colors.grey[100];
     final cardColor = isDarkMode ? const Color(0xFF1C1F2E) : Colors.white;
     final textColor = isDarkMode ? Colors.white : Colors.black;
     final hintColor = isDarkMode ? Colors.grey : Colors.grey[700];
-    final borderColor = isDarkMode
-        ? Colors.white24
-        : Colors.grey.withOpacity(0.4);
+    final borderColor =
+        isDarkMode ? Colors.white24 : Colors.grey.withOpacity(0.4);
 
     return Scaffold(
       backgroundColor: backgroundColor,
@@ -84,7 +83,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              _buildTextField(
+              HoopInput(
                 controller: _emailController,
                 hintText: "Enter your email or phone",
                 isDarkMode: isDarkMode,
@@ -97,7 +96,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: Text("Password", style: TextStyle(color: hintColor)),
               ),
               const SizedBox(height: 8),
-              _buildTextField(
+              HoopInput(
                 controller: _passwordController,
                 hintText: "Enter your password",
                 obscureText: !isPasswordVisible,
@@ -117,17 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: rememberMe,
-                        onChanged: (value) =>
-                            setState(() => rememberMe = value ?? false),
-                        activeColor: Colors.blueAccent,
-                      ),
-                      Text("Remember me", style: TextStyle(color: hintColor)),
-                    ],
-                  ),
+                  Spacer(),
                   TextButton(
                     onPressed: () {},
                     child: const Text(
@@ -169,13 +158,25 @@ class _LoginScreenState extends State<LoginScreen> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: const Text(
-                    "Sign In →",
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        "Sign In",
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      SizedBox(
+                        width: 2.5,
+                      ),
+                      const Icon(
+                        Icons.arrow_forward_sharp,
+                        color: Colors.white,
+                      )
+                    ],
                   ),
                 ),
               ),
@@ -216,41 +217,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  // 🔹 Reusable TextField (Dark/Light aware)
-  Widget _buildTextField({
-    required TextEditingController controller,
-    String? hintText,
-    bool obscureText = false,
-    bool isDarkMode = true,
-    Widget? suffixIcon,
-  }) {
-    return TextField(
-      controller: controller,
-      obscureText: obscureText,
-      style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
-      decoration: InputDecoration(
-        hintText: hintText,
-        hintStyle: TextStyle(
-          color: isDarkMode ? Colors.grey : Colors.grey[600],
-        ),
-        filled: true,
-        fillColor: isDarkMode ? const Color(0xFF1C1F2E) : Colors.grey[200],
-        suffixIcon: suffixIcon,
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: BorderSide(
-            color: isDarkMode ? Colors.white24 : Colors.grey.withOpacity(0.4),
-          ),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(20),
-          borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
-        ),
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 14,
-          vertical: 14,
-        ),
-      ),
-    );
-  }
 }

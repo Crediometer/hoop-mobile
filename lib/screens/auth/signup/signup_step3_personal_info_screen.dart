@@ -215,7 +215,7 @@ class _SignupStep3PersonalInfoScreenState
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
                         color: cardColor,
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                             color: isDark
                                 ? Colors.white10
@@ -371,7 +371,7 @@ class _SignupStep3PersonalInfoScreenState
       fillColor: cardColor,
       suffixIcon: suffixIcon,
       enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide(color: hintColor.withOpacity(0.3)),
       ),
       focusedBorder: const OutlineInputBorder(

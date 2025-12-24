@@ -238,7 +238,7 @@ class ProfileTab extends StatelessWidget {
                           ],
                         )
                       : null,
-                  borderRadius: BorderRadius.circular(20),
+                  borderRadius: BorderRadius.circular(10),
                   border: isDark ? null : Border.all(color: Colors.grey[200]!),
                   boxShadow: isDark
                       ? null

@@ -38,9 +38,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       body: _tabs[_currentIndex],
 
-      // ------------------------------------------------------------
-      // CUSTOM BOTTOM NAV BAR (Matches Your Screenshot)
-      // ------------------------------------------------------------
       bottomNavigationBar: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         decoration: BoxDecoration(

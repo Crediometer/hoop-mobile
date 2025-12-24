@@ -13,8 +13,6 @@ class _GroupsTabState extends State<GroupsTab> {
   bool _showSearch = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-  final List<String> _filters = ['All', 'My groups', 'Updates', 'Nearby'];
-  String _activeFilter = 'All';
 
   final List<Map<String, dynamic>> currentGroups = [
     {
@@ -154,14 +152,6 @@ class _GroupsTabState extends State<GroupsTab> {
       }).toList();
     }
 
-    // Apply a simple active filter (placeholder behavior)
-    if (_activeFilter == 'Updates') {
-      // simulate updates by returning items with timeLeft containing digits (just example)
-      base = base.where((g) => (g['timeLeft'] as String).contains(RegExp(r'\d'))).toList();
-    } else if (_activeFilter == 'My groups') {
-      // placeholder: return items with initials starting with 'W' for demo
-      base = base.where((g) => (g['initials'] as String).startsWith('W')).toList();
-    }
 
     return base;
   }
@@ -204,7 +194,7 @@ class _GroupsTabState extends State<GroupsTab> {
               padding: const EdgeInsets.all(4),
               decoration: BoxDecoration(
                 color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(10),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -529,23 +519,7 @@ class _GroupsTabState extends State<GroupsTab> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                // Checkmark icon
-                Container(
-                  decoration: BoxDecoration(
-                    color: isDark ? Colors.white10 : Colors.grey[100],
-                    shape: BoxShape.circle,
-                  ),
-                  child: IconButton(
-                    onPressed: () {},
-                    icon: Icon(Icons.check, color: textPrimary, size: 22),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(
-                      minWidth: 44,
-                      minHeight: 44,
-                    ),
-                  ),
-                ),
+               
               ],
             ),
           ],
@@ -635,38 +609,7 @@ class _GroupsTabState extends State<GroupsTab> {
         ),
         const SizedBox(height: 8),
         // Filter chips
-        SizedBox(
-          height: 40,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemBuilder: (c, i) {
-              final f = _filters[i];
-              final selected = _activeFilter == f;
-              return GestureDetector(
-                onTap: () => setState(() => _activeFilter = f),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  margin: const EdgeInsets.only(right: 6),
-                  decoration: BoxDecoration(
-                    color: selected ? (isDark ? const Color(0xFF2D3139) : Colors.white) : (isDark ? const Color(0xFF141617) : Colors.white),
-                    borderRadius: BorderRadius.circular(18),
-                    border: selected ? Border.all(color: const Color(0xFFFB7F2D)) : null,
-                  ),
-                  child: Text(
-                    f,
-                    style: TextStyle(
-                      color: selected ? (isDark ? Colors.white : const Color(0xFFFB7F2D)) : (isDark ? Colors.white70 : Colors.grey[700]),
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              );
-            },
-            separatorBuilder: (_, __) => const SizedBox(width: 0),
-            itemCount: _filters.length,
-          ),
-        ),
+     
       ],
     );
   }
