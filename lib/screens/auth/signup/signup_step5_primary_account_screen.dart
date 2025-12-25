@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:hoop/states/OnboardingService.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hoop/screens/tabs/community_tab.dart';
 
@@ -39,11 +41,16 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1F2E) : const Color(0xFFF5F7FB),
+                color: isDark
+                    ? const Color(0xFF1C1F2E)
+                    : const Color(0xFFF5F7FB),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.account_balance_outlined,
-                  color: Colors.orangeAccent, size: 42),
+              child: const Icon(
+                Icons.account_balance_outlined,
+                color: Colors.orangeAccent,
+                size: 42,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -66,9 +73,10 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             // Bank Name dropdown
             Align(
               alignment: Alignment.centerLeft,
-              child: Text("Bank Name",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, color: textColor)),
+              child: Text(
+                "Bank Name",
+                style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
+              ),
             ),
             const SizedBox(height: 8),
             Container(
@@ -82,13 +90,22 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
               child: DropdownButtonHideUnderline(
                 child: DropdownButton<String>(
                   value: selectedBank,
-                  icon: Icon(Icons.keyboard_arrow_down_rounded,
-                      color: hintColor),
-                  dropdownColor: isDark ? const Color(0xFF1E2235) : Colors.white,
-                  hint: Text("Select your bank",
-                      style: TextStyle(color: hintColor)),
+                  icon: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: hintColor,
+                  ),
+                  dropdownColor: isDark
+                      ? const Color(0xFF1E2235)
+                      : Colors.white,
+                  hint: Text(
+                    "Select your bank",
+                    style: TextStyle(color: hintColor),
+                  ),
                   items: const [
-                    DropdownMenuItem(value: "SBI", child: Text("State Bank of India")),
+                    DropdownMenuItem(
+                      value: "SBI",
+                      child: Text("State Bank of India"),
+                    ),
                     DropdownMenuItem(value: "HDFC", child: Text("HDFC Bank")),
                     DropdownMenuItem(value: "ICICI", child: Text("ICICI Bank")),
                     DropdownMenuItem(value: "AXIS", child: Text("Axis Bank")),
@@ -105,9 +122,10 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             // Account Number Field
             Align(
               alignment: Alignment.centerLeft,
-              child: Text("Account Number",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, color: textColor)),
+              child: Text(
+                "Account Number",
+                style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
+              ),
             ),
             const SizedBox(height: 8),
             Container(
@@ -123,8 +141,10 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
                   hintText: "Enter your account number",
                   hintStyle: TextStyle(color: hintColor),
                   border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
@@ -133,9 +153,10 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             // Account Name Field
             Align(
               alignment: Alignment.centerLeft,
-              child: Text("Account Name",
-                  style: TextStyle(
-                      fontWeight: FontWeight.w600, color: textColor)),
+              child: Text(
+                "Account Name",
+                style: TextStyle(fontWeight: FontWeight.w600, color: textColor),
+              ),
             ),
             const SizedBox(height: 8),
             Container(
@@ -150,8 +171,10 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
                   hintText: "Enter account holder name",
                   hintStyle: TextStyle(color: hintColor),
                   border: InputBorder.none,
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 16,
+                  ),
                 ),
               ),
             ),
@@ -162,9 +185,13 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF141827) : const Color(0xFFF3F6FB),
+                color: isDark
+                    ? const Color(0xFF141827)
+                    : const Color(0xFFF3F6FB),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: isDark ? Colors.white12 : Colors.black12),
+                border: Border.all(
+                  color: isDark ? Colors.white12 : Colors.black12,
+                ),
               ),
               child: Row(
                 children: [
@@ -174,10 +201,13 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text("Secure & Encrypted",
-                            style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: textColor)),
+                        Text(
+                          "Secure & Encrypted",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            color: textColor,
+                          ),
+                        ),
                         const SizedBox(height: 4),
                         Text(
                           "Your banking information is encrypted and secure. We never store your login credentials.",
@@ -192,34 +222,22 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
             const SizedBox(height: 30),
 
             // Add Account Button
-             SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0B1A6C),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12)),
-                ),
-                onPressed: () async {
-                  // Proceed to verification step; when it returns true, bubble up
-                  final ok = await Navigator.push<bool>(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const VerifyPrimaryAccountScreen(),
-                    ),
-                  );
-                  if (ok == true) {
-                    if (mounted) Navigator.pop(context, true);
-                  }
-                },
-                child: const Text(
-                  "Add Account",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
+            HoopButton(
+              buttonText: "Add Account",
+              onPressed: () async {
+                // Proceed to verification step; when it returns true, bubble up
+                final ok = await Navigator.push<bool>(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const VerifyPrimaryAccountScreen(),
+                  ),
+                );
+                if (ok == true) {
+                  if (mounted) Navigator.pop(context, true);
+                }
+              },
             ),
-        
+
             const SizedBox(height: 16),
           ],
         ),
@@ -227,11 +245,6 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
     );
   }
 }
-
-
-
-
-
 
 // import 'package:flutter/material.dart';
 
@@ -243,7 +256,8 @@ class VerifyPrimaryAccountScreen extends StatefulWidget {
       _VerifyPrimaryAccountScreenState();
 }
 
-class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen> {
+class _VerifyPrimaryAccountScreenState
+    extends State<VerifyPrimaryAccountScreen> {
   bool isAgreed = false;
   Duration remaining = const Duration(minutes: 9, seconds: 46);
   late final Ticker _ticker;
@@ -301,11 +315,16 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1C1F2E) : const Color(0xFFF5F7FB),
+                color: isDark
+                    ? const Color(0xFF1C1F2E)
+                    : const Color(0xFFF5F7FB),
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: const Icon(Icons.account_balance_outlined,
-                  color: Colors.orangeAccent, size: 42),
+              child: const Icon(
+                Icons.account_balance_outlined,
+                color: Colors.orangeAccent,
+                size: 42,
+              ),
             ),
             const SizedBox(height: 20),
 
@@ -337,9 +356,13 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Consent",
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, color: textColor)),
+                  Text(
+                    "Consent",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     "I authorize Hoop to debit my primary bank account for contributions and payouts.",
@@ -351,17 +374,21 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
                       Checkbox(
                         value: isAgreed,
                         onChanged: (v) => setState(() => isAgreed = v ?? false),
-                        activeColor:
-                            isDark ? Colors.blueAccent : const Color(0xFF1E3A8A),
+                        activeColor: isDark
+                            ? Colors.blueAccent
+                            : const Color(0xFF1E3A8A),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(4)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
                       ),
                       Expanded(
-                        child: Text("I agree to the mandate terms.",
-                            style: TextStyle(color: textColor)),
+                        child: Text(
+                          "I agree to the mandate terms.",
+                          style: TextStyle(color: textColor),
+                        ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -379,9 +406,13 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Verify with Micro-Transfer",
-                      style: TextStyle(
-                          fontWeight: FontWeight.w600, color: textColor)),
+                  Text(
+                    "Verify with Micro-Transfer",
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Text(
                     "Send ₦100.00 to verify your mandate.",
@@ -391,12 +422,22 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
 
                   _buildRow("Amount", "₦100.00", textColor, subTextColor),
                   const SizedBox(height: 8),
-                  _buildRow("Account Number", "0123456789", textColor, subTextColor),
+                  _buildRow(
+                    "Account Number",
+                    "0123456789",
+                    textColor,
+                    subTextColor,
+                  ),
                   const SizedBox(height: 8),
                   _buildRow("Bank", "GTBank (058)", textColor, subTextColor),
                   const SizedBox(height: 8),
-                  _buildRow("Time remaining", _formattedTime, textColor, subTextColor,
-                      isTime: true),
+                  _buildRow(
+                    "Time remaining",
+                    _formattedTime,
+                    textColor,
+                    subTextColor,
+                    isTime: true,
+                  ),
                   const SizedBox(height: 20),
 
                   // Buttons
@@ -407,13 +448,16 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFF0B1A6C),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: isAgreed
                               ? () async {
+                                  await OnboardingService.markOnboardingComplete();
                                   // Mark setup complete and return true to previous screen
-                                  final prefs = await SharedPreferences.getInstance();
+                                  final prefs =
+                                      await SharedPreferences.getInstance();
                                   await prefs.setBool('needsSetup', false);
                                   if (!mounted) return;
                                   Navigator.pop(context, true);
@@ -422,7 +466,9 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
                           child: const Text(
                             "I have sent ₦100.00",
                             style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 15),
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
                         ),
                       ),
@@ -431,11 +477,13 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
                         child: OutlinedButton(
                           style: OutlinedButton.styleFrom(
                             side: BorderSide(
-                                color: isDark
-                                    ? Colors.white30
-                                    : const Color(0xFF1E3A8A)),
+                              color: isDark
+                                  ? Colors.white30
+                                  : const Color(0xFF1E3A8A),
+                            ),
                             shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8)),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                           ),
                           onPressed: () => Navigator.pop(context),
@@ -452,7 +500,7 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
                         ),
                       ),
                     ],
-                  )
+                  ),
                 ],
               ),
             ),
@@ -463,20 +511,32 @@ class _VerifyPrimaryAccountScreenState extends State<VerifyPrimaryAccountScreen>
     );
   }
 
-  Widget _buildRow(String label, String value, Color textColor, Color subTextColor,
-      {bool isTime = false}) {
+  Widget _buildRow(
+    String label,
+    String value,
+    Color textColor,
+    Color subTextColor, {
+    bool isTime = false,
+  }) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: TextStyle(
-                color: subTextColor, fontWeight: FontWeight.w500, fontSize: 14)),
-        Text(value,
-            style: TextStyle(
-              color: isTime ? Colors.blueAccent : textColor,
-              fontWeight: FontWeight.w600,
-              fontSize: 14,
-            )),
+        Text(
+          label,
+          style: TextStyle(
+            color: subTextColor,
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+          ),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            color: isTime ? Colors.blueAccent : textColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
       ],
     );
   }
@@ -511,13 +571,8 @@ class Ticker {
   void dispose() => stop();
 }
 
-
-
-
-
 /// ✅ Success Screen (after Add Account)
 // import 'package:flutter/material.dart';
-
 
 class AddAccountScreen extends StatelessWidget {
   const AddAccountScreen({super.key});
@@ -532,10 +587,7 @@ class AddAccountScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text(
           "Setup Primary Account",
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
         backgroundColor: Colors.transparent,
@@ -552,7 +604,9 @@ class AddAccountScreen extends StatelessWidget {
                 labelText: "Bank Name",
                 hintText: "Select your bank",
                 filled: true,
-                fillColor: isDark ? const Color(0xFF1E2235) : const Color(0xFFF6F6F9),
+                fillColor: isDark
+                    ? const Color(0xFF1E2235)
+                    : const Color(0xFFF6F6F9),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide.none,
@@ -565,7 +619,9 @@ class AddAccountScreen extends StatelessWidget {
                 labelText: "Account Number",
                 hintText: "Enter your account number",
                 filled: true,
-                fillColor: isDark ? const Color(0xFF1E2235) : const Color(0xFFF6F6F9),
+                fillColor: isDark
+                    ? const Color(0xFF1E2235)
+                    : const Color(0xFFF6F6F9),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide.none,
@@ -579,7 +635,9 @@ class AddAccountScreen extends StatelessWidget {
                 labelText: "Account Name",
                 hintText: "Enter your account name",
                 filled: true,
-                fillColor: isDark ? const Color(0xFF1E2235) : const Color(0xFFF6F6F9),
+                fillColor: isDark
+                    ? const Color(0xFF1E2235)
+                    : const Color(0xFFF6F6F9),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide.none,
@@ -616,17 +674,6 @@ class AddAccountScreen extends StatelessWidget {
   }
 }
 
-
-
-
-
-
-
-
-
-
-
-
 class SuccessScreen extends StatelessWidget {
   const SuccessScreen({super.key});
 
@@ -656,7 +703,9 @@ class SuccessScreen extends StatelessWidget {
             const SizedBox(height: 20),
             Container(
               decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1E2235) : const Color(0xFFF2F4FF),
+                color: isDark
+                    ? const Color(0xFF1E2235)
+                    : const Color(0xFFF2F4FF),
                 shape: BoxShape.circle,
               ),
               padding: const EdgeInsets.all(15),
@@ -667,14 +716,19 @@ class SuccessScreen extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 20),
-            Text("Setup Primary Account",
-                style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: textColor)),
+            Text(
+              "Setup Primary Account",
+              style: TextStyle(
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+            ),
             const SizedBox(height: 5),
-            Text("Add your bank account for transactions",
-                style: TextStyle(color: subColor, fontSize: 15)),
+            Text(
+              "Add your bank account for transactions",
+              style: TextStyle(color: subColor, fontSize: 15),
+            ),
             const SizedBox(height: 30),
 
             // Consent section
@@ -689,9 +743,13 @@ class SuccessScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Consent",
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: textColor)),
+                  Text(
+                    "Consent",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 10),
                   Text(
                     "I authorize Hoop to debit my primary bank account for contributions and payouts.",
@@ -707,9 +765,10 @@ class SuccessScreen extends StatelessWidget {
                       ),
                       const SizedBox(width: 5),
                       Expanded(
-                        child: Text("I agree to the mandate terms.",
-                            style:
-                                TextStyle(color: subColor, fontSize: 14)),
+                        child: Text(
+                          "I agree to the mandate terms.",
+                          style: TextStyle(color: subColor, fontSize: 14),
+                        ),
                       ),
                     ],
                   ),
@@ -730,20 +789,41 @@ class SuccessScreen extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text("Verify with Micro-Transfer",
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: textColor)),
+                  Text(
+                    "Verify with Micro-Transfer",
+                    style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: textColor,
+                    ),
+                  ),
                   const SizedBox(height: 8),
-                  Text("Send ₦100.00 to verify your mandate.",
-                      style: TextStyle(color: subColor, fontSize: 14)),
+                  Text(
+                    "Send ₦100.00 to verify your mandate.",
+                    style: TextStyle(color: subColor, fontSize: 14),
+                  ),
                   const SizedBox(height: 15),
                   _buildKeyValueRow("Amount", "₦100.00", textColor, subColor),
                   const SizedBox(height: 8),
-                  _buildKeyValueRow("Account Number", "0123456789", textColor, subColor),
+                  _buildKeyValueRow(
+                    "Account Number",
+                    "0123456789",
+                    textColor,
+                    subColor,
+                  ),
                   const SizedBox(height: 8),
-                  _buildKeyValueRow("Bank", "GTBank (058)", textColor, subColor),
+                  _buildKeyValueRow(
+                    "Bank",
+                    "GTBank (058)",
+                    textColor,
+                    subColor,
+                  ),
                   const SizedBox(height: 8),
-                  _buildKeyValueRow("Time remaining", "09:46", textColor, subColor),
+                  _buildKeyValueRow(
+                    "Time remaining",
+                    "09:46",
+                    textColor,
+                    subColor,
+                  ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -752,13 +832,15 @@ class SuccessScreen extends StatelessWidget {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0B1A6C),
                         shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10)),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
                       ),
                       onPressed: () {
                         Navigator.pushAndRemoveUntil(
                           context,
                           MaterialPageRoute(
-                              builder: (_) => const MandateActivatedScreen()),
+                            builder: (_) => const MandateActivatedScreen(),
+                          ),
                           (route) => false,
                         );
                       },
@@ -769,7 +851,7 @@ class SuccessScreen extends StatelessWidget {
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text("Back"),
-                  )
+                  ),
                 ],
               ),
             ),
@@ -780,22 +862,27 @@ class SuccessScreen extends StatelessWidget {
   }
 
   Widget _buildKeyValueRow(
-      String key, String value, Color textColor, Color subColor) {
+    String key,
+    String value,
+    Color textColor,
+    Color subColor,
+  ) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(key, style: TextStyle(color: subColor, fontSize: 14)),
-        Text(value,
-            style: TextStyle(
-                color: textColor, fontWeight: FontWeight.w600, fontSize: 14)),
+        Text(
+          value,
+          style: TextStyle(
+            color: textColor,
+            fontWeight: FontWeight.w600,
+            fontSize: 14,
+          ),
+        ),
       ],
     );
   }
 }
-
-
-
-
 
 class MandateActivatedScreen extends StatelessWidget {
   const MandateActivatedScreen({super.key});
@@ -815,10 +902,7 @@ class MandateActivatedScreen extends StatelessWidget {
         elevation: 0,
         title: Text(
           "Setup Primary Account",
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
         ),
         centerTitle: true,
       ),
@@ -901,7 +985,8 @@ class MandateActivatedScreen extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF0B1A6C),
                   shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                 ),
                 onPressed: () {
                   Navigator.pushAndRemoveUntil(

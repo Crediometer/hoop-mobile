@@ -1,1 +1,1 @@
-final BASE_URL = "https://api-sandbox.hoop.africa/api/v1/";
+final BASE_URL = "https://api-sandbox.hoop.africa/api/v1";
