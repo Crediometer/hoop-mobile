@@ -14,7 +14,6 @@ import 'package:hoop/services/base_http.dart';
 class TransactionsHttpService extends BaseHttpService {
   TransactionsHttpService({
     required String baseUrl,
-    required super.tokenManager,
   }) : super(baseUrl: baseUrl);
 
   // ========== TRANSACTION HISTORY ==========
@@ -121,7 +120,6 @@ TransactionsHttpService getTransactionsService({
 }) {
   _transactionsServiceInstance ??= TransactionsHttpService(
     baseUrl: baseUrl,
-    tokenManager: tokenManager,
   );
   return _transactionsServiceInstance!;
 }

@@ -1,0 +1,109 @@
+name: Flutter CI/CD
+
+on:
+  push:
+    branches: [dev, staging, main]
+
+env:
+  FLUTTER_VERSION: "3.19.0"
+
+jobs:
+
+  android:
+    runs-on: macos-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - run: flutter pub get
+      - run: flutter pub run cider bump build --build $GITHUB_RUN_NUMBER
+
+      # Android signing
+      - name: Decode keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload.jks
+
+      - name: Create key.properties
+        run: |
+          cat <<EOF > android/key.properties
+          storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=upload.jks
+          EOF
+
+      # Build per env
+      - name: Build Android
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
+            flutter build appbundle -t lib/main_dev.dart
+          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+            flutter build appbundle -t lib/main_staging.dart
+          else
+            flutter build appbundle -t lib/main_prod.dart
+          fi
+
+      # Deploy
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: 3.2
+          bundler-cache: true
+
+      - name: Deploy Android
+        env:
+          PLAY_STORE_JSON: ${{ secrets.PLAY_STORE_JSON }}
+        run: |
+          echo "$PLAY_STORE_JSON" > android/play.json
+
+          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
+            bundle exec fastlane android internal
+          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+            bundle exec fastlane android beta
+          else
+            bundle exec fastlane android prod
+          fi
+
+
+  ios:
+    runs-on: macos-latest
+    needs: android
+    environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+
+      - run: flutter pub get
+      - run: flutter pub run cider bump build --build $GITHUB_RUN_NUMBER
+
+      - name: Build iOS
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
+            flutter build ios -t lib/main_dev.dart --no-codesign
+          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+            flutter build ios -t lib/main_staging.dart --no-codesign
+          else
+            flutter build ios -t lib/main_prod.dart --no-codesign
+          fi
+
+      - name: Deploy iOS
+        env:
+          APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
+          APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
+          APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
+            bundle exec fastlane ios testflight_internal
+          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+            bundle exec fastlane ios testflight_external
+          else
+            bundle exec fastlane ios release
+          fi

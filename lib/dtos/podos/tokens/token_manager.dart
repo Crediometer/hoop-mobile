@@ -1,4 +1,6 @@
 // lib/dtos/models/tokens/token_manager.dart (updated abstract class)
+import 'package:hoop/dtos/podos/tokens/token_pref.dart';
+
 abstract class TokenManager {
   Future<String?> getToken();
   Future<String?> getRefreshToken();
@@ -12,4 +14,17 @@ abstract class TokenManager {
   Future<int?> getUserId();
   Future<void> saveUserId(int userId);
   Future<void> saveTokenExpiry(int expiresInSeconds);
+
+  static TokenManager? _instance;
+
+  static TokenManager get instance {
+    if (_instance == null) {
+      _instance = SharedPrefsTokenManager();
+    }
+    return _instance!;
+  }
+
+  static void setInstance(TokenManager manager) {
+    _instance = manager;
+  }
 }

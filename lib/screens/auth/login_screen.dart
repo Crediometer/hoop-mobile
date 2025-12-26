@@ -51,7 +51,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (!response.success) {
         setState(() {
-          errorMessage = response.error ?? 'Login failed';
+          errorMessage = response.error ?? response.message ?? 'Login failed';
           isLoading = false;
         });
 
@@ -260,7 +260,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   isLoading: isLoading,
                   onPressed: _login,
                 ),
-               
 
                 const SizedBox(height: 24),
 

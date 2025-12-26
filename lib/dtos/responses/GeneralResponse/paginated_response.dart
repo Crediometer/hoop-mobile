@@ -1,4 +1,6 @@
 // lib/models/paginated_response.dart
+import 'dart:developer';
+
 class PaginatedResponse<T> {
   final List<T> content;
   final int page;
@@ -20,6 +22,8 @@ class PaginatedResponse<T> {
     Map<String, dynamic> json,
     T Function(dynamic) fromJsonT,
   ) {
+
+    log("???json,,, $json");
     return PaginatedResponse<T>(
       content: (json['content'] as List?)?.map((item) => fromJsonT(item)).toList() ?? [],
       page: json['page'] ?? 0,

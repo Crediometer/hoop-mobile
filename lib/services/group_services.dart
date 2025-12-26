@@ -1,4 +1,5 @@
 // lib/services/group_http_service.dart
+import 'package:hoop/constants/strings.dart';
 import 'package:hoop/dtos/podos/tokens/token_manager.dart';
 import 'package:hoop/dtos/responses/ApiResponse.dart';
 import 'package:hoop/dtos/responses/GeneralResponse/paginated_response.dart';
@@ -56,10 +57,7 @@ class CreateGroupRequest {
 
 // Group HTTP Service that extends BaseHttpService
 class GroupHttpService extends BaseHttpService {
-  GroupHttpService({
-    required String baseUrl,
-    required super.tokenManager,
-  }) : super(baseUrl: baseUrl);
+  GroupHttpService() : super(baseUrl: BASE_URL);
 
   // ========== GROUP MANAGEMENT ==========
 
@@ -70,10 +68,7 @@ class GroupHttpService extends BaseHttpService {
   }) async {
     return getTyped<PaginatedResponse<Group>>(
       'groups',
-      queryParameters: {
-        'page': page,
-        'limit': limit,
-      },
+      queryParameters: {'page': page, 'limit': limit},
       fromJson: (json) => PaginatedResponse<Group>.fromJson(
         json,
         (item) => Group.fromJson(item),
@@ -112,11 +107,7 @@ class GroupHttpService extends BaseHttpService {
     int limit = 20,
     String? tab,
   }) async {
-    final params = {
-      'page': page,
-      'size': limit,
-      if (tab != null) 'tab': tab,
-    };
+    final params = {'page': page, 'size': limit, if (tab != null) 'tab': tab};
 
     return getTyped<PaginatedResponse<Group>>(
       'groups/my-groups',
@@ -196,7 +187,7 @@ class GroupHttpService extends BaseHttpService {
 
   // Update allow group message
   Future<ApiResponse<Group>> updateAllowGroupMessage(
-    String groupId,
+    int groupId,
     bool value,
   ) async {
     return patchTyped<Group>(
@@ -208,7 +199,7 @@ class GroupHttpService extends BaseHttpService {
 
   // Update allow group video call
   Future<ApiResponse<Group>> updateAllowGroupVideoCall(
-    String groupId,
+    int groupId,
     bool value,
   ) async {
     return patchTyped<Group>(
@@ -282,7 +273,7 @@ class GroupHttpService extends BaseHttpService {
   }
 
   // Get community groups
-  Future<ApiResponse<PaginatedResponse<Group>>> getCommunityGroups({
+  Future<ApiResponse<PaginatedResponse<GroupWithScore>>> getCommunityGroups({
     double? lat,
     double? lng,
     int page = 0,
@@ -295,13 +286,14 @@ class GroupHttpService extends BaseHttpService {
       if (lng != null) 'lng': lng,
     };
 
-    return getTyped<PaginatedResponse<Group>>(
+    return getTyped<PaginatedResponse<GroupWithScore>>(
       'community/groups',
       queryParameters: params,
-      fromJson: (json) => PaginatedResponse<Group>.fromJson(
+      fromJson: (json) => PaginatedResponse<GroupWithScore>.fromJson(
         json,
-        (item) => Group.fromJson(item),
+        (item) => GroupWithScore.fromJson(item),
       ),
+      requiresAuth: true
     );
   }
 
@@ -315,10 +307,7 @@ class GroupHttpService extends BaseHttpService {
   }) async {
     return postTyped<GroupMember>(
       'groups/$groupId/join',
-      body: {
-        'message': message,
-        'slots': slots,
-      },
+      body: {'message': message, 'slots': slots},
       fromJson: (json) => GroupMember.fromJson(json),
     );
   }
@@ -392,10 +381,7 @@ class GroupHttpService extends BaseHttpService {
   }) async {
     return postTyped<List<PayoutOrderItem>>(
       'groups/$groupId/payout-order',
-      body: {
-        'memberIds': memberIds,
-        'cycleNumber': cycleNumber,
-      },
+      body: {'memberIds': memberIds, 'cycleNumber': cycleNumber},
       fromJson: (json) {
         if (json is List) {
           return json.map((item) => PayoutOrderItem.fromJson(item)).toList();
@@ -414,10 +400,7 @@ class GroupHttpService extends BaseHttpService {
   }) async {
     return patchTyped<List<PayoutOrderItem>>(
       'groups/$groupId/payout-order/$memberId/position',
-      body: {
-        'newPosition': newPosition,
-        'cycleNumber': cycleNumber,
-      },
+      body: {'newPosition': newPosition, 'cycleNumber': cycleNumber},
       fromJson: (json) {
         if (json is List) {
           return json.map((item) => PayoutOrderItem.fromJson(item)).toList();
@@ -474,7 +457,7 @@ class GroupHttpService extends BaseHttpService {
   }
 
   // Get my join requests
-  Future<ApiResponse<PaginatedResponse<GroupJoinRequest>>> getMyJoinRequests({
+  Future<ApiResponse<List<GroupJoinRequest>>> getMyJoinRequests({
     required String status,
     int? page,
     int? limit,
@@ -485,11 +468,11 @@ class GroupHttpService extends BaseHttpService {
       if (limit != null) 'size': limit,
     };
 
-    return getTyped<PaginatedResponse<GroupJoinRequest>>(
+    return getTyped<List<GroupJoinRequest>>(
       'groups/my-join-requests',
       queryParameters: params,
-      fromJson: (json) => PaginatedResponse<GroupJoinRequest>.fromJson(
-        json,
+      fromJson: (json) => json.map(
+        
         (item) => GroupJoinRequest.fromJson(item),
       ),
     );
@@ -531,10 +514,8 @@ class GroupHttpService extends BaseHttpService {
   }
 
   // Get group contributions
-  Future<ApiResponse<PaginatedResponse<GroupContribution>>> getGroupContributions(
-    String groupId, {
-    int page = 1,
-  }) async {
+  Future<ApiResponse<PaginatedResponse<GroupContribution>>>
+  getGroupContributions(String groupId, {int page = 1}) async {
     return getTyped<PaginatedResponse<GroupContribution>>(
       'groups/$groupId/contributions',
       queryParameters: {'page': page},
@@ -616,13 +597,7 @@ class GroupHttpService extends BaseHttpService {
 // Singleton instance
 GroupHttpService? _groupServiceInstance;
 
-GroupHttpService getGroupService({
-  required String baseUrl,
-  required TokenManager tokenManager,
-}) {
-  _groupServiceInstance ??= GroupHttpService(
-    baseUrl: baseUrl,
-    tokenManager: tokenManager,
-  );
+GroupHttpService getGroupService({required String baseUrl}) {
+  _groupServiceInstance ??= GroupHttpService();
   return _groupServiceInstance!;
 }

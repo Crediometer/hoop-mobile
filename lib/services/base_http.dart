@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:developer';
 import 'package:flutter/foundation.dart';
 import 'package:hoop/dtos/podos/exceptions/UnauthorizedException.dart';
 import 'package:hoop/dtos/podos/exceptions/ValidationException.dart';
@@ -11,13 +12,12 @@ import 'package:http/http.dart' as http;
 // Main Base HTTP Service
 class BaseHttpService {
   final String baseUrl;
-  final TokenManager? tokenManager;
+  final TokenManager? tokenManager = TokenManager.instance;
   final Duration timeoutDuration;
   final Map<String, String> defaultHeaders;
 
   BaseHttpService({
     required this.baseUrl,
-    this.tokenManager,
     this.timeoutDuration = const Duration(seconds: 30),
     Map<String, String>? defaultHeaders,
   }) : defaultHeaders = {
@@ -46,7 +46,7 @@ class BaseHttpService {
 
   // Response interceptor - called after each response
   Future<http.Response> _interceptResponse(http.Response response) async {
-    print("response???? ${response.statusCode}");
+    print("response???? ${response.body}");
     if (response.statusCode == 401) {
       // Token expired, try to refresh
       if (tokenManager != null) {
@@ -241,7 +241,7 @@ class BaseHttpService {
       queryParameters: queryParameters,
       requiresAuth: requiresAuth,
     );
-
+log("response?? $response");
     return _parseTypedResponse<T>(response, fromJson);
   }
 

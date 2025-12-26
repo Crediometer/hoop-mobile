@@ -81,7 +81,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (context) => GroupDetailScreen(group: widget.group),
+                builder: (context) => GroupDetailScreen(groupId: widget.group['id'].toString()),
               ),
             );
           },

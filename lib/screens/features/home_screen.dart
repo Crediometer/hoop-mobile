@@ -18,28 +18,28 @@ class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final OnboardingService _onboardingService = OnboardingService();
 
-  // Cache static tabs
-  late final List<Widget> _staticTabs = const [
-    GroupsTab(),
-    ShinersTab(),
-    ActivityTab(),
-    ProfileTab(),
+  // Cache static tabs - REMOVE Consumer from here
+  late final List<Widget> _staticTabs = [
+    const GroupsTab(), 
+    const ShinersTab(),
+    const ActivityTab(),
+    const ProfileTab(),
   ];
 
   // Icons for bottom nav
   final List<IconData> _navIcons = [
-    Icons.people_outline,        // Community
-    Icons.chat_bubble_outline,   // Chat
-    Icons.videocam_outlined,     // Video
-    Icons.credit_card,           // Wallet
-    Icons.person_outline,        // Profile
+    Icons.people_outline, // Community
+    Icons.chat_bubble_outline, // Chat
+    Icons.videocam_outlined, // Video
+    Icons.credit_card, // Wallet
+    Icons.person_outline, // Profile
   ];
 
   // Tab labels
   final List<String> _tabLabels = [
     'Community',
     'Groups',
-    'Shiners',
+    'Spotlight',
     'Activity',
     'Profile',
   ];
@@ -52,11 +52,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildBody(bool needsOnboarding) {
     if (_currentIndex == 0) {
-      return needsOnboarding 
+      return needsOnboarding
           ? const PrimarySetupRequiredScreen()
           : const CommunityScreen();
     }
-    
+
     // Return cached tabs for other indices (index 1-4)
     return _staticTabs[_currentIndex - 1];
   }
@@ -95,10 +95,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   onTap: () => setState(() => _currentIndex = index),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
                     decoration: BoxDecoration(
                       color: selected
-                          ? (isDark ? const Color(0xFF1C1F28) : Colors.grey[200]!)
+                          ? (isDark
+                                ? const Color(0xFF1C1F28)
+                                : Colors.grey[200]!)
                           : Colors.transparent,
                       borderRadius: BorderRadius.circular(14),
                     ),
@@ -126,8 +131,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                     color: Colors.red,
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
-                                      color: isDark 
-                                          ? const Color(0xFF0F111A) 
+                                      color: isDark
+                                          ? const Color(0xFF0F111A)
                                           : Colors.white,
                                       width: 1.5,
                                     ),

@@ -1,27 +1,30 @@
 // lib/models/spotlight_video.dart
+import 'dart:developer';
+
 import 'package:hoop/dtos/podos/enums/SpotlightVideoStatus.dart';
 
 class SpotlightVideo {
   final int id;
-  final String videoId;
-  final String title;
-  final String userName;
-  final String userAvatar;
+  final String? videoId;
+  final String? title;
+  final String? userName;
+  final String? userAvatar;
   final String? userBadge;
-  final bool isVerified;
-  final String description;
-  final String youtubeVideoId;
-  final String thumbnail;
-  final String duration;
-  final int views;
-  final int likes;
-  final String postedDate;
-  final String category;
-  final String achievement;
-  final List<String> tags;
-  final DateTime createdAt;
-  final DateTime updatedAt;
-  final SpotlightVideoStatus status;
+  final bool? isVerified;
+  final String? description;
+  final String? youtubeVideoId;
+  final String? thumbnail;
+  final String? duration;
+  final int? views;
+  final int? likes;
+  final bool? isLiked;
+  final String? postedDate;
+  final String? category;
+  final String? achievement;
+  final List<String>? tags;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final SpotlightVideoStatus? status;
 
   SpotlightVideo({
     required this.id,
@@ -32,6 +35,7 @@ class SpotlightVideo {
     this.userBadge,
     required this.isVerified,
     required this.description,
+    this.isLiked = false,
     required this.youtubeVideoId,
     required this.thumbnail,
     required this.duration,
@@ -47,6 +51,7 @@ class SpotlightVideo {
   });
 
   factory SpotlightVideo.fromJson(Map<String, dynamic> json) {
+    log("json?? $json");
     return SpotlightVideo(
       id: json['id'] ?? 0,
       videoId: json['videoId'] ?? '',
@@ -90,18 +95,22 @@ class SpotlightVideo {
       'category': category,
       'achievement': achievement,
       'tags': tags,
-      'createdAt': createdAt.toIso8601String(),
-      'updatedAt': updatedAt.toIso8601String(),
-      'status': status.name,
+      'createdAt': createdAt?.toIso8601String(),
+      'updatedAt': updatedAt?.toIso8601String(),
+      'status': status?.name,
     };
   }
 
-  static SpotlightVideoStatus _parseSpotlightVideoStatus(String status) {
-    switch (status.toUpperCase()) {
-      case 'ACTIVE': return SpotlightVideoStatus.active;
-      case 'INACTIVE': return SpotlightVideoStatus.inactive;
-      case 'PENDING': return SpotlightVideoStatus.pending;
-      default: return SpotlightVideoStatus.active;
+  static SpotlightVideoStatus _parseSpotlightVideoStatus(String? status) {
+    switch ((status ?? "").toUpperCase()) {
+      case 'ACTIVE':
+        return SpotlightVideoStatus.active;
+      case 'INACTIVE':
+        return SpotlightVideoStatus.inactive;
+      case 'PENDING':
+        return SpotlightVideoStatus.pending;
+      default:
+        return SpotlightVideoStatus.active;
     }
   }
 }

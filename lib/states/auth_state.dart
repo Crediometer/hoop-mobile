@@ -104,7 +104,7 @@ class AuthProvider extends ChangeNotifier {
         await _apiService.storeTokens(
           token: data.token,
           refreshToken: "",
-          expiresIn: data.expiresIn??0,
+          expiresIn: data.expiresIn ?? 0,
           userId: data.userId,
         );
 
@@ -388,7 +388,10 @@ class AuthProvider extends ChangeNotifier {
       }
       return {
         'success': false,
-        'message': response.error ?? 'Failed to send verification code',
+        'message':
+            response.error ??
+            response.message ??
+            'Failed to send verification code',
       };
     } catch (error) {
       print('Send email verification failed: $error');

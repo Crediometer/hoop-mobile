@@ -15,12 +15,7 @@ import 'package:hoop/dtos/responses/User.dart';
 import 'package:hoop/services/base_http.dart';
 
 class AuthHttpService extends BaseHttpService {
-  AuthHttpService({
-    TokenManager? tokenManager,
-  }) : super(
-          baseUrl: BASE_URL,
-          tokenManager: tokenManager,
-        );
+  AuthHttpService() : super(baseUrl: BASE_URL);
 
   // ==================== AUTHENTICATION METHODS ====================
 
@@ -201,7 +196,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Update appearance
   Future<ApiResponse<Map<String, dynamic>>> updateAppearance(
-      String appearance) async {
+    String appearance,
+  ) async {
     return putTyped<Map<String, dynamic>>(
       'user/update-appearance',
       body: {'appearance': appearance},
@@ -243,7 +239,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Send phone verification code
   Future<ApiResponse<Map<String, dynamic>>> sendPhoneVerification(
-      String phone) async {
+    String phone,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'auth/phone/send-code',
       body: {'phone': phone},
@@ -254,7 +251,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Verify phone number with code
   Future<ApiResponse<Map<String, dynamic>>> verifyPhone(
-      PhoneVerificationData data) async {
+    PhoneVerificationData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'auth/phone/verify',
       body: data.toJson(),
@@ -267,7 +265,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Verify facial identity
   Future<ApiResponse<Map<String, dynamic>>> verifyFacial(
-      FacialVerificationData data) async {
+    FacialVerificationData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'auth/facial/verify',
       body: data.toJson(),
@@ -307,7 +306,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Disable two-factor authentication
   Future<ApiResponse<Map<String, dynamic>>> disableTwoFactor(
-      String code) async {
+    String code,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'auth/2fa/disable',
       body: {'code': code},
@@ -316,8 +316,7 @@ class AuthHttpService extends BaseHttpService {
   }
 
   // Verify two-factor authentication code
-  Future<ApiResponse<Map<String, dynamic>>> verifyTwoFactor(
-      String code) async {
+  Future<ApiResponse<Map<String, dynamic>>> verifyTwoFactor(String code) async {
     return postTyped<Map<String, dynamic>>(
       'auth/2fa/verify',
       body: {'code': code},
@@ -329,7 +328,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Change password
   Future<ApiResponse<Map<String, dynamic>>> changePassword(
-      ChangePasswordData data) async {
+    ChangePasswordData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'user/change-password',
       body: data.toJson(),
@@ -338,8 +338,7 @@ class AuthHttpService extends BaseHttpService {
   }
 
   // Request password reset
-  Future<ApiResponse<Map<String, dynamic>>> forgotPassword(
-      String email) async {
+  Future<ApiResponse<Map<String, dynamic>>> forgotPassword(String email) async {
     return postTyped<Map<String, dynamic>>(
       'forgotPwd/initiate',
       body: {'email': email},
@@ -350,7 +349,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Verify password reset token
   Future<ApiResponse<Map<String, dynamic>>> verifyPasswordResetToken(
-      VerifyResetTokenData data) async {
+    VerifyResetTokenData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'forgotPwd/verify-otp',
       body: data.toJson(),
@@ -361,7 +361,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Reset password with verified token
   Future<ApiResponse<Map<String, dynamic>>> resetPassword(
-      ResetPasswordData data) async {
+    ResetPasswordData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'forgotPwd/reset-password',
       body: data.toJson(),
@@ -374,7 +375,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Send email verification code
   Future<ApiResponse<Map<String, dynamic>>> sendEmailVerification(
-      String email) async {
+    String email,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'auth/verify-email',
       body: {'email': email},
@@ -396,7 +398,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Complete personal information
   Future<ApiResponse<Map<String, dynamic>>> completePersonalInfo(
-      PersonalInfoData data) async {
+    PersonalInfoData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'completeOnboarding/personal-info',
       body: data.toJson(),
@@ -406,7 +409,8 @@ class AuthHttpService extends BaseHttpService {
 
   // Validate BVN
   Future<ApiResponse<Map<String, dynamic>>> validateBvn(
-      ValidateBvnData data) async {
+    ValidateBvnData data,
+  ) async {
     return postTyped<Map<String, dynamic>>(
       'completeOnboarding/validate-bvn',
       body: data.toJson(),
@@ -436,10 +440,7 @@ class AuthHttpService extends BaseHttpService {
   ) async {
     return postTyped<Map<String, dynamic>>(
       'accounts/verify',
-      body: {
-        'bankCode': bankCode,
-        'accountNumber': accountNumber,
-      },
+      body: {'bankCode': bankCode, 'accountNumber': accountNumber},
       fromJson: (json) => json as Map<String, dynamic>,
     );
   }
@@ -482,18 +483,10 @@ class Bank {
   final String code;
   final String name;
 
-  Bank({
-    required this.code,
-    required this.name,
-  });
+  Bank({required this.code, required this.name});
 
-  factory Bank.fromJson(Map<String, dynamic> json) => Bank(
-        code: json['code'] ?? '',
-        name: json['name'] ?? '',
-      );
+  factory Bank.fromJson(Map<String, dynamic> json) =>
+      Bank(code: json['code'] ?? '', name: json['name'] ?? '');
 
-  Map<String, dynamic> toJson() => {
-        'code': code,
-        'name': name,
-      };
+  Map<String, dynamic> toJson() => {'code': code, 'name': name};
 }
