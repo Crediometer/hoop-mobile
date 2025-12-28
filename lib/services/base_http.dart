@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer';
-import 'package:flutter/foundation.dart';
 import 'package:hoop/dtos/podos/exceptions/UnauthorizedException.dart';
 import 'package:hoop/dtos/podos/exceptions/ValidationException.dart';
 import 'package:hoop/dtos/podos/exceptions/networkExecption.dart';

@@ -37,9 +37,14 @@ dependencies:
   cupertino_icons: ^1.0.8
   shared_preferences: ^2.2.3
   intl: ^0.19.0
+  qr_flutter: 
+  camera_ml_vision: ^2.0.1
+  google_mlkit_face_detection:
+  image: ^4.0.17
   jwt_decoder:
   image_picker: ^1.1.1
   http: ^1.2.2
+  share_plus: 
   onesignal_flutter: ^5.3.5
   iconsax:
   provider: ^6.1.2  

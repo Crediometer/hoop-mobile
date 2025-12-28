@@ -8,6 +8,7 @@ class HoopInput extends StatelessWidget {
   final bool obscureText;
   final bool isDarkMode;
   final Widget? suffixIcon;
+  final Widget? prefixIcon;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final Function(String)? onSubmitted;
@@ -33,6 +34,7 @@ class HoopInput extends StatelessWidget {
     this.obscureText = false,
     this.isDarkMode = false,
     this.suffixIcon,
+    this.prefixIcon,
     this.keyboardType,
     this.textInputAction,
     this.onSubmitted,
@@ -53,8 +55,8 @@ class HoopInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveFillColor = fillColor ??
-        (isDarkMode ? const Color(0xFF1C1F2E) : Colors.grey[200]);
+    final effectiveFillColor =
+        fillColor ?? (isDarkMode ? const Color(0xFF1C1F2E) : Colors.grey[200]);
     final effectiveFilled = filled ?? true;
 
     return TextFormField(
@@ -84,9 +86,12 @@ class HoopInput extends StatelessWidget {
         ),
         filled: effectiveFilled,
         fillColor: effectiveFilled
-            ? (enabled ? effectiveFillColor : effectiveFillColor?.withOpacity(0.5))
+            ? (enabled
+                  ? effectiveFillColor
+                  : effectiveFillColor?.withOpacity(0.5))
             : null,
         suffixIcon: suffixIcon,
+        prefixIcon: prefixIcon,
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide(
@@ -115,11 +120,9 @@ class HoopInput extends StatelessWidget {
             width: 1.0,
           ),
         ),
-        contentPadding: contentPadding ??
-            const EdgeInsets.symmetric(
-              horizontal: 14,
-              vertical: 14,
-            ),
+        contentPadding:
+            contentPadding ??
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         errorText: errorText,
         errorStyle: const TextStyle(
           color: Colors.red,

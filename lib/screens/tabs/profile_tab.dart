@@ -3,6 +3,8 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/dtos/responses/User.dart';
+import 'package:hoop/screens/groups/create_group.dart';
+import 'package:hoop/screens/settings/community_preference.dart';
 import 'package:hoop/screens/supports/SupportTicket.dart';
 import 'package:hoop/states/auth_state.dart';
 import 'package:provider/provider.dart';
@@ -68,18 +70,15 @@ class _ProfileTabState extends State<ProfileTab> {
   Widget build(BuildContext context) {
     final authProvider = context.watch<AuthProvider>();
     final user = authProvider.user;
-    final personalInfo = user?.personalInfo;
 
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = isDark ? Colors.white : Colors.black87;
     final textSecondary = isDark ? Colors.white70 : Colors.black54;
-    final bgColor = isDark ? const Color(0xFF0F111A) : Colors.white;
 
     // Get phone number from user or personalInfo
     final String? phoneNumber = user?.phoneNumber;
 
     return Scaffold(
-      backgroundColor: bgColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
@@ -259,7 +258,14 @@ class _ProfileTabState extends State<ProfileTab> {
                 isDark: isDark,
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (builder) => GroupCreationFlowScreen(),
+                    ),
+                  );
+                },
               ),
               _buildMenuItem(
                 icon: Icons.account_balance,
@@ -303,25 +309,22 @@ class _ProfileTabState extends State<ProfileTab> {
                 textSecondary: textSecondary,
                 onTap: () {},
               ),
-               _buildMenuItem(
-                  icon: Icons.map_outlined,
-                  iconColor: const Color(0xFFF59E0B),
-                  title: 'Community Settings',
-                  subtitle:
-                      'Location & group preferences',
-                  isDark: isDark,
-                  textPrimary: textPrimary,
-                  textSecondary: textSecondary,
-                  onTap: () {
-                    _showLocationDetails(
-                      context,
-                      personalInfo!,
-                      isDark,
-                      textPrimary,
-                      textSecondary,
-                    );
-                  },
-                ),
+              _buildMenuItem(
+                icon: Icons.map_outlined,
+                iconColor: const Color(0xFFF59E0B),
+                title: 'Community Settings',
+                subtitle: 'Location & group preferences',
+                isDark: isDark,
+                textPrimary: textPrimary,
+                textSecondary: textSecondary,
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => CommunitySettingsScreen(),
+                    ),
+                  );
+                },
+              ),
               _buildMenuItem(
                 icon: Icons.security,
                 iconColor: const Color(0xFF06B6D4),
@@ -333,7 +336,6 @@ class _ProfileTabState extends State<ProfileTab> {
                 onTap: () {},
               ),
 
-               
               _buildMenuItem(
                 icon: Icons.logout,
                 iconColor: const Color(0xFFDC2626),
@@ -394,10 +396,12 @@ class _ProfileTabState extends State<ProfileTab> {
                       height: 44,
                       child: ElevatedButton(
                         onPressed: () {
-                          Navigator.push(context,  MaterialPageRoute(
-                                  builder: (context) =>
-                                       ContactSupportScreen(),
-                                ));
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ContactSupportScreen(),
+                            ),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF0a1866),
@@ -873,7 +877,6 @@ class _ProfileTabState extends State<ProfileTab> {
                         await _updateAppearance(currentAppearance);
                       },
                       buttonText: 'Apply Theme',
-
                     ),
 
                     // Apply Button

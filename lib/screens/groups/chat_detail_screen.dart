@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:hoop/screens/features/group_detail_screen.dart';
+import 'package:hoop/screens/groups/group_detail_screen.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final Map<String, dynamic> group;

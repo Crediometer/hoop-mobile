@@ -1,5 +1,8 @@
 // lib/screens/auth_wrapper.dart
 import 'package:flutter/material.dart';
+import 'package:hoop/constants/strings.dart';
+import 'package:hoop/services/websocket_service.dart';
+import 'package:hoop/states/ws/notification_socket.dart';
 import 'package:provider/provider.dart';
 import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/states/group_state.dart'; // Import GroupCommunityProvider
@@ -25,6 +28,14 @@ class MyApp extends StatelessWidget {
         ),
         ChangeNotifierProvider<GroupCommunityProvider>(
           create: (_) => GroupCommunityProvider(),
+          lazy: true,
+        ),
+        ChangeNotifierProvider<NotificationWebSocketHandler>(
+          create: (_) => NotificationWebSocketHandler(
+            socketService: BaseWebSocketService(
+              namespace: '/notifications',
+            ),
+          ),
           lazy: true,
         ),
         // Add other providers as needed

@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/state/empty_state.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
+import 'package:hoop/screens/notifications/notification_screen.dart';
+import 'package:hoop/screens/settings/community_preference.dart';
 import 'package:swipe_cards/swipe_cards.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/dtos/responses/group/Groups.dart';
@@ -25,10 +28,10 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   void initState() {
     super.initState();
-    
+
     // Initialize with empty match engine
     _matchEngine = MatchEngine(swipeItems: _swipeItems);
-    
+
     // Fetch data from backend after widget is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _fetchCommunityGroups();
@@ -37,15 +40,18 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Future<void> _fetchCommunityGroups() async {
     if (!mounted) return;
-    
+
     setState(() {
       _isLoading = true;
       _hasError = false;
     });
 
     try {
-      final provider = Provider.of<GroupCommunityProvider>(context, listen: false);
-      
+      final provider = Provider.of<GroupCommunityProvider>(
+        context,
+        listen: false,
+      );
+
       // Fetch groups from backend
       await provider.getCommunityGroups(
         lat: 6.5244, // Lagos coordinates
@@ -56,7 +62,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
       // Build swipe items from fetched data
       _buildSwipeItems(provider.communities);
-      
+
       if (mounted) {
         setState(() {
           _isLoading = false;
@@ -75,7 +81,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   void _buildSwipeItems(List<GroupWithScore> groups) {
     _swipeItems.clear();
-    
+
     for (var group in groups) {
       _swipeItems.add(
         SwipeItem(
@@ -85,7 +91,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         ),
       );
     }
-    
+
     if (mounted) {
       setState(() {
         _matchEngine = MatchEngine(swipeItems: _swipeItems);
@@ -95,9 +101,12 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Future<void> _handleJoinGroup(GroupWithScore group) async {
     try {
-      final provider = Provider.of<GroupCommunityProvider>(context, listen: false);
+      final provider = Provider.of<GroupCommunityProvider>(
+        context,
+        listen: false,
+      );
       final response = await provider.joinCommunityGroup(group.group.id);
-      
+
       if (response.success) {
         _showSnackBar("Successfully joined ${group.group.name}!");
       } else {
@@ -125,28 +134,35 @@ class _CommunityScreenState extends State<CommunityScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final bgColor = isDark ? const Color(0xff0E1318) : Colors.grey[50];
 
     return Scaffold(
-      backgroundColor: bgColor,
       body: SafeArea(
         child: Consumer<GroupCommunityProvider>(
           builder: (context, provider, child) {
             final groups = provider.communities;
-            
+
             if (_isLoading && groups.isEmpty) {
               return _buildLoadingState(isDark);
             }
-            
+
             if (_hasError && groups.isEmpty) {
               return _buildErrorState(isDark);
             }
-            
+
             if (groups.isEmpty) {
-              return _buildEmptyState(isDark);
+             return HoopEmptyState(
+              title: 'No groups found nearby',
+              subtitle: 'Try adjusting your location settings or check back later',
+              iconData:Icons.group_outlined ,
+              secondaryActionText: "Refresh Communinty",
+              onPress: _fetchCommunityGroups,
+             );
+              //  _buildEmptyState(isDark);
             }
-            
-            return selectedTab == 0 ? _buildCardsView(groups) : _buildListView(groups);
+
+            return selectedTab == 0
+                ? _buildCardsView(groups)
+                : _buildListView(groups);
           },
         ),
       ),
@@ -158,9 +174,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(
-            color: HoopTheme.primaryRed,
-          ),
+          CircularProgressIndicator(color: HoopTheme.primaryRed),
           const SizedBox(height: 20),
           Text(
             'Finding groups near you...',
@@ -181,11 +195,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline,
-              size: 60,
-              color: HoopTheme.primaryRed,
-            ),
+            Icon(Icons.error_outline, size: 60, color: HoopTheme.primaryRed),
             const SizedBox(height: 20),
             Text(
               'Could not load groups',
@@ -219,50 +229,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.group_outlined,
-              size: 60,
-              color: isDark ? Colors.white70 : Colors.grey,
-            ),
-            const SizedBox(height: 20),
-            Text(
-              'No groups found nearby',
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              'Try adjusting your location settings or check back later',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black54,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _fetchCommunityGroups,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: HoopTheme.primaryRed,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Refresh'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+
 
   Widget _buildCardsView(List<GroupWithScore> groups) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -275,9 +242,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
         const SizedBox(height: 10),
 
         Expanded(
-          child: _swipeItems.isEmpty 
-            ? _buildEmptyCardsState(isDark)
-            : _buildSwipeCards(),
+          child: _swipeItems.isEmpty
+              ? _buildEmptyCardsState(isDark)
+              : _buildSwipeCards(),
         ),
       ],
     );
@@ -296,9 +263,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
           const SizedBox(height: 20),
           Text(
             'Swipe cards will appear here',
-            style: TextStyle(
-              color: isDark ? Colors.white70 : Colors.grey[600],
-            ),
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.grey[600]),
           ),
         ],
       ),
@@ -333,12 +298,25 @@ class _CommunityScreenState extends State<CommunityScreen> {
                     Icons.notifications_outlined,
                     textPrimary,
                     isDark,
+                    () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => NotificationsScreen(),
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(width: 12),
                   _buildIconButton(
                     Icons.tune,
                     textPrimary,
                     isDark,
+                    () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => CommunitySettingsScreen(),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -367,14 +345,19 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  Widget _buildIconButton(IconData icon, Color color, bool isDark) {
+  Widget _buildIconButton(
+    IconData icon,
+    Color color,
+    bool isDark,
+    VoidCallback? callBack,
+  ) {
     return Container(
       decoration: BoxDecoration(
         color: isDark ? Colors.white10 : Colors.grey[100],
         shape: BoxShape.circle,
       ),
       child: IconButton(
-        onPressed: () {},
+        onPressed: callBack,
         icon: Icon(icon, color: color, size: 24),
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
@@ -420,7 +403,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       color: Colors.black.withOpacity(0.05),
                       blurRadius: 8,
                       offset: const Offset(0, 2),
-                    )
+                    ),
                   ]
                 : [],
           ),
@@ -470,7 +453,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
         ),
         child: const Text(
           'JOIN',
-          style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 24),
+          style: TextStyle(
+            color: Colors.green,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
       ),
       nopeTag: Container(
@@ -483,7 +470,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
         ),
         child: const Text(
           'PASS',
-          style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold, fontSize: 24),
+          style: TextStyle(
+            color: Colors.red,
+            fontWeight: FontWeight.bold,
+            fontSize: 24,
+          ),
         ),
       ),
     );
@@ -511,161 +502,191 @@ class _CommunityScreenState extends State<CommunityScreen> {
             ),
           ),
           SliverList(
-            delegate: SliverChildBuilderDelegate(
-              (context, index) {
-                final group = groups[index];
-                
-                // Use dynamic colors from theme
-                final cardColor = HoopTheme.getCardColor(index, isDark);
-                final category = group.group.tags.isNotEmpty 
-                    ? group.group.tags.first 
-                    : 'General';
-                final categoryColor = HoopTheme.getCategoryColor(category);
-                final categoryTextColor = HoopTheme.getCategoryTextColor(category);
+            delegate: SliverChildBuilderDelegate((context, index) {
+              final group = groups[index];
 
-                return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: cardColor,
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: isDark
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.04),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                  decoration: BoxDecoration(
-                                    color: categoryColor,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    category.toUpperCase(),
-                                    style: TextStyle(
-                                      color: categoryTextColor,
-                                      fontWeight: FontWeight.w700,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  '${group.group.maxMembers} max members',
-                                  style: TextStyle(color: textTertiary, fontSize: 11),
-                                ),
-                              ],
-                            ),
-                            const Spacer(),
-                            IconButton(
-                              onPressed: () => _handleJoinGroup(group),
-                              icon: Icon(
-                                Icons.favorite_border,
-                                color: isDark ? Colors.white70 : HoopTheme.primaryRed,
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          group.group.name,
-                          style: TextStyle(
-                            color: textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
+              // Use dynamic colors from theme
+              final cardColor = HoopTheme.getCommunityCardColor(index, isDark);
+              final category = group.group.tags.isNotEmpty
+                  ? group.group.tags.first
+                  : 'General';
+              final categoryColor = HoopTheme.getCategoryBackgroundColor(
+                category,
+                isDark,
+              );
+              final categoryTextColor = HoopTheme.getCategoryTextColor(
+                category,
+                isDark,
+              );
+
+              return Container(
+                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                decoration: BoxDecoration(
+                  color: cardColor,
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: isDark
+                      ? null
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.04),
+                            blurRadius: 12,
+                            offset: const Offset(0, 6),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        if (group.distanceKm != null)
-                          Row(
+                        ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.location_on_outlined, size: 14, color: textSecondary),
-                              const SizedBox(width: 6),
-                              Expanded(
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: categoryColor,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                                 child: Text(
-                                  '${group.distanceKm!.toStringAsFixed(1)} km away',
-                                  style: TextStyle(color: textSecondary, fontSize: 13),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                  category.toUpperCase(),
+                                  style: TextStyle(
+                                    color: categoryTextColor,
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${group.group.maxMembers} max members',
+                                style: TextStyle(
+                                  color: textTertiary,
+                                  fontSize: 11,
                                 ),
                               ),
                             ],
                           ),
-                        const SizedBox(height: 10),
-                        if (group.group.description != null && group.group.description!.isNotEmpty)
-                          Text(
-                            group.group.description!,
-                            style: TextStyle(color: textSecondary, fontSize: 13),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                          const Spacer(),
+                          IconButton(
+                            onPressed: () => _handleJoinGroup(group),
+                            icon: Icon(
+                              Icons.favorite_border,
+                              color: isDark
+                                  ? Colors.white70
+                                  : HoopTheme.primaryRed,
+                            ),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(
+                              minWidth: 40,
+                              minHeight: 40,
+                            ),
                           ),
-                        const SizedBox(height: 12),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        group.group.name,
+                        style: TextStyle(
+                          color: textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (group.distanceKm != null)
                         Row(
                           children: [
-                            _buildDetailChip(
-                              Icons.attach_money,
-                              'Contribution',
-                              '₦${group.group.contributionAmount.toStringAsFixed(0)}',
-                              HoopTheme.primaryGreen,
-                              isDark,
+                            Icon(
+                              Icons.location_on_outlined,
+                              size: 14,
+                              color: textSecondary,
                             ),
-                            const SizedBox(width: 12),
-                            _buildDetailChip(
-                              Icons.schedule,
-                              'Duration',
-                              group.group.displayCycleDuration,
-                              HoopTheme.primaryRed,
-                              isDark,
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                '${group.distanceKm!.toStringAsFixed(1)} km away',
+                                style: TextStyle(
+                                  color: textSecondary,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 8),
-                        ElevatedButton(
-                          onPressed: () => _handleJoinGroup(group),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: HoopTheme.primaryRed,
-                            foregroundColor: Colors.white,
-                            minimumSize: const Size(double.infinity, 44),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          child: const Text('Join Group'),
+                      const SizedBox(height: 10),
+                      if (group.group.description != null &&
+                          group.group.description!.isNotEmpty)
+                        Text(
+                          group.group.description!,
+                          style: TextStyle(color: textSecondary, fontSize: 13),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                      ],
-                    ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _buildDetailChip(
+                            Icons.attach_money,
+                            'Contribution',
+                            '₦${group.group.contributionAmount.toStringAsFixed(0)}',
+                            HoopTheme.successGreen,
+                            isDark,
+                          ),
+                          const SizedBox(width: 12),
+                          _buildDetailChip(
+                            Icons.schedule,
+                            'Duration',
+                            group.group.displayCycleDuration,
+                            HoopTheme.primaryRed,
+                            isDark,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ElevatedButton(
+                        onPressed: () => _handleJoinGroup(group),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: HoopTheme.primaryRed,
+                          foregroundColor: Colors.white,
+                          minimumSize: const Size(double.infinity, 44),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text('Join Group'),
+                      ),
+                    ],
                   ),
-                );
-              },
-              childCount: groups.length,
-            ),
+                ),
+              );
+            }, childCount: groups.length),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildDetailChip(IconData icon, String title, String value, Color valueColor, bool isDark) {
+  Widget _buildDetailChip(
+    IconData icon,
+    String title,
+    String value,
+    Color valueColor,
+    bool isDark,
+  ) {
     final textTertiary = isDark ? Colors.white30 : Colors.black38;
-    final chipColor = isDark ? const Color(0xFF141617) : HoopTheme.getCardColor(0, false);
-    
+    final chipColor = isDark
+        ? const Color(0xFF141617)
+        : HoopTheme.getCardColor(false);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -683,7 +704,13 @@ class _CommunityScreenState extends State<CommunityScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title, style: TextStyle(color: textTertiary, fontSize: 11)),
-              Text(value, style: TextStyle(color: valueColor, fontWeight: FontWeight.bold)),
+              Text(
+                value,
+                style: TextStyle(
+                  color: valueColor,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ],
           ),
         ],
@@ -694,9 +721,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
 class _GroupCard extends StatefulWidget {
   final GroupWithScore group;
-  
+
   const _GroupCard({required this.group});
-  
+
   @override
   State<_GroupCard> createState() => __GroupCardState();
 }
@@ -708,15 +735,22 @@ class __GroupCardState extends State<_GroupCard> {
     final textColor = isDark ? Colors.white : const Color(0xFF1A1A1A);
     final textSecondary = isDark ? Colors.white70 : const Color(0xFF555555);
     final textTertiary = isDark ? Colors.white54 : const Color(0xFF777777);
-    
+
     // Get dynamic colors from theme
-    final swipeColorIndex = widget.group.group.id.hashCode.abs() % HoopTheme.swipeCardColors.length;
-    final swipeCardColor = HoopTheme.getCardColor(swipeColorIndex, false);
-    final category = widget.group.group.tags.isNotEmpty 
-        ? widget.group.group.tags.first 
+    final swipeColorIndex =
+        widget.group.group.id.hashCode.abs() % HoopTheme.swipeCardColors.length;
+    final swipeCardColor = HoopTheme.getCommunityCardColor(
+      swipeColorIndex,
+      false,
+    );
+    final category = widget.group.group.tags.isNotEmpty
+        ? widget.group.group.tags.first
         : 'General';
-    final categoryColor = HoopTheme.getCategoryColor(category);
-    final categoryTextColor = HoopTheme.getCategoryTextColor(category);
+    final categoryColor = HoopTheme.getCategoryBackgroundColor(
+      category,
+      isDark,
+    );
+    final categoryTextColor = HoopTheme.getCategoryTextColor(category, isDark);
 
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
@@ -744,7 +778,10 @@ class __GroupCardState extends State<_GroupCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: categoryColor,
                       borderRadius: BorderRadius.circular(12),
@@ -797,10 +834,15 @@ class __GroupCardState extends State<_GroupCard> {
             ],
           ),
           const SizedBox(height: 8),
-          if (widget.group.group.location != null && widget.group.group.location!.isNotEmpty)
+          if (widget.group.group.location != null &&
+              widget.group.group.location!.isNotEmpty)
             Row(
               children: [
-                Icon(Icons.location_on_outlined, size: 18, color: textSecondary),
+                Icon(
+                  Icons.location_on_outlined,
+                  size: 18,
+                  color: textSecondary,
+                ),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -822,14 +864,11 @@ class __GroupCardState extends State<_GroupCard> {
               ),
             ),
           const SizedBox(height: 24),
-          if (widget.group.group.description != null && widget.group.group.description!.isNotEmpty)
+          if (widget.group.group.description != null &&
+              widget.group.group.description!.isNotEmpty)
             Text(
               widget.group.group.description!,
-              style: TextStyle(
-                color: textSecondary,
-                fontSize: 14,
-                height: 1.4,
-              ),
+              style: TextStyle(color: textSecondary, fontSize: 14, height: 1.4),
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
             ),
@@ -838,7 +877,7 @@ class __GroupCardState extends State<_GroupCard> {
             Icons.attach_money,
             "Contribution amount",
             "₦${widget.group.group.contributionAmount.toStringAsFixed(0)}",
-            HoopTheme.primaryGreen,
+            HoopTheme.successGreen,
             textColor,
             isDark,
           ),
@@ -868,7 +907,9 @@ class __GroupCardState extends State<_GroupCard> {
                 children: [
                   TextButton.icon(
                     onPressed: () {
-                      final matchEngine = context.findAncestorStateOfType<_CommunityScreenState>()?._matchEngine;
+                      final matchEngine = context
+                          .findAncestorStateOfType<_CommunityScreenState>()
+                          ?._matchEngine;
                       matchEngine?.currentItem?.nope();
                     },
                     icon: const Icon(Icons.close, color: Colors.red, size: 20),
@@ -881,19 +922,28 @@ class __GroupCardState extends State<_GroupCard> {
                       ),
                     ),
                     style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
                     ),
                   ),
                   ElevatedButton.icon(
                     onPressed: () async {
                       try {
-                        await provider.joinCommunityGroup(widget.group.group.id);
-                        final matchEngine = context.findAncestorStateOfType<_CommunityScreenState>()?._matchEngine;
+                        await provider.joinCommunityGroup(
+                          widget.group.group.id,
+                        );
+                        final matchEngine = context
+                            .findAncestorStateOfType<_CommunityScreenState>()
+                            ?._matchEngine;
                         matchEngine?.currentItem?.like();
                       } catch (error) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Failed to join: ${error.toString()}'),
+                            content: Text(
+                              'Failed to join: ${error.toString()}',
+                            ),
                           ),
                         );
                       }
@@ -905,9 +955,16 @@ class __GroupCardState extends State<_GroupCard> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(30),
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 14,
+                      ),
                     ),
-                    icon: const Icon(Icons.favorite_border, color: Colors.white, size: 20),
+                    icon: const Icon(
+                      Icons.favorite_border,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                     label: const Text(
                       "Join",
                       style: TextStyle(

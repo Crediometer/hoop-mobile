@@ -43,22 +43,27 @@ class NotificationModel {
 
   static NotificationType _parseNotificationType(String type) {
     switch (type.toLowerCase()) {
-      case 'system': return NotificationType.system;
-      case 'group': return NotificationType.group;
-      case 'message': return NotificationType.message;
-      case 'transaction': return NotificationType.transaction;
-      case 'reminder': return NotificationType.reminder;
-      default: return NotificationType.system;
+      case 'system': return NotificationType.SYSTEM;
+      case 'group': return NotificationType.GROUP;
+      case 'message': return NotificationType.MESSAGE;
+      case 'transaction': return NotificationType.TRANSACTION;
+      case 'reminder': return NotificationType.REMINDER;
+      default: return NotificationType.SYSTEM;
     }
   }
 }
 
 enum NotificationType {
-  system,
-  group,
-  message,
-  transaction,
-  reminder,
+
+  GROUP,
+  SYSTEM,
+  MARKETING,
+  SECURITY,
+  PAYMENT,
+  MESSAGE,
+
+  TRANSACTION,
+  REMINDER,
 }
 
 // lib/models/chat.dart

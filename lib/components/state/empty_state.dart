@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/constants/themes.dart';
 
 class HoopEmptyState extends StatelessWidget {
@@ -13,7 +12,7 @@ class HoopEmptyState extends StatelessWidget {
    const HoopEmptyState({
     super.key,
     this.onPress,
-    this.color = HoopTheme.error,
+    this.color = HoopTheme.primaryRed,
     required this.title,
     this.iconData = Icons.download_rounded,
     required this.subtitle,

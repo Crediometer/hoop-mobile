@@ -1,6 +1,9 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:hoop/components/state/empty_state.dart';
-import 'package:hoop/screens/features/chat_detail_screen.dart';
+import 'package:hoop/screens/groups/chat_detail_screen.dart';
+import 'package:hoop/screens/groups/create_group.dart';
 import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/dtos/responses/group/Groups.dart';
@@ -133,7 +136,7 @@ class _GroupsTabState extends State<GroupsTab> {
           break;
 
         case 2: // Pending join requests
-          final response = await provider.getMyJoinRequests( 'pending');
+          final response = await provider.getMyJoinRequests('pending');
           if (response.success && response.data != null) {
             setState(() {
               _segmentRequests[2] = response.data!;
@@ -142,7 +145,7 @@ class _GroupsTabState extends State<GroupsTab> {
           break;
 
         case 3: // Rejected join requests
-          final response = await provider.getMyJoinRequests( 'rejected');
+          final response = await provider.getMyJoinRequests('rejected');
           if (response.success && response.data != null) {
             setState(() {
               _segmentRequests[3] = response.data!;
@@ -317,6 +320,7 @@ class _GroupsTabState extends State<GroupsTab> {
             stream: OnboardingService.onOnboardingStatusChanged,
             initialData: true,
             builder: (context, snapshot) {
+              log("snapshot.data?? ${snapshot.data}");
               final needsOnboarding = snapshot.data ?? true;
               return needsOnboarding
                   ? const SizedBox.shrink()
@@ -338,6 +342,12 @@ class _GroupsTabState extends State<GroupsTab> {
                       ),
                       child: FloatingActionButton(
                         onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (builder) => GroupCreationFlowScreen(),
+                            ),
+                          );
                           // Navigate to create group screen
                         },
                         backgroundColor: Colors.transparent,
@@ -760,7 +770,7 @@ class _GroupsTabState extends State<GroupsTab> {
         return HoopTheme.primaryRed;
       case 'completed':
       case 'ended':
-        return HoopTheme.primaryGreen;
+        return HoopTheme.successGreen;
       case 'pending':
         return Colors.orange;
       case 'rejected':
