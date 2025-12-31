@@ -1,94 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/back_button.dart';
 import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/responses/group/index.dart';
+import 'package:hoop/states/group_state.dart';
+import 'package:provider/provider.dart';
 
-// DTO for community preferences
-class CommunityPreferences {
-  final bool goGlobal;
-  final int distanceRadius;
-  final String preferredGroupSize;
-  final int contributionMin;
-  final int contributionMax;
-  final int totalPotMin;
-  final int totalPotMax;
-  final bool groupRecommendations;
-  final bool nearbyAlerts;
-  final bool communityNotifications;
-  final bool autoJoinGroups;
-
-  CommunityPreferences({
-    this.goGlobal = true,
-    this.distanceRadius = 25,
-    this.preferredGroupSize = 'MEDIUM',
-    this.contributionMin = 5000,
-    this.contributionMax = 50000,
-    this.totalPotMin = 50000,
-    this.totalPotMax = 500000,
-    this.groupRecommendations = true,
-    this.nearbyAlerts = true,
-    this.communityNotifications = true,
-    this.autoJoinGroups = false,
-  });
-
-  Map<String, dynamic> toJson() => {
-    'goGlobal': goGlobal,
-    'distanceRadius': distanceRadius,
-    'preferredGroupSize': preferredGroupSize,
-    'contributionMin': contributionMin,
-    'contributionMax': contributionMax,
-    'totalPotMin': totalPotMin,
-    'totalPotMax': totalPotMax,
-    'groupRecommendations': groupRecommendations,
-    'nearbyAlerts': nearbyAlerts,
-    'communityNotifications': communityNotifications,
-    'autoJoinGroups': autoJoinGroups,
-  };
-
-  factory CommunityPreferences.fromJson(Map<String, dynamic> json) {
-    return CommunityPreferences(
-      goGlobal: json['goGlobal'] ?? true,
-      distanceRadius: json['distanceRadius'] ?? 25,
-      preferredGroupSize: json['preferredGroupSize'] ?? 'MEDIUM',
-      contributionMin: json['contributionMin'] ?? 5000,
-      contributionMax: json['contributionMax'] ?? 50000,
-      totalPotMin: json['totalPotMin'] ?? 50000,
-      totalPotMax: json['totalPotMax'] ?? 500000,
-      groupRecommendations: json['groupRecommendations'] ?? true,
-      nearbyAlerts: json['nearbyAlerts'] ?? true,
-      communityNotifications: json['communityNotifications'] ?? true,
-      autoJoinGroups: json['autoJoinGroups'] ?? false,
-    );
-  }
-
-  CommunityPreferences copyWith({
-    bool? goGlobal,
-    int? distanceRadius,
-    String? preferredGroupSize,
-    int? contributionMin,
-    int? contributionMax,
-    int? totalPotMin,
-    int? totalPotMax,
-    bool? groupRecommendations,
-    bool? nearbyAlerts,
-    bool? communityNotifications,
-    bool? autoJoinGroups,
-  }) {
-    return CommunityPreferences(
-      goGlobal: goGlobal ?? this.goGlobal,
-      distanceRadius: distanceRadius ?? this.distanceRadius,
-      preferredGroupSize: preferredGroupSize ?? this.preferredGroupSize,
-      contributionMin: contributionMin ?? this.contributionMin,
-      contributionMax: contributionMax ?? this.contributionMax,
-      totalPotMin: totalPotMin ?? this.totalPotMin,
-      totalPotMax: totalPotMax ?? this.totalPotMax,
-      groupRecommendations: groupRecommendations ?? this.groupRecommendations,
-      nearbyAlerts: nearbyAlerts ?? this.nearbyAlerts,
-      communityNotifications: communityNotifications ?? this.communityNotifications,
-      autoJoinGroups: autoJoinGroups ?? this.autoJoinGroups,
-    );
-  }
-}
-
-// Custom Switch Widget matching web style
 class CustomSwitch extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -111,7 +27,7 @@ class CustomSwitch extends StatelessWidget {
         height: 24,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: value 
+          color: value
               ? (disabled ? Colors.grey : HoopTheme.primaryBlue)
               : (disabled ? Colors.grey.shade300 : Colors.grey.shade300),
         ),
@@ -144,7 +60,6 @@ class CustomSwitch extends StatelessWidget {
   }
 }
 
-// Custom Slider Widget matching web style
 class CustomSlider extends StatefulWidget {
   final double value;
   final ValueChanged<double> onChanged;
@@ -185,9 +100,7 @@ class _CustomSliderState extends State<CustomSlider> {
               enabledThumbRadius: 12,
               disabledThumbRadius: 12,
             ),
-            overlayShape: RoundSliderOverlayShape(
-              overlayRadius: 16,
-            ),
+            overlayShape: RoundSliderOverlayShape(overlayRadius: 16),
             activeTrackColor: HoopTheme.primaryBlue,
             inactiveTrackColor: Colors.grey.shade200,
             thumbColor: Colors.white,
@@ -203,9 +116,7 @@ class _CustomSliderState extends State<CustomSlider> {
                 _currentValue = value;
               });
             },
-            onChangeEnd: (value) {
-              widget.onChanged(value);
-            },
+            onChangeEnd: widget.onChanged,
           ),
         ),
         Row(
@@ -236,126 +147,119 @@ class _CustomSliderState extends State<CustomSlider> {
   }
 }
 
-// Main Community Settings Screen
 class CommunitySettingsScreen extends StatefulWidget {
   const CommunitySettingsScreen({Key? key}) : super(key: key);
 
   @override
-  State<CommunitySettingsScreen> createState() => _CommunitySettingsScreenState();
+  State<CommunitySettingsScreen> createState() =>
+      _CommunitySettingsScreenState();
 }
 
 class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
-  late CommunityPreferences _settings;
-  bool _isLoading = true;
   bool _isSaving = false;
+  bool _initialLoadComplete = false;
 
   @override
   void initState() {
     super.initState();
-    _settings = CommunityPreferences();
     _loadPreferences();
   }
 
   Future<void> _loadPreferences() async {
-    setState(() {
-      _isLoading = true;
-    });
+    final provider = context.read<GroupCommunityProvider>();
 
-    // Simulate API call delay
-    await Future.delayed(const Duration(milliseconds: 500));
+    // Only load if not already loaded
+    if (provider.communityPreferences == null &&
+        !provider.isLoadingPreferences) {
+      await provider.loadCommunityPreferences();
+    }
 
-    // TODO: Replace with actual API call
-    // final preferences = await yourApiService.loadCommunityPreferences();
-    // setState(() {
-    //   _settings = preferences;
-    //   _isLoading = false;
-    // });
-
-    // For now, use defaults
-    setState(() {
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _initialLoadComplete = true;
+      });
+    }
   }
 
   Future<void> _savePreferences() async {
+    if (_isSaving) return;
+
     setState(() {
       _isSaving = true;
     });
 
-    // TODO: Replace with actual API call
-    // try {
-    //   await yourApiService.updateCommunityPreferences(_settings);
-    //   // Show success message
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Community preferences saved successfully'),
-    //       backgroundColor: HoopTheme.successGreen,
-    //     ),
-    //   );
-    // } catch (error) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Failed to save community preferences'),
-    //       backgroundColor: Colors.red,
-    //     ),
-    //   );
-    // }
+    final provider = context.read<GroupCommunityProvider>();
+    final preferences = provider.communityPreferences;
 
-    // Simulate API call
-    await Future.delayed(const Duration(seconds: 1));
+    if (preferences == null) {
+      setState(() {
+        _isSaving = false;
+      });
+      return;
+    }
 
-    setState(() {
-      _isSaving = false;
-    });
+    try {
+      // Get updated values from current preferences
+      await provider.updateCommunityPreferences({
+        'goGlobal': preferences.goGlobal,
+        'distanceRadius': preferences.distanceRadius,
+        'preferredGroupSize': preferences.preferredGroupSize,
+        'contributionMin': preferences.contributionMin,
+        'contributionMax': preferences.contributionMax,
+        'totalPotMin': preferences.totalPotMin,
+        'totalPotMax': preferences.totalPotMax,
+        'groupRecommendations': preferences.groupRecommendations,
+        'nearbyAlerts': preferences.nearbyAlerts,
+        'communityNotifications': preferences.communityNotifications,
+        'autoJoinGroups': preferences.autoJoinGroups,
+      });
 
-    // Show success message
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Community preferences saved successfully'),
-        backgroundColor: HoopTheme.successGreen,
-      ),
-    );
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Community preferences saved successfully'),
+          backgroundColor: HoopTheme.successGreen,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to save preferences: $error'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSaving = false;
+        });
+      }
+    }
   }
 
   Future<void> _resetPreferences() async {
-    // TODO: Replace with actual API call
-    // try {
-    //   await yourApiService.resetCommunityPreferences();
-    //   await _loadPreferences();
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Preferences reset to defaults'),
-    //       backgroundColor: HoopTheme.successGreen,
-    //     ),
-    //   );
-    // } catch (error) {
-    //   ScaffoldMessenger.of(context).showSnackBar(
-    //     SnackBar(
-    //       content: Text('Failed to reset preferences'),
-    //       backgroundColor: Colors.red,
-    //     ),
-    //   );
-    // }
+    final provider = context.read<GroupCommunityProvider>();
 
-    // Simulate reset
-    setState(() {
-      _settings = CommunityPreferences();
-    });
+    try {
+      await provider.resetCommunityPreferences();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Preferences reset to defaults'),
-        backgroundColor: HoopTheme.successGreen,
-      ),
-    );
-  }
-
-  String _formatCurrency(int amount) {
-    // Format as NGN currency (you might want to adjust based on locale)
-    return '₦${amount.toStringAsFixed(0).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},',
-    )}';
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Preferences reset to defaults'),
+          backgroundColor: HoopTheme.successGreen,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to reset preferences: $error'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
   }
 
   Widget _buildLoadingState() {
@@ -387,29 +291,10 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
 
   Widget _buildHeader() {
     return Container(
-  
-      padding: const EdgeInsets.fromLTRB( 16,34, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Row(
         children: [
-          // Back button
-          IconButton(
-            onPressed: () => Navigator.of(context).pop(),
-            icon: Icon(
-              Icons.arrow_back,
-              color: HoopTheme.getTextPrimary(
-                Theme.of(context).brightness == Brightness.dark,
-              ),
-            ),
-            style: IconButton.styleFrom(
-              backgroundColor: HoopTheme.getCategoryBackgroundColor(
-                'back_button',
-                Theme.of(context).brightness == Brightness.dark,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
+          const HoopBackButton(),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -438,7 +323,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
     );
   }
 
-  Widget _buildGlobalDiscoverySection() {
+  Widget _buildGlobalDiscoverySection(CommunityPreferences preferences) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -453,7 +338,6 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-           
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: HoopTheme.getBorderColor(
@@ -471,7 +355,6 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Go Global toggle
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -518,18 +401,20 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     ],
                   ),
                   CustomSwitch(
-                    value: _settings.goGlobal,
+                    value: preferences.goGlobal ?? true,
                     onChanged: (value) {
-                      setState(() {
-                        _settings = _settings.copyWith(goGlobal: value);
-                      });
+                      context
+                          .read<GroupCommunityProvider>()
+                          .updateCommunityPreferences({
+                            ...preferences.toJson(),
+                            'goGlobal': value,
+                          });
                     },
                   ),
                 ],
               ),
-              
-              // Discovery radius (shown only when goGlobal is false)
-              if (!_settings.goGlobal) ...[
+
+              if (!(preferences.goGlobal ?? true)) ...[
                 const SizedBox(height: 16),
                 Divider(
                   color: HoopTheme.getBorderColor(
@@ -554,7 +439,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                           ),
                         ),
                         Text(
-                          '${_settings.distanceRadius} km',
+                          '${preferences.distanceRadius ?? 25} km',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -565,13 +450,14 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     ),
                     const SizedBox(height: 12),
                     CustomSlider(
-                      value: _settings.distanceRadius.toDouble(),
+                      value: (preferences.distanceRadius ?? 25).toDouble(),
                       onChanged: (value) {
-                        setState(() {
-                          _settings = _settings.copyWith(
-                            distanceRadius: value.round(),
-                          );
-                        });
+                        context
+                            .read<GroupCommunityProvider>()
+                            .updateCommunityPreferences({
+                              ...preferences.toJson(),
+                              'distanceRadius': value.round(),
+                            });
                       },
                       min: 5,
                       max: 100,
@@ -587,13 +473,18 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
     );
   }
 
-  Widget _buildGroupPreferencesSection() {
+  Widget _buildGroupPreferencesSection(CommunityPreferences preferences) {
     final groupSizes = {
       'SMALL': 'Small (5-10 members)',
       'MEDIUM': 'Medium (11-25 members)',
       'LARGE': 'Large (26-50 members)',
       'XLARGE': 'X-Large (51-100 members)',
     };
+
+    String formatCurrency(dynamic amount) {
+      final value = amount is num ? amount.toInt() : 0;
+      return '₦${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -609,7 +500,6 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-           
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: HoopTheme.getBorderColor(
@@ -627,7 +517,6 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Group Size
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -654,7 +543,9 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
-                        value: _settings.preferredGroupSize,
+                        value:
+                            preferences.preferredGroupSize?.toString() ??
+                            'MEDIUM',
                         isExpanded: true,
                         items: groupSizes.entries.map((entry) {
                           return DropdownMenuItem<String>(
@@ -664,7 +555,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               style: TextStyle(
                                 fontSize: 14,
                                 color: HoopTheme.getTextPrimary(
-                                  Theme.of(context).brightness == Brightness.dark,
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark,
                                 ),
                               ),
                             ),
@@ -672,11 +564,12 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                         }).toList(),
                         onChanged: (value) {
                           if (value != null) {
-                            setState(() {
-                              _settings = _settings.copyWith(
-                                preferredGroupSize: value,
-                              );
-                            });
+                            context
+                                .read<GroupCommunityProvider>()
+                                .updateCommunityPreferences({
+                                  ...preferences.toJson(),
+                                  'preferredGroupSize': value,
+                                });
                           }
                         },
                       ),
@@ -684,10 +577,9 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 20),
-              
-              // Contribution Range
+
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -705,7 +597,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                         ),
                       ),
                       Text(
-                        '${_formatCurrency(_settings.contributionMin)} - ${_formatCurrency(_settings.contributionMax)}',
+                        '${formatCurrency(preferences.contributionMin)} - ${formatCurrency(preferences.contributionMax)}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -726,7 +618,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness == Brightness.dark,
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark,
                                 ),
                               ),
                             ),
@@ -736,7 +629,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                               ),
@@ -746,7 +640,10 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               ),
                               child: TextField(
                                 controller: TextEditingController(
-                                  text: _settings.contributionMin.toString(),
+                                  text:
+                                      (preferences.contributionMin?.toInt() ??
+                                              5000)
+                                          .toString(),
                                 ),
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration.collapsed(
@@ -755,16 +652,20 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                                 onChanged: (value) {
                                   if (value.isNotEmpty) {
-                                    setState(() {
-                                      _settings = _settings.copyWith(
-                                        contributionMin: int.tryParse(value) ?? 5000,
-                                      );
-                                    });
+                                    final intValue =
+                                        int.tryParse(value) ?? 5000;
+                                    context
+                                        .read<GroupCommunityProvider>()
+                                        .updateCommunityPreferences({
+                                          ...preferences.toJson(),
+                                          'contributionMin': intValue,
+                                        });
                                   }
                                 },
                               ),
@@ -782,7 +683,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness == Brightness.dark,
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark,
                                 ),
                               ),
                             ),
@@ -792,7 +694,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                               ),
@@ -802,7 +705,10 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               ),
                               child: TextField(
                                 controller: TextEditingController(
-                                  text: _settings.contributionMax.toString(),
+                                  text:
+                                      (preferences.contributionMax?.toInt() ??
+                                              50000)
+                                          .toString(),
                                 ),
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration.collapsed(
@@ -811,16 +717,20 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                                 onChanged: (value) {
                                   if (value.isNotEmpty) {
-                                    setState(() {
-                                      _settings = _settings.copyWith(
-                                        contributionMax: int.tryParse(value) ?? 50000,
-                                      );
-                                    });
+                                    final intValue =
+                                        int.tryParse(value) ?? 50000;
+                                    context
+                                        .read<GroupCommunityProvider>()
+                                        .updateCommunityPreferences({
+                                          ...preferences.toJson(),
+                                          'contributionMax': intValue,
+                                        });
                                   }
                                 },
                               ),
@@ -832,10 +742,9 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 20),
-              
-              // Total Pot Range
+
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -853,7 +762,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                         ),
                       ),
                       Text(
-                        '${_formatCurrency(_settings.totalPotMin)} - ${_formatCurrency(_settings.totalPotMax)}',
+                        '${formatCurrency(preferences.totalPotMin)} - ${formatCurrency(preferences.totalPotMax)}',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w500,
@@ -874,7 +783,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness == Brightness.dark,
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark,
                                 ),
                               ),
                             ),
@@ -884,7 +794,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                               ),
@@ -894,7 +805,10 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               ),
                               child: TextField(
                                 controller: TextEditingController(
-                                  text: _settings.totalPotMin.toString(),
+                                  text:
+                                      (preferences.totalPotMin?.toInt() ??
+                                              50000)
+                                          .toString(),
                                 ),
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration.collapsed(
@@ -903,16 +817,20 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                                 onChanged: (value) {
                                   if (value.isNotEmpty) {
-                                    setState(() {
-                                      _settings = _settings.copyWith(
-                                        totalPotMin: int.tryParse(value) ?? 50000,
-                                      );
-                                    });
+                                    final intValue =
+                                        int.tryParse(value) ?? 50000;
+                                    context
+                                        .read<GroupCommunityProvider>()
+                                        .updateCommunityPreferences({
+                                          ...preferences.toJson(),
+                                          'totalPotMin': intValue,
+                                        });
                                   }
                                 },
                               ),
@@ -930,7 +848,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               style: TextStyle(
                                 fontSize: 12,
                                 color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness == Brightness.dark,
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark,
                                 ),
                               ),
                             ),
@@ -940,7 +859,8 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
                                   color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                               ),
@@ -950,7 +870,10 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                               ),
                               child: TextField(
                                 controller: TextEditingController(
-                                  text: _settings.totalPotMax.toString(),
+                                  text:
+                                      (preferences.totalPotMax?.toInt() ??
+                                              500000)
+                                          .toString(),
                                 ),
                                 keyboardType: TextInputType.number,
                                 decoration: const InputDecoration.collapsed(
@@ -959,16 +882,20 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                                 style: TextStyle(
                                   fontSize: 14,
                                   color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness == Brightness.dark,
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
                                   ),
                                 ),
                                 onChanged: (value) {
                                   if (value.isNotEmpty) {
-                                    setState(() {
-                                      _settings = _settings.copyWith(
-                                        totalPotMax: int.tryParse(value) ?? 500000,
-                                      );
-                                    });
+                                    final intValue =
+                                        int.tryParse(value) ?? 500000;
+                                    context
+                                        .read<GroupCommunityProvider>()
+                                        .updateCommunityPreferences({
+                                          ...preferences.toJson(),
+                                          'totalPotMax': intValue,
+                                        });
                                   }
                                 },
                               ),
@@ -987,7 +914,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
     );
   }
 
-  Widget _buildNotificationsSection() {
+  Widget _buildNotificationsSection(CommunityPreferences preferences) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1002,7 +929,6 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-           
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: HoopTheme.getBorderColor(
@@ -1020,7 +946,6 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
           padding: const EdgeInsets.all(16),
           child: Column(
             children: [
-              // Group Recommendations
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1067,21 +992,21 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     ],
                   ),
                   CustomSwitch(
-                    value: _settings.groupRecommendations,
+                    value: preferences.groupRecommendations ?? true,
                     onChanged: (value) {
-                      setState(() {
-                        _settings = _settings.copyWith(
-                          groupRecommendations: value,
-                        );
-                      });
+                      context
+                          .read<GroupCommunityProvider>()
+                          .updateCommunityPreferences({
+                            ...preferences.toJson(),
+                            'groupRecommendations': value,
+                          });
                     },
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 16),
-              
-              // Nearby Alerts
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1128,21 +1053,21 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     ],
                   ),
                   CustomSwitch(
-                    value: _settings.nearbyAlerts,
+                    value: preferences.nearbyAlerts ?? true,
                     onChanged: (value) {
-                      setState(() {
-                        _settings = _settings.copyWith(
-                          nearbyAlerts: value,
-                        );
-                      });
+                      context
+                          .read<GroupCommunityProvider>()
+                          .updateCommunityPreferences({
+                            ...preferences.toJson(),
+                            'nearbyAlerts': value,
+                          });
                     },
                   ),
                 ],
               ),
-              
+
               const SizedBox(height: 16),
-              
-              // Community Updates
+
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -1189,13 +1114,14 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     ],
                   ),
                   CustomSwitch(
-                    value: _settings.communityNotifications,
+                    value: preferences.communityNotifications ?? true,
                     onChanged: (value) {
-                      setState(() {
-                        _settings = _settings.copyWith(
-                          communityNotifications: value,
-                        );
-                      });
+                      context
+                          .read<GroupCommunityProvider>()
+                          .updateCommunityPreferences({
+                            ...preferences.toJson(),
+                            'communityNotifications': value,
+                          });
                     },
                   ),
                 ],
@@ -1207,7 +1133,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
     );
   }
 
-  Widget _buildAutoJoinSection() {
+  Widget _buildAutoJoinSection(CommunityPreferences preferences) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1222,15 +1148,19 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
         const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
-            color: HoopTheme.getMutedColor(
-              Theme.of(context).brightness == Brightness.dark,
-            ),
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: HoopTheme.getBorderColor(
                 Theme.of(context).brightness == Brightness.dark,
-              ).withOpacity(0.2),
+              ).withOpacity(0.1),
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 4,
+                spreadRadius: 0.5,
+              ),
+            ],
           ),
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -1248,7 +1178,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          Icons.my_location, // Alternative to target icon
+                          Icons.my_location,
                           color: Colors.grey.shade500,
                           size: 20,
                         ),
@@ -1281,13 +1211,14 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                     ],
                   ),
                   CustomSwitch(
-                    value: _settings.autoJoinGroups,
+                    value: preferences.autoJoinGroups ?? false,
                     onChanged: (value) {
-                      setState(() {
-                        _settings = _settings.copyWith(
-                          autoJoinGroups: value,
-                        );
-                      });
+                      context
+                          .read<GroupCommunityProvider>()
+                          .updateCommunityPreferences({
+                            ...preferences.toJson(),
+                            'autoJoinGroups': value,
+                          });
                     },
                     disabled: true,
                   ),
@@ -1299,16 +1230,11 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                 decoration: BoxDecoration(
                   color: Colors.yellow.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(
-                    color: Colors.yellow.withOpacity(0.3),
-                  ),
+                  border: Border.all(color: Colors.yellow.withOpacity(0.3)),
                 ),
                 child: Text(
                   'Auto-join feature will automatically match you with groups that fit your preferences. Launching soon!',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.orange.shade800,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
                 ),
               ),
             ],
@@ -1342,7 +1268,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                       color: Colors.white,
                     ),
                   )
-                : Text('Save Community Settings'),
+                : const Text('Save Community Settings'),
           ),
         ),
         const SizedBox(height: 12),
@@ -1364,7 +1290,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: Text('Reset to Defaults'),
+            child: const Text('Reset to Defaults'),
           ),
         ),
       ],
@@ -1373,43 +1299,76 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    final provider = context.watch<GroupCommunityProvider>();
+
+    // Show loading if still loading or initial load not complete
+    if (provider.isLoadingPreferences ||
+        (!_initialLoadComplete && provider.communityPreferences == null)) {
       return Scaffold(
-        body: Column(
-          children: [
-            _buildHeader(),
-            Expanded(
-              child: _buildLoadingState(),
-            ),
-          ],
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(child: _buildLoadingState()),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final preferences = provider.communityPreferences;
+
+    // Show empty state if no preferences (shouldn't happen, but just in case)
+    if (preferences == null) {
+      return Scaffold(
+        body: SafeArea(
+          child: Column(
+            children: [
+              _buildHeader(),
+              Expanded(
+                child: Center(
+                  child: Text(
+                    'Unable to load preferences',
+                    style: TextStyle(
+                      color: HoopTheme.getTextSecondary(
+                        Theme.of(context).brightness == Brightness.dark,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       );
     }
 
     return Scaffold(
-      body: Column(
-        children: [
-          _buildHeader(),
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  _buildGlobalDiscoverySection(),
-                  const SizedBox(height: 24),
-                  _buildGroupPreferencesSection(),
-                  const SizedBox(height: 24),
-                  _buildNotificationsSection(),
-                  const SizedBox(height: 24),
-                  _buildAutoJoinSection(),
-                  const SizedBox(height: 32),
-                  _buildActionButtons(),
-                  const SizedBox(height: 16),
-                ],
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  children: [
+                    _buildGlobalDiscoverySection(preferences),
+                    const SizedBox(height: 24),
+                    _buildGroupPreferencesSection(preferences),
+                    const SizedBox(height: 24),
+                    _buildNotificationsSection(preferences),
+                    const SizedBox(height: 24),
+                    _buildAutoJoinSection(preferences),
+                    const SizedBox(height: 32),
+                    _buildActionButtons(),
+                    const SizedBox(height: 16),
+                  ],
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

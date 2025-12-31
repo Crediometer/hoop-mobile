@@ -236,7 +236,7 @@ class _ActivityTabState extends State<ActivityTab> {
                               style: TextStyle(
                                 color: selectedIndex == 0
                                     ? (isDark ? Colors.white : Colors.black87)
-                                    : Colors.white54,
+                                    : null,
                               ),
                             ),
                           ),
@@ -262,7 +262,7 @@ class _ActivityTabState extends State<ActivityTab> {
                               style: TextStyle(
                                 color: selectedIndex == 1
                                     ? (isDark ? Colors.white : Colors.black87)
-                                    : Colors.white54,
+                                    : null,
                               ),
                             ),
                           ),

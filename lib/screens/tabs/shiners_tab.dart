@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/indicators/loader.dart';
 import 'package:hoop/components/state/empty_state.dart';
 import 'package:hoop/dtos/responses/SpotlightVideo.dart';
 import 'package:hoop/states/group_state.dart';
@@ -40,22 +41,6 @@ class _ShinersTabState extends State<ShinersTab> {
           builder: (context, provider, child) {
             final spotlightList = provider.spotlight;
             final isLoading = provider.isFetchingSpotlight;
-
-            if (isLoading && spotlightList.isEmpty) {
-              return _buildLoadingState(isDark, textPrimary);
-            }
-
-            if (spotlightList.isEmpty) {
-              return HoopEmptyState(
-                subtitle: "You might be the shiner!",
-                title: "No spotlight stories yet",
-                iconData: Icons.videocam_off_outlined,
-                onPress: () async {
-                  await provider.refreshSpotlights();
-                },
-                secondaryActionText: "Refresh Stories",
-              );
-            }
 
             return RefreshIndicator(
               onRefresh: () async {
@@ -159,22 +144,49 @@ class _ShinersTabState extends State<ShinersTab> {
 
                     const SizedBox(height: 8),
 
-                    // SPOTLIGHT STORIES LIST
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        children: List.generate(
-                          spotlightList.length,
-                          (index) => _buildStoryCard(
-                            spotlightList[index],
-                            isDark,
-                            textPrimary,
-                            textSecondary,
-                            textTertiary,
+                    if (isLoading && spotlightList.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 200.0),
+                        child: Center(
+                          child: WaveLoader(
+                            size: 150, // Custom size
+                            waveDuration: Duration(
+                              seconds: 3,
+                            ), // Custom animation duration
                           ),
                         ),
                       ),
-                    ),
+
+                    if (spotlightList.isEmpty && !isLoading)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 200.0),
+                        child: HoopEmptyState(
+                          subtitle: "You might be the shiner!",
+                          title: "No spotlight stories yet",
+                          iconData: Icons.videocam_off_outlined,
+                          onPress: () async {
+                            await provider.refreshSpotlights();
+                          },
+                          secondaryActionText: "Refresh Stories",
+                        ),
+                      ),
+
+                    if (spotlightList.isNotEmpty && !isLoading)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: List.generate(
+                            spotlightList.length,
+                            (index) => _buildStoryCard(
+                              spotlightList[index],
+                              isDark,
+                              textPrimary,
+                              textSecondary,
+                              textTertiary,
+                            ),
+                          ),
+                        ),
+                      ),
 
                     const SizedBox(height: 20),
 
@@ -603,21 +615,5 @@ class _ShinersTabState extends State<ShinersTab> {
       default:
         return const Color(0xFF616161);
     }
-  }
-
-  Widget _buildLoadingState(bool isDark, Color textPrimary) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          CircularProgressIndicator(color: const Color(0xFFF97316)),
-          const SizedBox(height: 20),
-          Text(
-            'Loading success stories...',
-            style: TextStyle(color: textPrimary, fontSize: 16),
-          ),
-        ],
-      ),
-    );
   }
 }

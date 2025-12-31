@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:hoop/components/status/OperationStatus.dart';
+import 'package:hoop/dtos/podos/tokens/shared_preferences.dart';
 import 'package:hoop/dtos/requests/FacialVerificationData.dart';
 import 'package:hoop/dtos/requests/PersonalInfoData.dart';
 import 'package:hoop/dtos/requests/PhoneVerificationData.dart';
@@ -33,6 +34,34 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider() {
     _initialize();
+  }
+
+  String _isDark = 'light';
+
+  String get isDark => _isDark;
+
+  /// Initialize the appearance from SharedPreferences and fallback to system theme
+  Future<void> init() async {
+    _isDark = await StorageService().getUserAppearance();
+
+    // if (appearance == 0) {
+    //   // Use system brightness
+    //   _isDark = Theme.of(context).brightness == Brightness.dark;
+    // } else {
+    //   // 1 = light, 2 = dark? adjust based on your logic
+    //   _isDark = appearance != 1;
+    // }
+
+    notifyListeners();
+  }
+
+  /// Change the theme and optionally save to SharedPreferences
+  Future<void> setDark(String value) async {
+    _isDark = value;
+    notifyListeners();
+    await StorageService().storeUserAppearance(
+      value.toString(),
+    ); // 1=light, 2=dark
   }
 
   Future<void> _initialize() async {

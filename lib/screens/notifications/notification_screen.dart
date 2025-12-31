@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/SegmentButton.dart';
+import 'package:hoop/components/buttons/back_button.dart';
 import 'package:hoop/components/inputs/input.dart';
 import 'package:hoop/components/state/empty_state.dart';
 import 'package:hoop/constants/themes.dart';
@@ -18,7 +20,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   final TextEditingController _searchController = TextEditingController();
   String _activeTab = 'all';
   String _filterType = 'all';
-
+  bool _showSearch = false;
+  String _searchQuery = '';
   @override
   void initState() {
     super.initState();
@@ -33,34 +36,41 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
+   
+    final textPrimary = isDark ? Colors.white : Colors.black;
+    final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600]; 
     return Scaffold(
-      body: Column(
-        children: [
-          // Header
-          _buildHeader(context),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Header
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _showSearch
+                  ? _buildSearchHeader(isDark, textPrimary, textSecondary)
+                  : _buildHeader(context),
+            ),
 
-          // Search and Filter
-          _buildSearchFilter(context),
 
-          // Tabs
-          _buildTabs(context),
+            // Tabs
+            _buildTabs(context),
 
-          // Connection Status Banner
-          _buildConnectionStatus(context),
+            // Connection Status Banner
+            _buildConnectionStatus(context),
 
-          // Notifications List
-          Expanded(child: _buildNotificationsList(context)),
-        ],
+            // Notifications List
+            Expanded(child: _buildNotificationsList(context)),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
+    final textPrimary = isDark ? Colors.white : Colors.black87;
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 34, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -71,22 +81,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 children: [
                   // Back button for mobile
                   if (MediaQuery.of(context).size.width < 1024)
-                    IconButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      icon: Icon(
-                        Icons.arrow_back,
-                        color: Theme.of(context).colorScheme.onBackground,
-                      ),
-                      style: IconButton.styleFrom(
-                        backgroundColor: HoopTheme.getCategoryBackgroundColor(
-                          'back_button',
-                          isDark,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                    ),
+                    HoopBackButton(),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -139,23 +134,50 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 ],
               ),
-              // Mark all as read button
-              Consumer<NotificationWebSocketHandler>(
-                builder: (context, handler, child) {
-                  return IconButton(
-                    onPressed: handler.unreadCount > 0
-                        ? () => _handleMarkAllAsRead(handler)
-                        : null,
-                    icon: Icon(
-                      Icons.check_circle_outline,
-                      color: handler.unreadCount > 0
-                          ? HoopTheme.primaryBlue
-                          : HoopTheme.getTextSecondary(isDark),
-                      size: 24,
+         
+
+              Row(
+                children: [
+                  // Search icon
+                  Container(
+                    decoration: BoxDecoration(
+                      color: isDark ? Colors.white10 : Colors.grey[100],
+                      shape: BoxShape.circle,
                     ),
-                    tooltip: 'Mark all as read',
-                  );
-                },
+                    child: IconButton(
+                      onPressed: () => setState(() => _showSearch = true),
+                      icon: Icon(Icons.search, color: textPrimary, size: 22),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 44,
+                        minHeight: 44,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // Checkmark icon
+                  Consumer<NotificationWebSocketHandler>(
+                    builder: (context, handler, child) {
+                      return Container(
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white10 : Colors.grey[100],
+                          shape: BoxShape.circle,
+                        ),
+                        child: IconButton(
+                          onPressed: handler.unreadCount > 0
+                              ? () => _handleMarkAllAsRead(handler)
+                              : null,
+                          icon: Icon(Icons.check, color: textPrimary, size: 22),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 44,
+                            minHeight: 44,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -291,77 +313,46 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
     return Consumer<NotificationWebSocketHandler>(
       builder: (context, handler, child) {
-        return Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              _buildTabButton(
-                context,
-                label: 'All',
-                count: handler.totalCount,
-                isActive: _activeTab == 'all',
-                onTap: () => setState(() => _activeTab = 'all'),
-              ),
-              const SizedBox(width: 8),
-              _buildTabButton(
-                context,
-                label: 'Unread',
-                count: handler.unreadCount,
-                isActive: _activeTab == 'unread',
-                onTap: () => setState(() => _activeTab = 'unread'),
-              ),
-              const SizedBox(width: 8),
-              _buildTabButton(
-                context,
-                label: 'Read',
-                count: handler.readCount,
-                isActive: _activeTab == 'read',
-                onTap: () => setState(() => _activeTab = 'read'),
-              ),
-            ],
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                HoopSegmentButton(
+                  isSelected: _activeTab == 'all',
+                  label: 'All ${handler.totalCount}',
+                  segment: 0,
+                  handleSegmentChange: (s) =>
+                      setState(() => _activeTab = 'all'),
+                ),
+                const SizedBox(width: 8),
+                HoopSegmentButton(
+                  isSelected: _activeTab == 'unread',
+                  label: 'Unread ${handler.unreadCount}',
+                  segment: 0,
+                  handleSegmentChange: (s) =>
+                      setState(() => _activeTab = 'unread'),
+                ),
+                const SizedBox(width: 8),
+                HoopSegmentButton(
+                  isSelected: _activeTab == 'read',
+                  label: 'Read ${handler.readCount}',
+                  segment: 0,
+                  handleSegmentChange: (s) =>
+                      setState(() => _activeTab = 'read'),
+                ),
+              ],
+            ),
           ),
         );
       },
-    );
-  }
-
-  Widget _buildTabButton(
-    BuildContext context, {
-    required String label,
-    required int count,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 40,
-          decoration: BoxDecoration(
-            color: isActive ? HoopTheme.primaryBlue : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isActive
-                  ? HoopTheme.primaryBlue
-                  : HoopTheme.getBorderColor(isDark),
-            ),
-          ),
-          child: Center(
-            child: Text(
-              '$label ${count > 0 ? '($count)' : ''}',
-              style: TextStyle(
-                color: isActive
-                    ? Colors.white
-                    : HoopTheme.getTextSecondary(isDark),
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-              ),
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -923,6 +914,84 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         ),
       );
     }
+  }
+
+  Widget _buildSearchHeader(
+    bool isDark,
+    Color? textPrimary,
+    Color? textSecondary,
+  ) {
+    return Column(
+      key: const ValueKey('search'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Container(
+                height: 44,
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF141617) : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, size: 20, color: Colors.grey),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _searchController,
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                        style: TextStyle(color: textPrimary),
+                        decoration: InputDecoration(
+                          hintText: 'Search groups by title, body...',
+                          hintStyle: TextStyle(
+                            color: textSecondary,
+                            fontSize: 13,
+                          ),
+                          border: InputBorder.none,
+                        ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          _searchController.clear();
+                          _searchQuery = '';
+                          _showSearch = false;
+                        });
+                      },
+                      child: const Icon(
+                        Icons.close,
+                        size: 20,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: isDark ? Colors.white10 : Colors.grey[100],
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                onPressed: () {},
+                icon: Icon(Icons.tune, color: textPrimary, size: 22),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+      ],
+    );
   }
 
   @override

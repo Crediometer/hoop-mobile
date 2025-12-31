@@ -16,6 +16,7 @@ class HoopTheme {
   // Text Colors
   static const Color foreground = Color(0xFF1A1A2E);
   static const Color mutedForeground = Color(0xFF6C757D);
+  static const Color lightBlue = Color(0xFFE3F2FD);
   
   // Border Colors
   static const Color border = Color(0x1A000000); // 0.1 opacity black

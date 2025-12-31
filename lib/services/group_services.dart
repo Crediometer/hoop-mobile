@@ -212,29 +212,29 @@ class GroupHttpService extends BaseHttpService {
   // ========== COMMUNITY PREFERENCES ==========
 
   // Get preferences
-  Future<ApiResponse<CommunityPreference>> getPreferences() async {
-    return getTyped<CommunityPreference>(
+  Future<ApiResponse<CommunityPreferences>> getPreferences() async {
+    return getTyped<CommunityPreferences>(
       'community/preferences',
-      fromJson: (json) => CommunityPreference.fromJson(json),
+      fromJson: (json) => CommunityPreferences.fromJson(json),
     );
   }
 
   // Update preferences
-  Future<ApiResponse<CommunityPreference>> updatePreferences(
+  Future<ApiResponse<CommunityPreferences>> updatePreferences(
     Map<String, dynamic> preferences,
   ) async {
-    return putTyped<CommunityPreference>(
+    return putTyped<CommunityPreferences>(
       'community/preferences',
       body: preferences,
-      fromJson: (json) => CommunityPreference.fromJson(json),
+      fromJson: (json) => CommunityPreferences.fromJson(json),
     );
   }
 
   // Reset preferences
-  Future<ApiResponse<CommunityPreference>> resetPreferences() async {
-    return postTyped<CommunityPreference>(
+  Future<ApiResponse<CommunityPreferences>> resetPreferences() async {
+    return postTyped<CommunityPreferences>(
       'community/preferences/reset',
-      fromJson: (json) => CommunityPreference.fromJson(json),
+      fromJson: (json) => CommunityPreferences.fromJson(json),
     );
   }
 
@@ -479,7 +479,7 @@ class GroupHttpService extends BaseHttpService {
   }
 
   // Get group join requests
-  Future<ApiResponse<PaginatedResponse<GroupJoinRequest>>> getGroupJoinRequests(
+  Future<ApiResponse<PaginatedResponse<JoinRequest>>> getGroupJoinRequests(
     String groupId, {
     int? page,
     int? limit,
@@ -489,12 +489,12 @@ class GroupHttpService extends BaseHttpService {
       if (limit != null) 'size': limit,
     };
 
-    return getTyped<PaginatedResponse<GroupJoinRequest>>(
+    return getTyped<PaginatedResponse<JoinRequest>>(
       'groups/$groupId/join-requests',
       queryParameters: params,
-      fromJson: (json) => PaginatedResponse<GroupJoinRequest>.fromJson(
+      fromJson: (json) => PaginatedResponse<JoinRequest>.fromJson(
         json,
-        (item) => GroupJoinRequest.fromJson(item),
+        (item) => JoinRequest.fromJson(item),
       ),
     );
   }

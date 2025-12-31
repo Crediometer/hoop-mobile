@@ -1,14 +1,11 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
-import 'package:hoop/dtos/responses/User.dart';
-import 'package:hoop/screens/groups/create_group.dart';
+import 'package:hoop/constants/themes.dart';
 import 'package:hoop/screens/settings/community_preference.dart';
 import 'package:hoop/screens/supports/SupportTicket.dart';
 import 'package:hoop/states/auth_state.dart';
+import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
 import 'package:provider/provider.dart';
-import 'package:hoop/constants/themes.dart';
 
 class ProfileTab extends StatefulWidget {
   const ProfileTab({super.key});
@@ -18,6 +15,8 @@ class ProfileTab extends StatefulWidget {
 }
 
 class _ProfileTabState extends State<ProfileTab> {
+  // Create a ValueNotifier to hold the selected appearance
+  final selectedAppearance = ValueNotifier<String?>(null);
   @override
   void initState() {
     super.initState();
@@ -30,16 +29,6 @@ class _ProfileTabState extends State<ProfileTab> {
   Future<void> _loadProfileData() async {
     final authProvider = context.read<AuthProvider>();
     await authProvider.getProfile();
-  }
-
-  String _getInitials(String? firstName, String? lastName) {
-    if (firstName == null && lastName == null) return '??';
-
-    final firstInitial = (firstName?.isNotEmpty == true) ? firstName![0] : '';
-    final lastInitial = (lastName?.isNotEmpty == true) ? lastName![0] : '';
-
-    final initials = (firstInitial + lastInitial).toUpperCase();
-    return initials.isNotEmpty ? initials : '??';
   }
 
   String _formatDate(DateTime? date) {
@@ -74,9 +63,6 @@ class _ProfileTabState extends State<ProfileTab> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = isDark ? Colors.white : Colors.black87;
     final textSecondary = isDark ? Colors.white70 : Colors.black54;
-
-    // Get phone number from user or personalInfo
-    final String? phoneNumber = user?.phoneNumber;
 
     return Scaffold(
       body: SafeArea(
@@ -117,11 +103,12 @@ class _ProfileTabState extends State<ProfileTab> {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        shape: BoxShape.circle,
+                        shape: BoxShape.rectangle,
                         border: Border.all(
                           color: Colors.white.withOpacity(0.15),
                           width: 2,
                         ),
+                        borderRadius: BorderRadius.all(Radius.circular(12.0)),
                         color: isDark
                             ? Colors.blueGrey[800]
                             : Colors.blueGrey[100],
@@ -136,9 +123,9 @@ class _ProfileTabState extends State<ProfileTab> {
                                 errorBuilder: (context, error, stackTrace) {
                                   return Center(
                                     child: Text(
-                                      _getInitials(
-                                        user.firstName,
-                                        user.lastName,
+                                      HoopFormatters.getInitials(
+                                        "${user.firstName} ${user.lastName}",
+                                        maxLength: 2,
                                       ),
                                       style: TextStyle(
                                         color: isDark
@@ -154,7 +141,10 @@ class _ProfileTabState extends State<ProfileTab> {
                             )
                           : Center(
                               child: Text(
-                                _getInitials(user?.firstName, user?.lastName),
+                                HoopFormatters.getInitials(
+                                  "${user?.firstName} ${user?.lastName}",
+                                  maxLength: 2,
+                                ),
                                 style: TextStyle(
                                   color: isDark
                                       ? Colors.white
@@ -202,7 +192,7 @@ class _ProfileTabState extends State<ProfileTab> {
                                 decoration: BoxDecoration(
                                   color: user?.status == 'ACTIVE'
                                       ? const Color(0xFF22C55E)
-                                      : user?.status == 'INACTIVE'
+                                      : user?.status == 'ACCOUNT_NOT_BOARDED'
                                       ? const Color(0xFFF59E0B)
                                       : const Color(0xFFEF4444),
                                   shape: BoxShape.circle,
@@ -226,7 +216,7 @@ class _ProfileTabState extends State<ProfileTab> {
 
                     IconButton(
                       onPressed: () {
-                        // Navigate to settings
+                        Navigator.pushNamed(context, '/settings/profile');
                       },
                       icon: Icon(
                         Icons.settings,
@@ -259,12 +249,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (builder) => GroupCreationFlowScreen(),
-                    ),
-                  );
+                  Navigator.pushNamed(context, "/group/create");
                 },
               ),
               _buildMenuItem(
@@ -275,7 +260,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 isDark: isDark,
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushNamed(context, '/settings/primary-account');
+                },
               ),
               _buildMenuItem(
                 icon: Icons.person_outline,
@@ -285,7 +272,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 isDark: isDark,
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushNamed(context, '/settings/profile');
+                },
               ),
               _buildMenuItem(
                 icon: Icons.palette,
@@ -296,6 +285,8 @@ class _ProfileTabState extends State<ProfileTab> {
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
                 onTap: () {
+                  selectedAppearance.value = user?.appearance ?? 'system';
+
                   _showAppearanceDialog(context);
                 },
               ),
@@ -307,7 +298,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 isDark: isDark,
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
-                onTap: () {},
+                onTap: () {
+                  Navigator.of(context).pushNamed('/settings/notifications');
+                },
               ),
               _buildMenuItem(
                 icon: Icons.map_outlined,
@@ -333,7 +326,9 @@ class _ProfileTabState extends State<ProfileTab> {
                 isDark: isDark,
                 textPrimary: textPrimary,
                 textSecondary: textSecondary,
-                onTap: () {},
+                onTap: () {
+                  Navigator.pushNamed(context, '/settings/security');
+                },
               ),
 
               _buildMenuItem(
@@ -426,9 +421,14 @@ class _ProfileTabState extends State<ProfileTab> {
 
               /// ================= FOOTER =================
               Center(
-                child: Text(
-                  'Thrift App v1.0.0 • Made with ❤️ for the community',
-                  style: TextStyle(color: textSecondary, fontSize: 12),
+                child: FutureBuilder(
+                  future: HoopFormatters.getVersionInfo(),
+                  builder: (context, version) {
+                    return Text(
+                      'Thrift App v${version.connectionState != ConnectionState.done ? "0.0.0" : version.data} • Made with ❤️ for the community',
+                      style: TextStyle(color: textSecondary, fontSize: 12),
+                    );
+                  },
                 ),
               ),
             ],
@@ -440,8 +440,6 @@ class _ProfileTabState extends State<ProfileTab> {
 
   void _showAppearanceDialog(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final authProvider = context.read<AuthProvider>();
-    final user = authProvider.user;
 
     showModalBottomSheet<void>(
       context: context,
@@ -454,8 +452,6 @@ class _ProfileTabState extends State<ProfileTab> {
           maxChildSize: 0.90,
           expand: false,
           builder: (context, controller) {
-            String currentAppearance = user?.appearance ?? 'system';
-
             return Container(
               padding: EdgeInsets.only(
                 left: 20,
@@ -525,17 +521,16 @@ class _ProfileTabState extends State<ProfileTab> {
 
                     const SizedBox(height: 24),
 
-                    // Appearance Options
-                    StatefulBuilder(
-                      builder: (context, setModalState) {
+                    // Wrap the options with ValueListenableBuilder
+                    ValueListenableBuilder<String?>(
+                      valueListenable: selectedAppearance,
+                      builder: (context, currentAppearance, child) {
                         return Column(
                           children: [
                             // System Default Option
                             GestureDetector(
                               onTap: () {
-                                setModalState(() {
-                                  currentAppearance = 'system';
-                                });
+                                selectedAppearance.value = 'system';
                               },
                               child: Container(
                                 width: double.infinity,
@@ -631,9 +626,7 @@ class _ProfileTabState extends State<ProfileTab> {
                             // Light Mode Option
                             GestureDetector(
                               onTap: () {
-                                setModalState(() {
-                                  currentAppearance = 'light';
-                                });
+                                selectedAppearance.value = 'light';
                               },
                               child: Container(
                                 width: double.infinity,
@@ -730,9 +723,7 @@ class _ProfileTabState extends State<ProfileTab> {
                             // Dark Mode Option
                             GestureDetector(
                               onTap: () {
-                                setModalState(() {
-                                  currentAppearance = 'dark';
-                                });
+                                selectedAppearance.value = 'dark';
                               },
                               child: Container(
                                 width: double.infinity,
@@ -871,40 +862,14 @@ class _ProfileTabState extends State<ProfileTab> {
 
                     const SizedBox(height: 24),
 
+                    // HoopButton
                     HoopButton(
                       onPressed: () async {
                         Navigator.pop(context);
-                        await _updateAppearance(currentAppearance);
+                        await _updateAppearance(selectedAppearance.value!);
                       },
                       buttonText: 'Apply Theme',
                     ),
-
-                    // Apply Button
-                    // SizedBox(
-                    //   width: double.infinity,
-                    //   height: 52,
-                    //   child: ElevatedButton(
-                    //     onPressed: () async {
-                    //       Navigator.pop(context);
-                    //       await _updateAppearance(currentAppearance);
-                    //     },
-                    //     style: ElevatedButton.styleFrom(
-                    //       backgroundColor: const Color(0xFF8B5CF6),
-                    //       shape: RoundedRectangleBorder(
-                    //         borderRadius: BorderRadius.circular(14),
-                    //       ),
-                    //       elevation: 0,
-                    //     ),
-                    //     child: const Text(
-                    //       'Apply Theme',
-                    //       style: TextStyle(
-                    //         color: Colors.white,
-                    //         fontSize: 16,
-                    //         fontWeight: FontWeight.w600,
-                    //       ),
-                    //     ),
-                    //   ),
-                    // ),
                   ],
                 ),
               ),
@@ -925,6 +890,8 @@ class _ProfileTabState extends State<ProfileTab> {
       if (response.success) {
         // Refresh the profile to get updated appearance
         await authProvider.getProfile();
+
+        await authProvider.setDark(appearance);
 
         // Show success message
         ScaffoldMessenger.of(context).showSnackBar(
@@ -957,172 +924,6 @@ class _ProfileTabState extends State<ProfileTab> {
         ),
       );
     }
-  }
-
-  void _showLocationDetails(
-    BuildContext context,
-    PersonalInfo personalInfo,
-    bool isDark,
-    Color textPrimary,
-    Color textSecondary,
-  ) {
-    showDialog(
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Location Details', style: TextStyle(color: textPrimary)),
-          backgroundColor: isDark ? const Color(0xFF1E293B) : Colors.white,
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (personalInfo.latitude != null &&
-                  personalInfo.longitude != null)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Coordinates',
-                      style: TextStyle(color: textSecondary, fontSize: 12),
-                    ),
-                    Text(
-                      '${personalInfo.latitude}, ${personalInfo.longitude}',
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ),
-              if (personalInfo.lastLocationUpdate != null)
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Last Updated',
-                      style: TextStyle(color: textSecondary, fontSize: 12),
-                    ),
-                    Text(
-                      _formatDate(personalInfo.lastLocationUpdate),
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: Text(
-                'Close',
-                style: TextStyle(
-                  color: isDark ? Colors.blueGrey[300] : Colors.blueGrey[600],
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Widget _buildInfoSection({
-    required String title,
-    required bool isDark,
-    required Color textPrimary,
-    required List<Widget> children,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            color: textPrimary,
-            fontSize: 18,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: isDark ? Colors.white12 : Colors.grey[200]!,
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: children,
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required bool isDark,
-    required Color textSecondary,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, color: textSecondary, size: 18),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(color: textSecondary, fontSize: 12),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  value,
-                  style: TextStyle(
-                    color: isDark ? Colors.white : Colors.black87,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAppearanceOption(
-    String title,
-    bool isSelected,
-    bool isDark,
-    VoidCallback onTap,
-  ) {
-    return ListTile(
-      title: Text(
-        title,
-        style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-      ),
-      trailing: isSelected
-          ? Icon(Icons.check_circle, color: const Color(0xFF0a1866))
-          : null,
-      onTap: onTap,
-    );
   }
 
   Widget _buildMenuItem({
@@ -1436,4 +1237,5 @@ class _ProfileTabState extends State<ProfileTab> {
       },
     );
   }
+
 }

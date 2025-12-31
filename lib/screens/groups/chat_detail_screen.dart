@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/main.dart';
 import 'package:hoop/screens/groups/group_detail_screen.dart';
+import 'package:hoop/states/group_state.dart';
+import 'package:provider/provider.dart';
 
 class ChatDetailScreen extends StatefulWidget {
   final Map<String, dynamic> group;
 
-  const ChatDetailScreen({
-    super.key,
-    required this.group,
-  });
+  const ChatDetailScreen({super.key, required this.group});
 
   @override
   State<ChatDetailScreen> createState() => _ChatDetailScreenState();
@@ -35,7 +35,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   void _updateSendVisibility() {
     setState(() {
-      _showSend = _focusNode.hasFocus || _messageController.text.trim().isNotEmpty;
+      _showSend =
+          _focusNode.hasFocus || _messageController.text.trim().isNotEmpty;
     });
   }
 
@@ -66,7 +67,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textPrimary = isDark ? Colors.white : Colors.black;
     final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600];
-
+    final groupProvider = context.watch<GroupCommunityProvider>();
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.white,
       appBar: AppBar(
@@ -78,11 +79,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
         title: GestureDetector(
           onTap: () {
-            Navigator.push(
+            Navigator.pushNamed(
               context,
-              MaterialPageRoute(
-                builder: (context) => GroupDetailScreen(groupId: widget.group['id'].toString()),
-              ),
+              "/group/detail",
+              arguments: {"groupId": widget.group['id'].toString()},
             );
           },
           child: Row(
@@ -111,38 +111,34 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                  Text(
-                    widget.group["name"],
-                    style: TextStyle(
-                      color: textPrimary,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                    Text(
+                      widget.group["name"],
+                      style: TextStyle(
+                        color: textPrimary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    "No one online • Active",
-                    style: TextStyle(
-                      color: textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
+                    const SizedBox(height: 2),
+                    Text(
+                      "No one online • Active",
+                      style: TextStyle(
+                        color: textSecondary,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          ],
-        ),
+            ],
+          ),
         ),
         actions: [
           IconButton(
-            icon: Icon(
-              Icons.videocam_outlined,
-              color: textPrimary,
-              size: 24,
-            ),
+            icon: Icon(Icons.videocam_outlined, color: textPrimary, size: 24),
             onPressed: () {},
           ),
           const SizedBox(width: 8),
@@ -177,7 +173,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 // Date separator
                 Center(
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
                     decoration: BoxDecoration(
                       color: isDark ? Colors.white10 : Colors.grey[200],
                       borderRadius: BorderRadius.circular(12),
@@ -198,7 +197,12 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                 ..._messages.map((message) {
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: _buildMessageWidget(message, isDark, textPrimary, textSecondary),
+                    child: _buildMessageWidget(
+                      message,
+                      isDark,
+                      textPrimary,
+                      textSecondary,
+                    ),
                   );
                 }).toList(),
               ],
@@ -232,12 +236,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         color: _focusNode.hasFocus
                             ? const Color(0xFF6366F1) // Active border color
                             : (isDark
-                                ? Colors.white.withOpacity(0.05)
-                                : Colors.grey[300]!),
+                                  ? Colors.white.withOpacity(0.05)
+                                  : Colors.grey[300]!),
                         width: 1,
                       ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 0,
+                    ),
                     child: Row(
                       children: [
                         // Text input
@@ -253,7 +260,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                 fontSize: 14,
                               ),
                               border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 14),
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 14,
+                              ),
                             ),
                             onSubmitted: (_) => _sendMessage(),
                           ),
@@ -309,27 +318,35 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildMessageWidget(Map<String, dynamic> message, bool isDark, Color textPrimary, Color? textSecondary) {
+  Widget _buildMessageWidget(
+    Map<String, dynamic> message,
+    bool isDark,
+    Color textPrimary,
+    Color? textSecondary,
+  ) {
     if (message["type"] == "system") {
       return _buildSystemMessage(message, isDark, textSecondary);
     }
     return _buildMessageBubble(message, isDark, textPrimary);
   }
 
-  Widget _buildSystemMessage(Map<String, dynamic> message, bool isDark, Color? textSecondary) {
+  Widget _buildSystemMessage(
+    Map<String, dynamic> message,
+    bool isDark,
+    Color? textSecondary,
+  ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isDark ? Colors.white.withOpacity(0.05) : Colors.grey[200]?.withOpacity(0.5),
+        color: isDark
+            ? Colors.white.withOpacity(0.05)
+            : Colors.grey[200]?.withOpacity(0.5),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text(
-            message["emoji"] ?? "🎉",
-            style: const TextStyle(fontSize: 18),
-          ),
+          Text(message["emoji"] ?? "🎉", style: const TextStyle(fontSize: 18)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -347,7 +364,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> message, bool isDark, Color textPrimary) {
+  Widget _buildMessageBubble(
+    Map<String, dynamic> message,
+    bool isDark,
+    Color textPrimary,
+  ) {
     final isOwn = message["isOwn"] ?? false;
 
     return Align(

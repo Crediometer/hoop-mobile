@@ -1079,9 +1079,9 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 48),
+      padding: const EdgeInsets.fromLTRB( 16,38,16, 48),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.background,
+        // color: Theme.of(context).colorScheme.background,
         border: Border(
           bottom: BorderSide(
             color: HoopTheme.getBorderColor(
@@ -1258,7 +1258,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
+                  // color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1703,7 +1703,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
+                  // color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1764,7 +1764,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surface,
+                  // color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1861,7 +1861,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              // color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1897,7 +1897,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              // color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1955,7 +1955,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surface,
+              // color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -2181,7 +2181,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.background,
+        // color: Theme.of(context).colorScheme.background,
         border: Border(
           top: BorderSide(
             color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -2255,7 +2255,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
       body: Column(
         children: [
           _buildHeader(),

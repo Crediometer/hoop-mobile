@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/podos/models/groups/invite.dart';
+import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/screens/groups/group_detail_screen.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
 import 'package:qr_flutter/qr_flutter.dart';
@@ -53,12 +54,12 @@ class _GroupInviteScreenState extends State<GroupInviteScreen> {
     // Mock data for demonstration
     setState(() {
       _group = GroupDetails(
-        id: widget.groupId,
+        id: int.tryParse(widget.groupId),
         payoutOrder: "",
         startDate: "",
         createdAt: "",
         currentUserRole: "1",
-        nextPayoutDate:"",
+        nextPayoutDate: "",
         canInvite: true,
         members: [],
         canEdit: true,
@@ -71,7 +72,7 @@ class _GroupInviteScreenState extends State<GroupInviteScreen> {
         approvedMembersCount: 12,
         remainingSlots: 0,
         currency: "NGN",
-        allowVideoCalling: false,
+        allowVideoCall: false,
 
         isPrivate: false,
         allowPairing: true,
@@ -97,7 +98,9 @@ class _GroupInviteScreenState extends State<GroupInviteScreen> {
         url: 'https://hoop.app/join/${_group!.id}',
         expiresAt: DateTime.now().add(const Duration(days: 30)),
         usageCount: 0,
-        maxUsage: _group!.maxMembers - _group!.approvedMembersCount,
+        maxUsage:
+            (_group?.maxMembers?.toInt() ?? 1) -
+            (_group?.approvedMembersCount?.toInt() ?? 1),
       );
 
       setState(() {
@@ -152,7 +155,7 @@ class _GroupInviteScreenState extends State<GroupInviteScreen> {
         ? _customMessage
         : '''Hi! I'd like to invite you to join our savings group "${_group!.name}".
 
-We're saving together with ${_formatCurrency(_group!.contributionAmount)} ${_group!.contributionFrequency} contributions.
+We're saving together with ${_formatCurrency(_group!.contributionAmount ?? 0)} ${_group!.contributionFrequency} contributions.
 
 Join here: ${_inviteLink!.url}''';
 
@@ -180,7 +183,7 @@ Join here: ${_inviteLink!.url}''';
 
       final directory = await getTemporaryDirectory();
       final file = File(
-        '${directory.path}/join-${_group!.name.toLowerCase().replaceAll(' ', '-')}.png',
+        '${directory.path}/join-${_group!.name?.toLowerCase().replaceAll(' ', '-')}.png',
       );
       await file.writeAsBytes(pngBytes);
 
@@ -320,11 +323,13 @@ Join here: ${_inviteLink!.url}''';
   Widget _buildGroupPreview() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final memberCount = _group!.approvedMembersCount;
-    final availableSpots = _group!.maxMembers - memberCount;
+    final availableSpots =
+        (_group!.maxMembers?.toDouble() ?? 0) -
+        (memberCount?.toDouble() ?? 0.0);
 
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
+        // color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -344,7 +349,7 @@ Join here: ${_inviteLink!.url}''';
             ),
             child: Center(
               child: Text(
-                HoopFormatters.getInitials(_group!.name),
+                HoopFormatters.getInitials(_group!.name ?? ''),
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -359,7 +364,7 @@ Join here: ${_inviteLink!.url}''';
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _group!.name,
+                  _group!.name ?? '',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
                     fontSize: 18,
@@ -368,7 +373,7 @@ Join here: ${_inviteLink!.url}''';
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _group!.description,
+                  _group!.description ?? '-',
                   style: TextStyle(
                     fontSize: 14,
                     color: HoopTheme.getTextSecondary(isDark),
@@ -391,7 +396,7 @@ Join here: ${_inviteLink!.url}''';
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        '${_formatCurrency(_group!.contributionAmount)}/${_group!.contributionFrequency}',
+                        '${_formatCurrency(_group!.contributionAmount ?? 1)}/${_group!.contributionFrequency}',
                         style: TextStyle(
                           fontSize: 12,
                           color: HoopTheme.getTextSecondary(isDark),
@@ -415,7 +420,7 @@ Join here: ${_inviteLink!.url}''';
                         ),
                       ),
                     ),
-                    if (_group!.isPrivate)
+                    if (_group!.isPrivate ?? false)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -436,7 +441,7 @@ Join here: ${_inviteLink!.url}''';
                           ),
                         ),
                       ),
-                    if (_group!.requireApproval)
+                    if (_group!.requireApproval ?? false)
                       Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
@@ -754,7 +759,7 @@ Join here: ${_inviteLink!.url}''';
                         final whatsappUrl =
                             'https://wa.me/?text=${Uri.encodeComponent(_customMessage.isNotEmpty ? _customMessage : '''Hi! I'd like to invite you to join our savings group "${_group!.name}".
 
-We're saving together with ${_formatCurrency(_group!.contributionAmount)} ${_group!.contributionFrequency} contributions.
+We're saving together with ${_formatCurrency(_group!.contributionAmount ?? 1)} ${_group!.contributionFrequency} contributions.
 
 Join here: ${_inviteLink!.url}''')}';
                         // TODO: Open URL
@@ -780,7 +785,7 @@ Join here: ${_inviteLink!.url}''')}';
                         final telegramUrl =
                             'https://t.me/share/url?url=${Uri.encodeComponent(_inviteLink?.url ?? '')}&text=${Uri.encodeComponent(_customMessage.isNotEmpty ? _customMessage : '''Hi! I'd like to invite you to join our savings group "${_group!.name}".
 
-We're saving together with ${_formatCurrency(_group!.contributionAmount)} ${_group!.contributionFrequency} contributions.
+We're saving together with ${_formatCurrency(_group!.contributionAmount ?? 1)} ${_group!.contributionFrequency} contributions.
 
 Join here: ${_inviteLink!.url}''')}';
                         // TODO: Open URL
@@ -1006,7 +1011,8 @@ Join here: ${_inviteLink!.url}''')}';
     if (_group == null) return const SizedBox.shrink();
 
     final memberCount = _group!.approvedMembersCount;
-    final availableSpots = _group!.maxMembers - memberCount;
+    final availableSpots =
+        (_group!.maxMembers ?? 0) - (memberCount?.toDouble() ?? 0);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -1071,7 +1077,6 @@ Join here: ${_inviteLink!.url}''')}';
   Widget build(BuildContext context) {
     if (_loading) {
       return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.background,
         body: Column(
           children: [
             _buildHeader(),
@@ -1083,7 +1088,6 @@ Join here: ${_inviteLink!.url}''')}';
 
     if (_group == null) {
       return Scaffold(
-        backgroundColor: Theme.of(context).colorScheme.background,
         body: Column(
           children: [
             _buildHeader(),
@@ -1094,7 +1098,6 @@ Join here: ${_inviteLink!.url}''')}';
     }
 
     return Scaffold(
-      backgroundColor: Theme.of(context).colorScheme.background,
       body: Column(
         children: [
           _buildHeader(),

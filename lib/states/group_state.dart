@@ -45,7 +45,7 @@ class GroupCommunityProvider extends ChangeNotifier {
   bool _isFetchingSpotlight = false;
 
   // Community Preferences
-  CommunityPreference? _communityPreferences;
+  CommunityPreferences? _communityPreferences;
   bool _isLoadingPreferences = false;
 
   // Getters
@@ -75,7 +75,7 @@ class GroupCommunityProvider extends ChangeNotifier {
   List<SpotlightVideo> get spotlight => List.unmodifiable(_spotlight);
   bool get isFetchingSpotlight => _isFetchingSpotlight;
 
-  CommunityPreference? get communityPreferences => _communityPreferences;
+  CommunityPreferences? get communityPreferences => _communityPreferences;
   bool get isLoadingPreferences => _isLoadingPreferences;
 
   // Initialize the provider
@@ -120,15 +120,6 @@ class GroupCommunityProvider extends ChangeNotifier {
     return colors[colorIndex];
   }
 
-  String getInitials(String name) {
-    return name
-        .split(' ')
-        .where((word) => word.isNotEmpty)
-        .map((word) => word[0])
-        .join('')
-        .toUpperCase()
-        .substring(0, min(2, name.split(' ').length));
-  }
 
   String getGroupStatus(String groupStatus, String memberStatus) {
     if (memberStatus == 'PENDING') return 'pending';
@@ -155,6 +146,7 @@ class GroupCommunityProvider extends ChangeNotifier {
   Future<ApiResponse<GroupDetails>> getGroup(String id) async {
     try {
       final response = await _groupService.getGroup(id);
+      print("response???? ${response.data}");
       if (response.success && response.data != null) {
         _currentGroup = response.data;
         notifyListeners();
@@ -405,14 +397,14 @@ class GroupCommunityProvider extends ChangeNotifier {
     }
   }
 
-   Future<ApiResponse<List<GroupJoinRequest>>> getGroupJoinRequests(String groupId) async {
+   Future<ApiResponse<List<JoinRequest>>> getGroupJoinRequests(String groupId) async {
     try {
       final response = await _groupService.getGroupJoinRequests(groupId);
       if (response.success && response.data != null) {
-        _joinRequests = response.data!.content;
+        // _joinRequests = response.data!.content;
         notifyListeners();
       }
-      return ApiResponse<List<GroupJoinRequest>>(
+      return ApiResponse<List<JoinRequest>>(
         success: response.success,
         data: response.data?.content ?? [],
         message: response.message,
@@ -731,10 +723,13 @@ class GroupCommunityProvider extends ChangeNotifier {
       final response = await _groupService.getPreferences();
       if (response.success && response.data != null) {
         _communityPreferences = response.data;
+        print("Preference otten ... ");
       }
     } catch (error) {
+      print("error?? $error");
       rethrow;
     } finally {
+      print("Preference otten ... ${_communityPreferences?.toJson()}");
       _isLoadingPreferences = false;
       notifyListeners();
     }

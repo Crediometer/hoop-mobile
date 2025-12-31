@@ -206,9 +206,9 @@ class _GroupsTabState extends State<GroupsTab> {
       final q = _searchQuery.trim().toLowerCase();
       if (q.isNotEmpty) {
         return requests.where((r) {
-          final groupName = r.group?.name?.toLowerCase() ?? '';
-          final message = r.message.toLowerCase();
-          return groupName.contains(q) || message.contains(q);
+          final groupName = r.groupName?.toLowerCase() ?? '';
+          final message = r.message?.toLowerCase();
+          return groupName.contains(q) || (message ?? '').contains(q);
         }).toList();
       }
       return requests;
@@ -234,83 +234,80 @@ class _GroupsTabState extends State<GroupsTab> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.grey[50],
-      body: Column(
-        children: [
-          // HEADER
-          Container(
-            color: isDark ? const Color(0xFF0F111A) : Colors.white,
-            padding: const EdgeInsets.only(
-              left: 20,
-              right: 20,
-              top: 24,
-              bottom: 12,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 300),
-                  child: _showSearch
-                      ? _buildSearchHeader(isDark, textPrimary, textSecondary)
-                      : _buildTitleHeader(
-                          isDark,
-                          textPrimary,
-                          textSecondary,
-                          displayedItems,
-                          0,
-                        ),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(height: 16),
-
-          // SEGMENTED CONTROL with counts
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // HEADER
+            Container(
+              color: isDark ? const Color(0xFF0F111A) : Colors.white,
+              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSegmentButtonFixed(
-                    "Current (${_groupCounts['current']})",
-                    0,
-                    isDark,
-                  ),
-                  _buildSegmentButtonFixed(
-                    "Finished (${_groupCounts['finished']})",
-                    1,
-                    isDark,
-                  ),
-                  _buildSegmentButtonFixed(
-                    "Pending (${_groupCounts['pending']})",
-                    2,
-                    isDark,
-                  ),
-                  _buildSegmentButtonFixed(
-                    "Rejected (${_groupCounts['rejected']})",
-                    3,
-                    isDark,
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 300),
+                    child: _showSearch
+                        ? _buildSearchHeader(isDark, textPrimary, textSecondary)
+                        : _buildTitleHeader(
+                            isDark,
+                            textPrimary,
+                            textSecondary,
+                            displayedItems,
+                            0,
+                          ),
                   ),
                 ],
               ),
             ),
-          ),
 
-          const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-          // CONTENT AREA
-          Expanded(
-            child: _buildSegmentContent(isDark, textPrimary, textSecondary),
-          ),
-        ],
+            // SEGMENTED CONTROL with counts
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _buildSegmentButtonFixed(
+                      "Current (${_groupCounts['current']})",
+                      0,
+                      isDark,
+                    ),
+                    _buildSegmentButtonFixed(
+                      "Finished (${_groupCounts['finished']})",
+                      1,
+                      isDark,
+                    ),
+                    _buildSegmentButtonFixed(
+                      "Pending (${_groupCounts['pending']})",
+                      2,
+                      isDark,
+                    ),
+                    _buildSegmentButtonFixed(
+                      "Rejected (${_groupCounts['rejected']})",
+                      3,
+                      isDark,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 16),
+
+            // CONTENT AREA
+            Expanded(
+              child: _buildSegmentContent(isDark, textPrimary, textSecondary),
+            ),
+          ],
+        ),
       ),
 
       // FLOATING ACTION BUTTON
@@ -322,7 +319,7 @@ class _GroupsTabState extends State<GroupsTab> {
             builder: (context, snapshot) {
               log("snapshot.data?? ${snapshot.data}");
               final needsOnboarding = snapshot.data ?? true;
-              return needsOnboarding
+              return !needsOnboarding
                   ? const SizedBox.shrink()
                   : Container(
                       decoration: BoxDecoration(
@@ -453,7 +450,7 @@ class _GroupsTabState extends State<GroupsTab> {
   ) {
     final avatarColor = _getAvatarColor(group.id);
     final statusColor = _getGroupStatusColor(group.status);
-    final initials = _getInitials(group.name);
+    final initials = HoopFormatters.getInitials(group.name);
     final dueDate = _getDueDate(group);
 
     return Container(
@@ -596,11 +593,11 @@ class _GroupsTabState extends State<GroupsTab> {
     Color textPrimary,
     Color? textSecondary,
   ) {
-    final groupName = request.group?.name ?? 'Unknown Group';
-    final initials = _getInitials(groupName);
-    final avatarColor = _getAvatarColor(request.groupId);
+    final groupName = request.groupName ?? 'Unknown Group';
+    final initials = HoopFormatters.getInitials(groupName);
+    final avatarColor = _getAvatarColor(request.groupId.toString());
     final statusColor = request.statusColor;
-    final statusText = request.statusText;
+    final statusText = request.displayStatus;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -684,9 +681,9 @@ class _GroupsTabState extends State<GroupsTab> {
                     ],
                   ),
                   const SizedBox(height: 4),
-                  if (request.message.isNotEmpty)
+                  if ((request.message ?? '').isNotEmpty)
                     Text(
-                      request.message,
+                      request.message ?? '',
                       style: TextStyle(color: textSecondary, fontSize: 12),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
@@ -705,9 +702,9 @@ class _GroupsTabState extends State<GroupsTab> {
                         style: TextStyle(color: textSecondary, fontSize: 11),
                       ),
                       const Spacer(),
-                      if (request.group?.contributionAmount != null)
+                      if (request.contributionAmount != null)
                         Text(
-                          '₦${request.group!.contributionAmount}',
+                          '₦${request.contributionAmount}',
                           style: TextStyle(
                             color: textSecondary,
                             fontSize: 11,
@@ -723,27 +720,6 @@ class _GroupsTabState extends State<GroupsTab> {
         ),
       ),
     );
-  }
-
-  String _getInitials(String name) {
-    if (name.isEmpty) return '??';
-
-    final parts = name.trim().split(RegExp(r'\s+'));
-
-    final validParts = parts.where((part) => part.isNotEmpty).toList();
-
-    if (validParts.length >= 2) {
-      if (validParts[0].isNotEmpty && validParts[1].isNotEmpty) {
-        return '${validParts[0][0]}${validParts[1][0]}'.toUpperCase();
-      }
-    }
-
-    if (validParts.isNotEmpty) {
-      final firstPart = validParts[0];
-      return firstPart.substring(0, firstPart.length > 2 ? 2 : 1).toUpperCase();
-    }
-
-    return '??';
   }
 
   Color _getAvatarColor(String id) {
@@ -801,7 +777,7 @@ class _GroupsTabState extends State<GroupsTab> {
 
   Map<String, dynamic> _groupToMap(Group group) {
     return {
-      "initials": _getInitials(group.name),
+      "initials": HoopFormatters.getInitials(group.name),
       "name": group.name,
       "id": group.id,
       "description": group.description ?? '',

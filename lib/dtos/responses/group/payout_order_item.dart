@@ -97,14 +97,14 @@ class PayoutOrderItem {
   }
 
   // Get member name (if member exists)
-  String get memberName => member?.user?.firstName ?? 'Unknown Member';
+  String get memberName => member?.firstName ?? 'Unknown Member';
 
   // Get member avatar (if member exists)
-  String? get memberAvatar => member?.user?.imageUrl;
+  String? get memberAvatar => member?.imageVerification;
 
   // Get member initials (if member exists)
   String get memberInitials {
-    final name = member?.user?.firstName ?? '';
+    final name = member?.firstName ?? '';
     if (name.isEmpty) return '??';
     
     final parts = name.split(' ');

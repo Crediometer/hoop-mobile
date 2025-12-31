@@ -1,6 +1,7 @@
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/services/group_services.dart';
@@ -8,16 +9,17 @@ import 'package:hoop/states/group_state.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
 import 'package:provider/provider.dart';
 
-class GroupDetailScreen extends StatefulWidget {
+class GroupDetailPublicScreen extends StatefulWidget {
   final Map<String, dynamic> group;
 
-  const GroupDetailScreen({super.key, required this.group});
+  const GroupDetailPublicScreen({super.key, required this.group});
 
   @override
-  State<GroupDetailScreen> createState() => _GroupDetailScreenState();
+  State<GroupDetailPublicScreen> createState() =>
+      _GroupDetailPublicScreenState();
 }
 
-class _GroupDetailScreenState extends State<GroupDetailScreen> {
+class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
   int selectedTab = 0; // 0 = Overview, 1 = Members, 2 = Settings
 
   // States
@@ -130,6 +132,40 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       }
     } catch (e) {
       log('Error loading payout order: $e');
+    }
+  }
+
+  Future<void> _handleJoinGroup() async {
+    try {
+      setState(() => _isProcessingAction = true);
+      final groupId = _group?.id.toString();
+      if (groupId == null) return;
+
+      final provider = Provider.of<GroupCommunityProvider>(
+        context,
+        listen: false,
+      );
+      final response = await provider.joinGroup(groupId);
+
+      if (response.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully joined ${_group?.name}!'),
+            backgroundColor: HoopTheme.successGreen,
+          ),
+        );
+        await _loadGroupData();
+      }
+    } catch (e) {
+      log('Error joining group: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to join group'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isProcessingAction = false);
     }
   }
 
@@ -257,6 +293,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
       setState(() => _isProcessingAction = false);
     }
   }
+
 
   Color _getAvatarColor(String id) {
     final colors = [
@@ -407,59 +444,74 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                       end: Alignment.bottomRight,
                     ),
                   ),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 34),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Back button and settings icon
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          GestureDetector(
-                            onTap: () => Navigator.pop(context),
-                            child: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.arrow_back,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
+                      GestureDetector(
+                        onTap: () => Navigator.pop(context),
+                        child: Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          GestureDetector(
-                            onTap: isAdmin
-                                ? () {
-                                    // Navigate to invite screen
-                                    Navigator.pushNamed(
-                                      context,
-                                      '/group/invite',
-                                      arguments: displayGroup.id.toString(),
-                                    );
-                                  }
-                                : null,
-                            child: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF4A148C),
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: const Icon(
-                                Icons.people_outline,
-                                color: Colors.white,
-                                size: 22,
-                              ),
-                            ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: Colors.white,
+                            size: 22,
                           ),
-                        ],
+                        ),
                       ),
 
                       const SizedBox(height: 16),
+
+                      // Status badge + rating (pill-shaped)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (displayGroup is Group &&
+                                displayGroup.requireApproval == true)
+                              const Text(
+                                "Approval Required",
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            if (displayGroup is Group &&
+                                displayGroup.requireApproval == true)
+                              const SizedBox(width: 8),
+                            const Text(
+                              "⭐ 4.8",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 14),
 
                       // Group name
                       Text(
@@ -548,7 +600,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     children: [
                       _buildTabButton("Overview", Icons.bar_chart, 0, isDark),
                       _buildTabButton("Members", Icons.people, 1, isDark),
-                      _buildTabButton("Settings", Icons.settings, 2, isDark),
                     ],
                   ),
                 ),
@@ -566,19 +617,23 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                           textTertiary,
                           displayGroup,
                         )
-                      : selectedTab == 1
-                      ? _buildMembersTab(isDark, textPrimary, textSecondary)
-                      : _buildSettingsTab(
-                          isDark,
-                          textPrimary,
-                          textSecondary,
-                          isAdmin,
-                        ),
+                      : _buildMembersTab(isDark, textPrimary, textSecondary),
                 ),
 
                 const SizedBox(height: 20),
 
                 // Action buttons at bottom
+                if (!isMember)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: HoopButton(
+                      buttonText:
+                          "Join Group • ₦${contributionAmount?.toStringAsFixed(0)}/$frequency",
+                      isLoading: _isProcessingAction,
+                      onPressed: _handleJoinGroup,
+                    ),
+                  ),
+
                 if (isMember && isForming && canStart && isAdmin)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -588,13 +643,12 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                 const SizedBox(height: 20),
               ],
             ),
-            // CONTRIBUTION + CYCLE CHIPS WITH YELLOW BORDER
+
             Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 200),
+              padding: const EdgeInsets.only(left: 16, right: 16, top: 220),
               child: Container(
                 child: Row(
                   children: [
-                    // Contribution chip
                     Expanded(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
@@ -767,163 +821,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Current Cycle Progress
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "Current Cycle Progress",
-                  style: TextStyle(
-                    color: textPrimary,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                Text(
-                  progressSubtitle,
-                  style: TextStyle(color: textSecondary, fontSize: 12),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: LinearProgressIndicator(
-                value: progressValue,
-                minHeight: 8,
-                backgroundColor: isDark ? Colors.white10 : Colors.grey[300],
-                valueColor: AlwaysStoppedAnimation(const Color(0xFF4CAF50)),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  "₦${(totalPayout * progressValue).toStringAsFixed(0)} collected",
-                  style: TextStyle(
-                    color: const Color(0xFF4CAF50),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  "₦${totalPayout.toStringAsFixed(0)} goal",
-                  style: TextStyle(
-                    color: textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-
-        const SizedBox(height: 20),
-
-        // Next Payout
-        if (_nextPayout.isNotEmpty)
-          Column(
-            children: _nextPayout.map((payout) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: isDark
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 18,
-                          color: const Color(0xFFE67E22),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "Next Payout",
-                          style: TextStyle(
-                            color: textPrimary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      "${payout['memberName']} • ${_formatDate(payout['assignedAt'])}",
-                      style: TextStyle(color: textSecondary, fontSize: 12),
-                    ),
-                  ],
-                ),
-              );
-            }).toList(),
-          )
-        else
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: isDark
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(
-                      Icons.schedule,
-                      size: 18,
-                      color: const Color(0xFFE67E22),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      "Next Payout",
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  "No payout scheduled yet",
-                  style: TextStyle(color: textSecondary, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
 
         // Slot Payment
         Container(
@@ -1054,6 +952,57 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     : "Not set",
                 textTertiary,
               ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 12),
+
+        // Group Info
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A1D27) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: isDark
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.04),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.security, size: 18, color: Colors.grey[500]),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Group Rules",
+                    style: TextStyle(
+                      color: textPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _infoRow("Contributions due", "5 days", textTertiary),
+              const SizedBox(height: 8),
+              _infoRow(
+                "Late payments incur 1% penalty",
+                "(max ₦1,000)",
+                textTertiary,
+              ),
+              const SizedBox(height: 8),
+              _infoRow("Max. missed payments allowed", "3", textTertiary),
+              const SizedBox(height: 8),
+              _infoRow("Payout order determined by", "join date", textTertiary),
             ],
           ),
         ),
@@ -1395,310 +1344,6 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               ),
             ),
       ],
-    );
-  }
-
-  Widget _buildSettingsTab(
-    bool isDark,
-    Color textPrimary,
-    Color? textSecondary,
-    bool isAdmin,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          "Group Settings",
-          style: TextStyle(
-            color: textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 12),
-
-        // Communication settings (only for admins)
-        if (isAdmin && _group != null)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isDark
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 8,
-                      ),
-                    ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Communication",
-                  style: TextStyle(
-                    color: textPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                _settingSwitch(
-                  "Allow Group Messages",
-                  _group?.allowGroupMessaging ?? false,
-                  (value) {
-                    // Handle group messaging change
-                    final provider = Provider.of<GroupCommunityProvider>(
-                      context,
-                      listen: false,
-                    );
-                    provider.handleAllowGroupMessagingChange(value);
-                  },
-                  isDark,
-                  textSecondary,
-                ),
-                const Divider(),
-                _settingSwitch(
-                  "Allow Video Calls",
-                  _group?.allowVideoCall ?? false,
-                  (value) {
-                    // Handle video call change
-                    final provider = Provider.of<GroupCommunityProvider>(
-                      context,
-                      listen: false,
-                    );
-                    provider.handleAllowVideoCallChange(value);
-                  },
-                  isDark,
-                  textSecondary,
-                ),
-              ],
-            ),
-          ),
-
-        // Join requests section (only for admins)
-        if (isAdmin && _joinRequests.isNotEmpty)
-          Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isDark
-                  ? null
-                  : [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.04),
-                        blurRadius: 8,
-                      ),
-                    ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Pending Requests",
-                      style: TextStyle(
-                        color: textPrimary,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Text(
-                        "${_joinRequests.length}",
-                        style: TextStyle(
-                          color: Colors.orange,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                ..._joinRequests.take(3).map((request) {
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.white10 : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              "${request.user.firstName} ${request.user.lastName}",
-                              style: TextStyle(
-                                color: textPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                            Text(
-                              request.user.email,
-                              style: TextStyle(
-                                color: textSecondary,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Row(
-                          children: [
-                            IconButton(
-                              onPressed: () => _handleRequestAction(
-                                request.id.toString(),
-                                'approve',
-                              ),
-                              icon: Icon(
-                                Icons.check,
-                                size: 18,
-                                color: Colors.green,
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: BoxConstraints(),
-                            ),
-                            IconButton(
-                              onPressed: () => _handleRequestAction(
-                                request.id.toString(),
-                                'reject',
-                              ),
-                              icon: Icon(
-                                Icons.close,
-                                size: 18,
-                                color: Colors.red,
-                              ),
-                              padding: EdgeInsets.zero,
-                              constraints: BoxConstraints(),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-                if (_joinRequests.length > 3)
-                  TextButton(
-                    onPressed: () {
-                      // Show all requests dialog
-                    },
-                    child: Text(
-                      "View all requests",
-                      style: TextStyle(fontSize: 12),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-
-        // Danger zone
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: isDark
-                ? null
-                : [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.04),
-                      blurRadius: 8,
-                    ),
-                  ],
-          ),
-          child: Column(
-            children: [
-              _settingRow(
-                "Leave Group",
-                Icons.exit_to_app_outlined,
-                isDark,
-                textPrimary,
-                Colors.red,
-                onTap: _handleLeaveGroup,
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _settingSwitch(
-    String label,
-    bool value,
-    Function(bool) onChanged,
-    bool isDark,
-    Color? textSecondary,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            color: textSecondary,
-            fontSize: 13,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        Switch(
-          value: value,
-          onChanged: onChanged,
-          activeColor: const Color(0xFF6366F1),
-        ),
-      ],
-    );
-  }
-
-  Widget _settingRow(
-    String label,
-    IconData icon,
-    bool isDark,
-    Color textPrimary,
-    Color? color, {
-    VoidCallback? onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 18, color: color),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-          Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey[500]),
-        ],
-      ),
     );
   }
 

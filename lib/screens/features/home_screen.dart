@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/states/OnboardingService.dart';
+import 'package:hoop/states/onesignal_state.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:provider/provider.dart';
 import 'package:hoop/screens/features/primary_setup_required_screen.dart';
 import 'package:hoop/screens/tabs/community_tab.dart';
 import 'package:hoop/screens/tabs/groups_tab.dart';
 import 'package:hoop/screens/tabs/shiners_tab.dart';
 import 'package:hoop/screens/tabs/activity_tab.dart';
 import 'package:hoop/screens/tabs/profile_tab.dart';
-import 'package:hoop/states/OnboardingService.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,10 +20,11 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
   final OnboardingService _onboardingService = OnboardingService();
+  bool _oneSignalInitialized = false;
 
-  // Cache static tabs - REMOVE Consumer from here
+  // Cache static tabs
   late final List<Widget> _staticTabs = [
-    const GroupsTab(), 
+    const GroupsTab(),
     const ShinersTab(),
     const ActivityTab(),
     const ProfileTab(),
@@ -28,11 +32,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Icons for bottom nav
   final List<IconData> _navIcons = [
-    Icons.people_outline, // Community
-    Icons.chat_bubble_outline, // Chat
-    Icons.videocam_outlined, // Video
-    Icons.credit_card, // Wallet
-    Icons.person_outline, // Profile
+    Icons.people_outline, 
+    Icons.chat_bubble_outline,
+    Icons.videocam_outlined,
+    Icons.credit_card,
+    Icons.person_outline,
   ];
 
   // Tab labels
@@ -40,14 +44,124 @@ class _HomeScreenState extends State<HomeScreen> {
     'Community',
     'Groups',
     'Spotlight',
-    'Activity',
+    'Transactions',
     'Profile',
   ];
 
   @override
-  void dispose() {
-    _onboardingService.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeOneSignal();
+    });
+  }
+
+  Future<void> _initializeOneSignal() async {
+    if (_oneSignalInitialized) return;
+
+    final oneSignal = context.read<OneSignalService>();
+
+    await oneSignal.initialize(
+      context: context,
+      appId: "474a1dcb-a9e3-4671-bce2-5d530387cba3",
+      requireConsent: false,
+      requestPermissionAutomatically: true,
+      onNotificationClick: (event) {
+        print('Notification clicked: ${event.notification.title}');
+        _handleNotificationClick(event);
+      },
+      onForegroundNotification: (event) {
+        print('Foreground notification: ${event.notification.title}');
+        _handleForegroundNotification(event);
+      },
+    );
+
+    _oneSignalInitialized = true;
+  }
+
+  void _handleNotificationClick(OSNotificationClickEvent event) {
+    final notification = event.notification;
+    final data = notification.additionalData;
+
+    if (data != null) {
+      final type = data['type']?.toString();
+      final actionUrl = data['actionUrl']?.toString();
+
+      print('Notification type: $type, actionUrl: $actionUrl');
+
+      // Navigate based on notification type
+      _navigateFromNotification(type, actionUrl);
+    }
+  }
+
+  void _handleForegroundNotification(OSNotificationWillDisplayEvent event) {
+    // You can customize how foreground notifications are handled
+    // For example, show a custom banner or dialog
+    _showNotificationBanner(event.notification);
+  }
+
+  void _showNotificationBanner(OSNotification notification) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.notifications, color: Colors.white),
+            SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    notification.title ?? 'New Notification',
+                    style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  if (notification.body != null)
+                    Text(
+                      notification.body!,
+                      style: TextStyle(fontSize: 12),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        backgroundColor: Color(0xFFF97316),
+        duration: Duration(seconds: 3),
+        action: SnackBarAction(
+          label: 'View',
+          textColor: Colors.white,
+          onPressed: () {
+            _handleNotificationClick(
+              OSNotificationClickEvent(notification.rawPayload ?? {}),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _navigateFromNotification(String? type, String? actionUrl) {
+    // Implement your navigation logic based on notification type
+    // This is just an example
+    switch (type) {
+      case 'GROUP_STARTED':
+        // Navigate to groups tab
+        setState(() => _currentIndex = 1);
+        break;
+      case 'CONTRIBUTION_RECEIVED':
+      case 'PAYMENT_MISSED':
+        // Navigate to activity tab
+        setState(() => _currentIndex = 3);
+        break;
+      case 'MENTION':
+        // Navigate to groups tab for chat
+        setState(() => _currentIndex = 1);
+        break;
+      // Add more cases as needed
+    }
   }
 
   Widget _buildBody(bool needsOnboarding) {
@@ -110,41 +224,71 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Stack(
-                          children: [
-                            Icon(
-                              _navIcons[index],
-                              size: 26,
-                              color: selected
-                                  ? const Color(0xFFF97316)
-                                  : (isDark ? Colors.grey : Colors.black54),
-                            ),
-                            // Show notification dot for specific tabs if needed
-                            if (_hasNotifications(index))
-                              Positioned(
-                                right: 0,
-                                top: 0,
-                                child: Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: Colors.red,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: isDark
-                                          ? const Color(0xFF0F111A)
-                                          : Colors.white,
-                                      width: 1.5,
-                                    ),
+                        // Notification badge for Groups tab
+                        if (index == 1) // Groups tab
+                          Consumer<OneSignalService>(
+                            builder: (context, oneSignal, child) {
+                              return Stack(
+                                children: [
+                                  Icon(
+                                    _navIcons[index],
+                                    size: 26,
+                                    color: selected
+                                        ? const Color(0xFFF97316)
+                                        : (isDark
+                                              ? Colors.grey
+                                              : Colors.black54),
                                   ),
-                                ),
-                              ),
-                          ],
-                        ),
+                                  if (oneSignal.unreadCount > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(
+                                            9,
+                                          ),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? const Color(0xFF0F111A)
+                                                : Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            oneSignal.unreadCount > 9
+                                                ? '9+'
+                                                : oneSignal.unreadCount
+                                                      .toString(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          )
+                        else
+                          Icon(
+                            _navIcons[index],
+                            size: 26,
+                            color: selected
+                                ? const Color(0xFFF97316)
+                                : (isDark ? Colors.grey : Colors.black54),
+                          ),
 
                         const SizedBox(height: 4),
 
-                        // Tab label (optional)
+                        // Tab label
                         if (selected)
                           Text(
                             _tabLabels[index],
@@ -172,15 +316,35 @@ class _HomeScreenState extends State<HomeScreen> {
               }),
             ),
           ),
+
+          // Floating Action Button for manual permission request
+          floatingActionButton: Consumer<OneSignalService>(
+            builder: (context, oneSignal, child) {
+              if (oneSignal.hasPermission || oneSignal.isLoading) {
+                return SizedBox.shrink();
+              }
+
+              return FloatingActionButton.extended(
+                onPressed: () async {
+                  await oneSignal.requestPermission();
+                },
+                icon: Icon(Icons.notifications_active),
+                label: Text('Enable Notifications'),
+                backgroundColor: Color(0xFFF97316),
+                foregroundColor: Colors.white,
+              );
+            },
+          ),
+          floatingActionButtonLocation:
+              FloatingActionButtonLocation.centerFloat,
         );
       },
     );
   }
 
-  // Helper method to check if a tab has notifications
-  bool _hasNotifications(int index) {
-    // Example: Show notifications for Groups tab (index 1)
-    // You can implement your own logic here
-    return index == 1 && false; // Replace with actual notification logic
+  @override
+  void dispose() {
+    _onboardingService.dispose();
+    super.dispose();
   }
 }

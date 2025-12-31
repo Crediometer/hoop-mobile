@@ -9,6 +9,7 @@ class StorageService {
   static const String _authStatusKey = 'isAuthenticated';
   static const String _userIdKey = 'userIdPlain';
   static const String _userDataKey = 'userData';
+  static const String _userAppearence = 'userAppearence';
 
   static final StorageService _instance = StorageService._internal();
   factory StorageService() => _instance;
@@ -70,6 +71,18 @@ class StorageService {
     final prefs = await _prefs;
     final data = prefs.getString(_userDataKey);
     return data != null ? json.decode(data) as Map<String, dynamic> : null;
+  }
+
+  // User data
+  Future<void> storeUserAppearance(String appearance) async {
+    final prefs = await _prefs;
+    await prefs.setString(_userAppearence, appearance);
+  }
+
+  Future<String> getUserAppearance() async {
+    final prefs = await _prefs;
+    final data = prefs.getString(_userAppearence);
+    return data ?? 'system';
   }
 
   // Clear all auth data
