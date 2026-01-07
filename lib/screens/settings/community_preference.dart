@@ -3,6 +3,7 @@ import 'package:hoop/components/buttons/back_button.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/states/group_state.dart';
+import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
 import 'package:provider/provider.dart';
 
 class CustomSwitch extends StatelessWidget {
@@ -158,23 +159,53 @@ class CommunitySettingsScreen extends StatefulWidget {
 class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
   bool _isSaving = false;
   bool _initialLoadComplete = false;
+  
+  // Text editing controllers to prevent focus loss
+  final TextEditingController _contributionMinController = TextEditingController();
+  final TextEditingController _contributionMaxController = TextEditingController();
+  final TextEditingController _totalPotMinController = TextEditingController();
+  final TextEditingController _totalPotMaxController = TextEditingController();
+  
+  // Slider state
+  double _distanceRadiusValue = 25.0;
 
   @override
   void initState() {
     super.initState();
-    _loadPreferences();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadPreferences();
+    });
+  }
+
+  @override
+  void dispose() {
+    // Dispose controllers to prevent memory leaks
+    _contributionMinController.dispose();
+    _contributionMaxController.dispose();
+    _totalPotMinController.dispose();
+    _totalPotMaxController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadPreferences() async {
-    final provider = context.read<GroupCommunityProvider>();
+    final provider = Provider.of<GroupCommunityProvider>(context, listen: false);
 
-    // Only load if not already loaded
     if (provider.communityPreferences == null &&
         !provider.isLoadingPreferences) {
       await provider.loadCommunityPreferences();
     }
 
     if (mounted) {
+      final preferences = provider.communityPreferences;
+      if (preferences != null) {
+        // Initialize controllers with current values
+        _contributionMinController.text = (preferences.contributionMin ?? 5000).toString();
+        _contributionMaxController.text = (preferences.contributionMax ?? 50000).toString();
+        _totalPotMinController.text = (preferences.totalPotMin ?? 50000).toString();
+        _totalPotMaxController.text = (preferences.totalPotMax ?? 500000).toString();
+        _distanceRadiusValue = (preferences.distanceRadius ?? 25).toDouble();
+      }
+      
       setState(() {
         _initialLoadComplete = true;
       });
@@ -188,7 +219,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
       _isSaving = true;
     });
 
-    final provider = context.read<GroupCommunityProvider>();
+    final provider = Provider.of<GroupCommunityProvider>(context, listen: false);
     final preferences = provider.communityPreferences;
 
     if (preferences == null) {
@@ -199,15 +230,20 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
     }
 
     try {
-      // Get updated values from current preferences
+      // Parse text field values
+      final contributionMin = int.tryParse(_contributionMinController.text) ?? 5000;
+      final contributionMax = int.tryParse(_contributionMaxController.text) ?? 50000;
+      final totalPotMin = int.tryParse(_totalPotMinController.text) ?? 50000;
+      final totalPotMax = int.tryParse(_totalPotMaxController.text) ?? 500000;
+
       await provider.updateCommunityPreferences({
         'goGlobal': preferences.goGlobal,
-        'distanceRadius': preferences.distanceRadius,
+        'distanceRadius': _distanceRadiusValue.round(),
         'preferredGroupSize': preferences.preferredGroupSize,
-        'contributionMin': preferences.contributionMin,
-        'contributionMax': preferences.contributionMax,
-        'totalPotMin': preferences.totalPotMin,
-        'totalPotMax': preferences.totalPotMax,
+        'contributionMin': contributionMin,
+        'contributionMax': contributionMax,
+        'totalPotMin': totalPotMin,
+        'totalPotMax': totalPotMax,
         'groupRecommendations': preferences.groupRecommendations,
         'nearbyAlerts': preferences.nearbyAlerts,
         'communityNotifications': preferences.communityNotifications,
@@ -239,16 +275,23 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
   }
 
   Future<void> _resetPreferences() async {
-    final provider = context.read<GroupCommunityProvider>();
+    final provider = Provider.of<GroupCommunityProvider>(context, listen: false);
 
     try {
       await provider.resetCommunityPreferences();
+      
+      // Reset controllers to default values
+      _contributionMinController.text = '5000';
+      _contributionMaxController.text = '50000';
+      _totalPotMinController.text = '50000';
+      _totalPotMaxController.text = '500000';
+      _distanceRadiusValue = 25.0;
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Preferences reset to defaults'),
           backgroundColor: HoopTheme.successGreen,
-          duration: Duration(seconds: 2),
+          duration: const Duration(seconds: 2),
         ),
       );
     } catch (error) {
@@ -400,20 +443,21 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                       ),
                     ],
                   ),
-                  CustomSwitch(
-                    value: preferences.goGlobal ?? true,
-                    onChanged: (value) {
-                      context
-                          .read<GroupCommunityProvider>()
-                          .updateCommunityPreferences({
+                  Consumer<GroupCommunityProvider>(
+                    builder: (context, provider, child) {
+                      return CustomSwitch(
+                        value: preferences.goGlobal ?? true,
+                        onChanged: (value) {
+                          provider.updateCommunityPreferences({
                             ...preferences.toJson(),
                             'goGlobal': value,
                           });
+                        },
+                      );
                     },
                   ),
                 ],
               ),
-
               if (!(preferences.goGlobal ?? true)) ...[
                 const SizedBox(height: 16),
                 Divider(
@@ -439,7 +483,7 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                           ),
                         ),
                         Text(
-                          '${preferences.distanceRadius ?? 25} km',
+                          '${_distanceRadiusValue.round()} km',
                           style: TextStyle(
                             fontSize: 14,
                             fontWeight: FontWeight.w500,
@@ -449,19 +493,24 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    CustomSlider(
-                      value: (preferences.distanceRadius ?? 25).toDouble(),
-                      onChanged: (value) {
-                        context
-                            .read<GroupCommunityProvider>()
-                            .updateCommunityPreferences({
+                    Consumer<GroupCommunityProvider>(
+                      builder: (context, provider, child) {
+                        return CustomSlider(
+                          value: _distanceRadiusValue,
+                          onChanged: (value) {
+                            setState(() {
+                              _distanceRadiusValue = value;
+                            });
+                            provider.updateCommunityPreferences({
                               ...preferences.toJson(),
                               'distanceRadius': value.round(),
                             });
+                          },
+                          min: 5,
+                          max: 100,
+                          step: 5,
+                        );
                       },
-                      min: 5,
-                      max: 100,
-                      step: 5,
                     ),
                   ],
                 ),
@@ -486,428 +535,255 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
       return '₦${value.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},')}';
     }
 
+    return Consumer<GroupCommunityProvider>(
+      builder: (context, provider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Group Preferences',
+              style: TextStyle(
+                color: HoopTheme.primaryBlue,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: HoopTheme.getBorderColor(
+                    Theme.of(context).brightness == Brightness.dark,
+                  ).withOpacity(0.1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    spreadRadius: 0.5,
+                  ),
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Preferred Group Size',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: HoopTheme.getTextPrimary(
+                            Theme.of(context).brightness == Brightness.dark,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: HoopTheme.getBorderColor(
+                              Theme.of(context).brightness == Brightness.dark,
+                            ),
+                          ),
+                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String>(
+                            value:
+                                preferences.preferredGroupSize?.toString() ??
+                                    'MEDIUM',
+                            isExpanded: true,
+                            items: groupSizes.entries.map((entry) {
+                              return DropdownMenuItem<String>(
+                                value: entry.key,
+                                child: Text(
+                                  entry.value,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: HoopTheme.getTextPrimary(
+                                      Theme.of(context).brightness ==
+                                          Brightness.dark,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                            onChanged: (value) {
+                              if (value != null) {
+                                provider.updateCommunityPreferences({
+                                  ...preferences.toJson(),
+                                  'preferredGroupSize': value,
+                                });
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _buildRangeInputSection(
+                    context: context,
+                    title: 'Contribution Range',
+                    minController: _contributionMinController,
+                    maxController: _contributionMaxController,
+                    currentMin: preferences.contributionMin?.toInt() ?? 5000,
+                    currentMax: preferences.contributionMax?.toInt() ?? 50000,
+                    formatValue: formatCurrency,
+                    onChanged: (min, max) {
+                      provider.updateCommunityPreferences({
+                        ...preferences.toJson(),
+                        'contributionMin': min,
+                        'contributionMax': max,
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  _buildRangeInputSection(
+                    context: context,
+                    title: 'Total Pot Range',
+                    minController: _totalPotMinController,
+                    maxController: _totalPotMaxController,
+                    currentMin: preferences.totalPotMin?.toInt() ?? 50000,
+                    currentMax: preferences.totalPotMax?.toInt() ?? 500000,
+                    formatValue: formatCurrency,
+                    onChanged: (min, max) {
+                      provider.updateCommunityPreferences({
+                        ...preferences.toJson(),
+                        'totalPotMin': min,
+                        'totalPotMax': max,
+                      });
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildRangeInputSection({
+    required BuildContext context,
+    required String title,
+    required TextEditingController minController,
+    required TextEditingController maxController,
+    required int currentMin,
+    required int currentMax,
+    required String Function(dynamic) formatValue,
+    required Function(int, int) onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: HoopTheme.getTextPrimary(
+                  Theme.of(context).brightness == Brightness.dark,
+                ),
+              ),
+            ),
+            Text(
+              '${HoopFormatters.formatCurrency(currentMin.toDouble())} - ${HoopFormatters.formatCurrency(currentMax.toDouble())}',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: HoopTheme.primaryBlue,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildRangeInputField(
+                context: context,
+                label: 'Minimum',
+                controller: minController,
+                onChanged: (value) {
+                  final intValue = int.tryParse(value) ?? currentMin;
+                  final maxValue = int.tryParse(maxController.text) ?? currentMax;
+                  onChanged(intValue, maxValue);
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _buildRangeInputField(
+                context: context,
+                label: 'Maximum',
+                controller: maxController,
+                onChanged: (value) {
+                  final intValue = int.tryParse(value) ?? currentMax;
+                  final minValue = int.tryParse(minController.text) ?? currentMin;
+                  onChanged(minValue, intValue);
+                },
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRangeInputField({
+    required BuildContext context,
+    required String label,
+    required TextEditingController controller,
+    required Function(String) onChanged,
+  }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Group Preferences',
+          label,
           style: TextStyle(
-            color: HoopTheme.primaryBlue,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
+            fontSize: 12,
+            color: HoopTheme.getTextSecondary(
+              Theme.of(context).brightness == Brightness.dark,
+            ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: HoopTheme.getBorderColor(
                 Theme.of(context).brightness == Brightness.dark,
-              ).withOpacity(0.1),
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                spreadRadius: 0.5,
-              ),
-            ],
           ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Preferred Group Size',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: HoopTheme.getTextPrimary(
-                        Theme.of(context).brightness == Brightness.dark,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: HoopTheme.getBorderColor(
-                          Theme.of(context).brightness == Brightness.dark,
-                        ),
-                      ),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value:
-                            preferences.preferredGroupSize?.toString() ??
-                            'MEDIUM',
-                        isExpanded: true,
-                        items: groupSizes.entries.map((entry) {
-                          return DropdownMenuItem<String>(
-                            value: entry.key,
-                            child: Text(
-                              entry.value,
-                              style: TextStyle(
-                                fontSize: 14,
-                                color: HoopTheme.getTextPrimary(
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark,
-                                ),
-                              ),
-                            ),
-                          );
-                        }).toList(),
-                        onChanged: (value) {
-                          if (value != null) {
-                            context
-                                .read<GroupCommunityProvider>()
-                                .updateCommunityPreferences({
-                                  ...preferences.toJson(),
-                                  'preferredGroupSize': value,
-                                });
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                ],
+          padding: const EdgeInsets.symmetric(
+            horizontal: 12,
+            vertical: 8,
+          ),
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration.collapsed(
+              hintText: '',
+            ),
+            style: TextStyle(
+              fontSize: 14,
+              color: HoopTheme.getTextPrimary(
+                Theme.of(context).brightness == Brightness.dark,
               ),
-
-              const SizedBox(height: 20),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Contribution Range',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: HoopTheme.getTextPrimary(
-                            Theme.of(context).brightness == Brightness.dark,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${formatCurrency(preferences.contributionMin)} - ${formatCurrency(preferences.contributionMax)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: HoopTheme.primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Minimum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: TextField(
-                                controller: TextEditingController(
-                                  text:
-                                      (preferences.contributionMin?.toInt() ??
-                                              5000)
-                                          .toString(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration.collapsed(
-                                  hintText: '',
-                                ),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  if (value.isNotEmpty) {
-                                    final intValue =
-                                        int.tryParse(value) ?? 5000;
-                                    context
-                                        .read<GroupCommunityProvider>()
-                                        .updateCommunityPreferences({
-                                          ...preferences.toJson(),
-                                          'contributionMin': intValue,
-                                        });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Maximum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: TextField(
-                                controller: TextEditingController(
-                                  text:
-                                      (preferences.contributionMax?.toInt() ??
-                                              50000)
-                                          .toString(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration.collapsed(
-                                  hintText: '',
-                                ),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  if (value.isNotEmpty) {
-                                    final intValue =
-                                        int.tryParse(value) ?? 50000;
-                                    context
-                                        .read<GroupCommunityProvider>()
-                                        .updateCommunityPreferences({
-                                          ...preferences.toJson(),
-                                          'contributionMax': intValue,
-                                        });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 20),
-
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Total Pot Range',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: HoopTheme.getTextPrimary(
-                            Theme.of(context).brightness == Brightness.dark,
-                          ),
-                        ),
-                      ),
-                      Text(
-                        '${formatCurrency(preferences.totalPotMin)} - ${formatCurrency(preferences.totalPotMax)}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: HoopTheme.primaryBlue,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Minimum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: TextField(
-                                controller: TextEditingController(
-                                  text:
-                                      (preferences.totalPotMin?.toInt() ??
-                                              50000)
-                                          .toString(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration.collapsed(
-                                  hintText: '',
-                                ),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  if (value.isNotEmpty) {
-                                    final intValue =
-                                        int.tryParse(value) ?? 50000;
-                                    context
-                                        .read<GroupCommunityProvider>()
-                                        .updateCommunityPreferences({
-                                          ...preferences.toJson(),
-                                          'totalPotMin': intValue,
-                                        });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Maximum',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: HoopTheme.getTextSecondary(
-                                  Theme.of(context).brightness ==
-                                      Brightness.dark,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                  color: HoopTheme.getBorderColor(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                              ),
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 8,
-                              ),
-                              child: TextField(
-                                controller: TextEditingController(
-                                  text:
-                                      (preferences.totalPotMax?.toInt() ??
-                                              500000)
-                                          .toString(),
-                                ),
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration.collapsed(
-                                  hintText: '',
-                                ),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: HoopTheme.getTextPrimary(
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark,
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  if (value.isNotEmpty) {
-                                    final intValue =
-                                        int.tryParse(value) ?? 500000;
-                                    context
-                                        .read<GroupCommunityProvider>()
-                                        .updateCommunityPreferences({
-                                          ...preferences.toJson(),
-                                          'totalPotMax': intValue,
-                                        });
-                                  }
-                                },
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+            ),
+            onChanged: onChanged,
           ),
         ),
       ],
@@ -915,332 +791,266 @@ class _CommunitySettingsScreenState extends State<CommunitySettingsScreen> {
   }
 
   Widget _buildNotificationsSection(CommunityPreferences preferences) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Notifications',
-          style: TextStyle(
-            color: HoopTheme.primaryBlue,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: HoopTheme.getBorderColor(
-                Theme.of(context).brightness == Brightness.dark,
-              ).withOpacity(0.1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                spreadRadius: 0.5,
+    return Consumer<GroupCommunityProvider>(
+      builder: (context, provider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Notifications',
+              style: TextStyle(
+                color: HoopTheme.primaryBlue,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: HoopTheme.primaryBlue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.people,
-                          color: HoopTheme.primaryBlue,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Group Recommendations',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 14,
-                              color: HoopTheme.getTextPrimary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            'New group suggestions',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: HoopTheme.getTextSecondary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: HoopTheme.getBorderColor(
+                    Theme.of(context).brightness == Brightness.dark,
+                  ).withOpacity(0.1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    spreadRadius: 0.5,
                   ),
-                  CustomSwitch(
+                ],
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  _buildNotificationRow(
+                    context: context,
+                    title: 'Group Recommendations',
+                    subtitle: 'New group suggestions',
+                    icon: Icons.people,
+                    iconColor: HoopTheme.primaryBlue,
                     value: preferences.groupRecommendations ?? true,
                     onChanged: (value) {
-                      context
-                          .read<GroupCommunityProvider>()
-                          .updateCommunityPreferences({
-                            ...preferences.toJson(),
-                            'groupRecommendations': value,
-                          });
+                      provider.updateCommunityPreferences({
+                        ...preferences.toJson(),
+                        'groupRecommendations': value,
+                      });
                     },
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: HoopTheme.successGreen.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.notifications,
-                          color: HoopTheme.successGreen,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Nearby Alerts',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 14,
-                              color: HoopTheme.getTextPrimary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            'New groups in your area',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: HoopTheme.getTextSecondary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  CustomSwitch(
+                  const SizedBox(height: 16),
+                  _buildNotificationRow(
+                    context: context,
+                    title: 'Nearby Alerts',
+                    subtitle: 'New groups in your area',
+                    icon: Icons.notifications,
+                    iconColor: HoopTheme.successGreen,
                     value: preferences.nearbyAlerts ?? true,
                     onChanged: (value) {
-                      context
-                          .read<GroupCommunityProvider>()
-                          .updateCommunityPreferences({
-                            ...preferences.toJson(),
-                            'nearbyAlerts': value,
-                          });
+                      provider.updateCommunityPreferences({
+                        ...preferences.toJson(),
+                        'nearbyAlerts': value,
+                      });
                     },
                   ),
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: HoopTheme.vibrantOrange.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.notifications_active,
-                          color: HoopTheme.vibrantOrange,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Community Updates',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 14,
-                              color: HoopTheme.getTextPrimary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            'Feature updates and news',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: HoopTheme.getTextSecondary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  CustomSwitch(
+                  const SizedBox(height: 16),
+                  _buildNotificationRow(
+                    context: context,
+                    title: 'Community Updates',
+                    subtitle: 'Feature updates and news',
+                    icon: Icons.notifications_active,
+                    iconColor: HoopTheme.vibrantOrange,
                     value: preferences.communityNotifications ?? true,
                     onChanged: (value) {
-                      context
-                          .read<GroupCommunityProvider>()
-                          .updateCommunityPreferences({
-                            ...preferences.toJson(),
-                            'communityNotifications': value,
-                          });
+                      provider.updateCommunityPreferences({
+                        ...preferences.toJson(),
+                        'communityNotifications': value,
+                      });
                     },
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildNotificationRow({
+    required BuildContext context,
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required bool value,
+    required Function(bool) onChanged,
+  }) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(
+                icon,
+                color: iconColor,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: HoopTheme.getTextPrimary(
+                      Theme.of(context).brightness == Brightness.dark,
+                    ),
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: HoopTheme.getTextSecondary(
+                      Theme.of(context).brightness == Brightness.dark,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+        CustomSwitch(
+          value: value,
+          onChanged: onChanged,
         ),
       ],
     );
   }
 
   Widget _buildAutoJoinSection(CommunityPreferences preferences) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Auto-Join Settings',
-          style: TextStyle(
-            color: HoopTheme.primaryBlue,
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: HoopTheme.getBorderColor(
-                Theme.of(context).brightness == Brightness.dark,
-              ).withOpacity(0.1),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.05),
-                blurRadius: 4,
-                spreadRadius: 0.5,
+    return Consumer<GroupCommunityProvider>(
+      builder: (context, provider, child) {
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Auto-Join Settings',
+              style: TextStyle(
+                color: HoopTheme.primaryBlue,
+                fontSize: 16,
+                fontWeight: FontWeight.w500,
               ),
-            ],
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.grey.shade200,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.my_location,
-                          color: Colors.grey.shade500,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Smart Auto-Join',
-                            style: TextStyle(
-                              fontWeight: FontWeight.w500,
-                              fontSize: 14,
-                              color: HoopTheme.getTextPrimary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                          Text(
-                            'Coming soon',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: HoopTheme.getTextSecondary(
-                                Theme.of(context).brightness == Brightness.dark,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                  CustomSwitch(
-                    value: preferences.autoJoinGroups ?? false,
-                    onChanged: (value) {
-                      context
-                          .read<GroupCommunityProvider>()
-                          .updateCommunityPreferences({
-                            ...preferences.toJson(),
-                            'autoJoinGroups': value,
-                          });
-                    },
-                    disabled: true,
+            ),
+            const SizedBox(height: 16),
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: HoopTheme.getBorderColor(
+                    Theme.of(context).brightness == Brightness.dark,
+                  ).withOpacity(0.1),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    spreadRadius: 0.5,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.yellow.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.yellow.withOpacity(0.3)),
-                ),
-                child: Text(
-                  'Auto-join feature will automatically match you with groups that fit your preferences. Launching soon!',
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
-                ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.my_location,
+                              color: Colors.grey.shade500,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Smart Auto-Join',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                  color: HoopTheme.getTextPrimary(
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
+                                  ),
+                                ),
+                              ),
+                              Text(
+                                'Coming soon',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: HoopTheme.getTextSecondary(
+                                    Theme.of(context).brightness ==
+                                        Brightness.dark,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                      CustomSwitch(
+                        value: preferences.autoJoinGroups ?? false,
+                        onChanged: (value) {
+                          provider.updateCommunityPreferences({
+                            ...preferences.toJson(),
+                            'autoJoinGroups': value,
+                          });
+                        },
+                        disabled: true,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.yellow.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.yellow.withOpacity(0.3)),
+                    ),
+                    child: Text(
+                      'Auto-join feature will automatically match you with groups that fit your preferences. Launching soon!',
+                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ),
-      ],
+            ),
+          ],
+        );
+      },
     );
   }
 

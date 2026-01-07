@@ -36,9 +36,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-   
+
     final textPrimary = isDark ? Colors.white : Colors.black;
-    final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600]; 
+    final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600];
     return Scaffold(
       body: SafeArea(
         child: Column(
@@ -50,7 +50,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ? _buildSearchHeader(isDark, textPrimary, textSecondary)
                   : _buildHeader(context),
             ),
-
 
             // Tabs
             _buildTabs(context),
@@ -134,7 +133,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   ),
                 ],
               ),
-         
 
               Row(
                 children: [
@@ -647,36 +645,27 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                         // Action button
                         if (actionable)
-                          Container(
-                            decoration: BoxDecoration(
-                              color: HoopTheme.getCategoryBackgroundColor(
-                                'view_button',
-                                isDark,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
+                          TextButton(
+                            onPressed: () => _handleNotificationAction(
+                              notification,
+                              handler,
+                              context,
                             ),
-                            child: TextButton(
-                              onPressed: () => _handleNotificationAction(
-                                notification,
-                                handler,
-                                context,
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
                               ),
-                              style: TextButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 12,
-                                  vertical: 4,
+                            ),
+                            child: Text(
+                              'View',
+                              style: TextStyle(
+                                color: HoopTheme.getCategoryTextColor(
+                                  'view_button',
+                                  isDark,
                                 ),
-                              ),
-                              child: Text(
-                                'View',
-                                style: TextStyle(
-                                  color: HoopTheme.getCategoryTextColor(
-                                    'view_button',
-                                    isDark,
-                                  ),
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),

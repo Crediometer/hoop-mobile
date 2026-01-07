@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
+import 'package:hoop/screens/groups/join_group_modal.dart';
 import 'package:hoop/services/group_services.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
@@ -29,7 +30,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
   bool _isLoadingRequests = false;
 
   // Data
-  GroupDetails? _group;
+  GroupDetailsPublic? _group;
   List<GroupMember> _members = [];
   List<JoinRequest> _joinRequests = [];
   List<dynamic> _nextPayout = [];
@@ -62,22 +63,10 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
         context,
         listen: false,
       );
-      final groupResponse = await provider.getGroup(groupId.toString());
+      final groupResponse = await provider.getPublicGroup(groupId.toString());
 
       if (groupResponse.success && groupResponse.data != null) {
         setState(() => _group = groupResponse.data);
-
-        // Load members
-        await _loadMembers();
-
-        // Load join requests if admin
-        if (_group?.currentUserRole == "OWNER" ||
-            _group?.currentUserRole == "ADMIN") {
-          await _loadJoinRequests();
-        }
-
-        // Load payout order if available
-        await _loadPayoutOrder();
       }
     } catch (e) {
       log('Error loading group data: $e');
@@ -86,71 +75,26 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     }
   }
 
-  Future<void> _loadMembers() async {
-    try {
-      setState(() => _isLoadingMembers = true);
-
-      if (_group?.members != null) {
-        setState(() => _members = _group!.members!);
-      }
-    } catch (e) {
-      log('Error loading members: $e');
-    } finally {
-      setState(() => _isLoadingMembers = false);
-    }
-  }
-
-  Future<void> _loadJoinRequests() async {
-    try {
-      setState(() => _isLoadingRequests = true);
-      final groupId = _group?.id.toString();
-      if (groupId == null) return;
-
-      final service = GroupHttpService();
-      final response = await service.getGroupJoinRequests(groupId);
-
-      if (response.success && response.data != null) {
-        // setState(() => _joinRequests = response.data!);
-      }
-    } catch (e) {
-      log('Error loading join requests: $e');
-    } finally {
-      setState(() => _isLoadingRequests = false);
-    }
-  }
-
-  Future<void> _loadPayoutOrder() async {
-    try {
-      final groupId = _group?.id.toString();
-      if (groupId == null) return;
-
-      final service = GroupHttpService();
-      final response = await service.getPayoutOrderGroup(groupId);
-
-      if (response.success && response.data != null) {
-        setState(() => _nextPayout = response.data!['payoutOrder'] ?? []);
-      }
-    } catch (e) {
-      log('Error loading payout order: $e');
-    }
-  }
-
-  Future<void> _handleJoinGroup() async {
+  Future<void> _handleJoinGroup(slots, message) async {
     try {
       setState(() => _isProcessingAction = true);
-      final groupId = _group?.id.toString();
+      final groupId = _group?.group.id.toString();
       if (groupId == null) return;
 
       final provider = Provider.of<GroupCommunityProvider>(
         context,
         listen: false,
       );
-      final response = await provider.joinGroup(groupId);
+      final response = await provider.joinGroup(
+        groupId,
+        slots: slots,
+        message: message,
+      );
 
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully joined ${_group?.name}!'),
+            content: Text('Successfully joined ${_group?.group.name}!'),
             backgroundColor: HoopTheme.successGreen,
           ),
         );
@@ -172,7 +116,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
   Future<void> _handleStartGroup() async {
     try {
       setState(() => _isProcessingAction = true);
-      final groupId = _group?.id.toString();
+      final groupId = _group?.group.id.toString();
       if (groupId == null) return;
 
       final provider = Provider.of<GroupCommunityProvider>(
@@ -202,98 +146,6 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
       setState(() => _isProcessingAction = false);
     }
   }
-
-  Future<void> _handleLeaveGroup() async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Leave Group'),
-        content: Text('Are you sure you want to leave ${_group?.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Leave', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed != true) return;
-
-    try {
-      setState(() => _isProcessingAction = true);
-      final groupId = _group?.id.toString();
-      if (groupId == null) return;
-
-      final service = GroupHttpService();
-      final response = await service.leaveGroup(groupId);
-
-      if (response.success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('You have left ${_group?.name}'),
-            backgroundColor: HoopTheme.successGreen,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      log('Error leaving group: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to leave group'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isProcessingAction = false);
-    }
-  }
-
-  Future<void> _handleRequestAction(String requestId, String action) async {
-    try {
-      setState(() => _isProcessingAction = true);
-      final groupId = _group?.id.toString();
-      if (groupId == null) return;
-
-      final service = GroupHttpService();
-
-      if (action == 'approve') {
-        await service.approveGroupRequest(groupId, requestId);
-      } else {
-        await service.rejectGroupRequest(groupId, requestId);
-      }
-
-      setState(() {
-        _joinRequests.removeWhere((req) => req.id.toString() == requestId);
-      });
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Join request ${action}d'),
-          backgroundColor: HoopTheme.successGreen,
-        ),
-      );
-
-      // Refresh group data
-      await _loadGroupData();
-    } catch (e) {
-      log('Error processing request: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Failed to process request'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    } finally {
-      setState(() => _isProcessingAction = false);
-    }
-  }
-
 
   Color _getAvatarColor(String id) {
     final colors = [
@@ -333,36 +185,6 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     }
   }
 
-  String _getProgressSubtitle(GroupDetails? group) {
-    if (group == null) return '0 days left';
-
-    try {
-      final nextPayout = group.nextPayoutDate;
-      if (nextPayout == null) return 'No payout scheduled';
-
-      final targetDate = DateTime.parse(nextPayout);
-      final today = DateTime.now();
-      final difference = targetDate.difference(today);
-      final days = difference.inDays;
-
-      if (days > 0) return '$days days left';
-      if (days == 0) return 'Today';
-      return '${days.abs()} days overdue';
-    } catch (e) {
-      return 'Soon';
-    }
-  }
-
-  double _getProgressValue(GroupDetails? group) {
-    if (group == null) return 0.0;
-
-    final currentCycle = group.currentCycle ?? 0;
-    final totalSlots = group.maxMembers ?? 1;
-
-    if (totalSlots == 0) return 0.0;
-    return (currentCycle / totalSlots).clamp(0.0, 1.0);
-  }
-
   // Filtered data getters
   List<GroupMember> get _filteredMembers {
     if (_searchQuery.isEmpty) return _members;
@@ -375,19 +197,6 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     }).toList();
   }
 
-  List<JoinRequest> get _filteredRequests {
-    if (_searchQuery.isEmpty) return _joinRequests;
-
-    final query = _searchQuery.toLowerCase();
-    return _joinRequests.where((request) {
-      final name = '${request.user.firstName} ${request.user.lastName}'
-          .toLowerCase();
-      final email = request.user.email.toLowerCase();
-
-      return name.contains(query) || email.contains(query);
-    }).toList();
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -396,16 +205,10 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     final textTertiary = isDark ? Colors.grey[500] : Colors.grey[500];
 
     // Use actual group data or fallback to widget data
-    final GroupDetails displayGroup = _group ?? GroupDetails();
-    final groupName = displayGroup is Group
-        ? displayGroup.name
-        : displayGroup.name ?? 'Group';
-    final description = displayGroup is Group
-        ? displayGroup.description
-        : displayGroup.description ?? '';
-    final location = displayGroup is Group
-        ? displayGroup.location
-        : displayGroup.location ?? '';
+    final Group? displayGroup = _group?.group;
+    final groupName = displayGroup?.name ?? 'Group';
+    final description = displayGroup?.description ?? '';
+    final location = displayGroup?.location ?? '';
     final membersCount = displayGroup is Group
         ? displayGroup.approvedMembersCount
         : 0;
@@ -416,16 +219,6 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     final frequency = displayGroup is Group
         ? displayGroup.contributionFrequency
         : '';
-    final isAdmin =
-        displayGroup is Group &&
-        (displayGroup.currentUserRole == "OWNER" ||
-            displayGroup.currentUserRole == "ADMIN");
-    final isMember =
-        displayGroup is Group && displayGroup.currentUserRole != "GUEST";
-    final canStart = displayGroup is Group && displayGroup.canStart == true;
-    final isForming =
-        displayGroup is Group &&
-        displayGroup.status?.toLowerCase() == 'forming';
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.grey[50],
@@ -449,6 +242,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Back button and settings icon
+                      SizedBox(height: 34.0),
                       GestureDetector(
                         onTap: () => Navigator.pop(context),
                         child: Container(
@@ -623,22 +417,29 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
                 const SizedBox(height: 20),
 
                 // Action buttons at bottom
-                if (!isMember)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: HoopButton(
-                      buttonText:
-                          "Join Group • ₦${contributionAmount?.toStringAsFixed(0)}/$frequency",
-                      isLoading: _isProcessingAction,
-                      onPressed: _handleJoinGroup,
-                    ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: HoopButton(
+                    buttonText:
+                        "Join Group • ₦${contributionAmount?.toStringAsFixed(0)}/$frequency",
+                    isLoading: _isProcessingAction,
+                    onPressed: () {
+                      // Show the modal
+                      JoinGroupModal.show(
+                        context: context,
+                        group: {
+                          'allowPairing': true,
+                          'availableSlots': 10,
+                          'maxSlotsPerUser': 5,
+                          'contributionAmount': 50000,
+                        },
+                        onJoin: (slots, message) async {
+                          _handleJoinGroup(slots, message);
+                        },
+                      );
+                    },
                   ),
-
-                if (isMember && isForming && canStart && isAdmin)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: _buildStartButton(),
-                  ),
+                ),
 
                 const SizedBox(height: 20),
               ],
@@ -806,17 +607,10 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     Color textPrimary,
     Color? textSecondary,
     Color? textTertiary,
-    GroupDetails groupData,
+    Group? groupData,
   ) {
-    final progressSubtitle = _getProgressSubtitle(
-      groupData is GroupDetails ? groupData : null,
-    );
-    final progressValue = _getProgressValue(
-      groupData is GroupDetails ? groupData : null,
-    );
-    final totalPayout = groupData is Group
-        ? (groupData.contributionAmount ?? 1) * (groupData.maxMembers ?? 1)
-        : 0;
+    final totalPayout =
+        (groupData?.contributionAmount ?? 1) * (groupData?.maxMembers ?? 1);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -882,8 +676,8 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
                     style: TextStyle(color: textTertiary, fontSize: 12),
                   ),
                   Text(
-                    groupData is Group && groupData.endDate != null
-                        ? "End: ${_formatDate(groupData.endDate!)}"
+                    groupData is Group && groupData.cycleDurationDays != null
+                        ? "End: ${_formatDate(groupData.cycleDurationDays.toString()!)}"
                         : "No end date",
                     style: TextStyle(color: textTertiary, fontSize: 12),
                   ),
@@ -1306,78 +1100,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
           ),
 
         const SizedBox(height: 20),
-
-        // Start Group button (only for admins in forming groups)
-        if (_group?.currentUserRole == "OWNER" ||
-            _group?.currentUserRole == "ADMIN")
-          if (_group?.status?.toLowerCase() == 'forming' &&
-              _group?.canStart == true)
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isProcessingAction ? null : _handleStartGroup,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF6366F1),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 0,
-                ),
-                child: _isProcessingAction
-                    ? SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text(
-                        "Start Group",
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-              ),
-            ),
       ],
-    );
-  }
-
-  Widget _buildStartButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: _isProcessingAction ? null : _handleStartGroup,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: const Color(0xFF6366F1),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 0,
-        ),
-        child: _isProcessingAction
-            ? SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Colors.white,
-                ),
-              )
-            : const Text(
-                "Start Group",
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-      ),
     );
   }
 }

@@ -1,6 +1,8 @@
+import 'package:cached_network_image_plus/flutter_cached_network_image_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/constants/themes.dart';
+import 'package:hoop/screens/auth/signup/signup_step4_facial_verification_screen.dart';
 import 'package:hoop/screens/settings/community_preference.dart';
 import 'package:hoop/screens/supports/SupportTicket.dart';
 import 'package:hoop/states/auth_state.dart';
@@ -115,13 +117,15 @@ class _ProfileTabState extends State<ProfileTab> {
                       ),
                       child:
                           user?.imageUrl != null && user!.imageUrl!.isNotEmpty
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(12),
-                              child: Image.network(
-                                user.imageUrl!,
-                                fit: BoxFit.cover,
-                                errorBuilder: (context, error, stackTrace) {
-                                  return Center(
+                          ? GestureDetector(
+                              onTap: () => showProfileImageModal(context),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: CacheNetworkImagePlus(
+                                  imageUrl: user.imageUrl!,
+                                  shimmerDuration: Duration(milliseconds: 1500),
+                                  boxFit: BoxFit.cover,
+                                  errorWidget: Center(
                                     child: Text(
                                       HoopFormatters.getInitials(
                                         "${user.firstName} ${user.lastName}",
@@ -135,8 +139,10 @@ class _ProfileTabState extends State<ProfileTab> {
                                         fontWeight: FontWeight.w600,
                                       ),
                                     ),
-                                  );
-                                },
+                                  ),
+
+                                  // Other optional parameters...
+                                ),
                               ),
                             )
                           : Center(
@@ -1238,4 +1244,257 @@ class _ProfileTabState extends State<ProfileTab> {
     );
   }
 
+  void showProfileImageModal(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
+    final user = authProvider.user;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return DraggableScrollableSheet(
+          initialChildSize: 0.85,
+          minChildSize: 0.80,
+          maxChildSize: 0.95,
+          expand: false,
+          builder: (context, controller) {
+            return Container(
+              padding: EdgeInsets.only(
+                left: 20,
+                right: 20,
+                top: 24,
+                bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+              ),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1A1D27) : Colors.white,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              child: SingleChildScrollView(
+                controller: controller,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Profile image preview
+                    Container(
+                      width: 350,
+                      height: 350,
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF3B82F6).withOpacity(0.2)
+                            : const Color(0xFFDBEAFE),
+                        shape: BoxShape.rectangle,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF3B82F6),
+                          width: 3,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFF3B82F6).withOpacity(0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 8),
+                          ),
+                        ],
+                      ),
+                      child:
+                          user?.imageUrl != null && user!.imageUrl!.isNotEmpty
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(12),
+                              child: CacheNetworkImagePlus(
+                                imageUrl: user.imageUrl!,
+                                shimmerDuration: const Duration(
+                                  milliseconds: 1500,
+                                ),
+                                boxFit: BoxFit.cover,
+                                errorWidget: Center(
+                                  child: Text(
+                                    HoopFormatters.getInitials(
+                                      "${user.firstName} ${user.lastName}",
+                                      maxLength: 2,
+                                    ),
+                                    style: TextStyle(
+                                      color: isDark
+                                          ? Colors.white
+                                          : Colors.blueGrey[700],
+                                      fontSize: 48,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                HoopFormatters.getInitials(
+                                  "${user?.firstName} ${user?.lastName}",
+                                  maxLength: 2,
+                                ),
+                                style: TextStyle(
+                                  color: isDark
+                                      ? Colors.white
+                                      : Colors.blueGrey[700],
+                                  fontSize: 48,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                    ),
+
+                    // ),
+                    const SizedBox(height: 24),
+
+                    // Title and subtitle
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Text(
+                          'Profile Picture',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            color: isDark ? Colors.white : Colors.black87,
+                            letterSpacing: -0.5,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          user != null
+                              ? '${user.firstName ?? ''} ${user.lastName ?? ''}'
+                                    .trim()
+                              : 'User',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black54,
+                            fontSize: 14,
+                            height: 1.4,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Info box
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E3A8A).withOpacity(0.2)
+                            : const Color(0xFFEFF6FF),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isDark
+                              ? const Color(0xFF3B82F6).withOpacity(0.3)
+                              : const Color(0xFFBFDBFE),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.info_outline,
+                            color: isDark
+                                ? const Color(0xFF60A5FA)
+                                : const Color(0xFF3B82F6),
+                            size: 20,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Photo Guidelines:',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? const Color(0xFF93C5FD)
+                                        : const Color(0xFF1E40AF),
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Choose a clear photo that represents you well.',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white70
+                                        : Colors.black87,
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Text(
+                                  '• Use a high-quality image\n• Square photos work best\n• File size under 5MB',
+                                  style: TextStyle(
+                                    color: isDark
+                                        ? Colors.white60
+                                        : Colors.black54,
+                                    fontSize: 12,
+                                    height: 1.5,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 24),
+
+                    // Action buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            style: OutlinedButton.styleFrom(
+                              side: BorderSide(
+                                color: isDark
+                                    ? Colors.white12
+                                    : Colors.grey[300]!,
+                                width: 1,
+                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            child: Text(
+                              'Cancel',
+                              style: TextStyle(
+                                color: isDark ? Colors.white70 : Colors.black87,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: HoopButton(
+                            buttonText: 'Change Photo',
+                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (builder)=> SignupStep4FacialVerificationScreen())),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 }

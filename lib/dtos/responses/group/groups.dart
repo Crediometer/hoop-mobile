@@ -1,3 +1,4 @@
+
 // lib/dtos/responses/group/Groups.dart
 class Group {
   final String id;

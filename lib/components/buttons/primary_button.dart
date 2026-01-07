@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 class HoopButton extends StatelessWidget {
   final bool isLoading;
+  final bool disabled;
   final String buttonText;
   final VoidCallback? onPressed;
 
@@ -10,28 +11,29 @@ class HoopButton extends StatelessWidget {
 
     this.isLoading = false,
     this.onPressed,
+    this.disabled = false,
     this.buttonText = "Click me",
   });
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: isLoading ? null : onPressed,
+      onTap: (disabled || isLoading) ? null : onPressed,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         width: double.infinity,
         height: 52,
         decoration: BoxDecoration(
-          gradient: isLoading
+          gradient: disabled || isLoading
               ? null
               : const LinearGradient(
                   colors: [Color(0xFF0a1866), Color(0xFF1347cd)],
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
                 ),
-          color: isLoading ? Colors.grey[400] : null,
+          color: disabled || isLoading ? Colors.grey[400] : null,
           borderRadius: BorderRadius.circular(12),
-          boxShadow: isLoading
+          boxShadow: disabled || isLoading
               ? []
               : [
                   BoxShadow(

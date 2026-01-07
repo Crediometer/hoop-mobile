@@ -19,8 +19,20 @@ class GroupCommunityProvider extends ChangeNotifier {
   User? _user;
   bool _isLoading = true;
 
-  // Groups State
-  List<Group> _groups = [];
+  // Groups State with caching
+  final Map<String, List<Group>> _cachedGroups = {
+    'active': [],
+    'completed': [],
+  };
+  final Map<String, bool> _segmentLoaded = {
+    'active': false,
+    'completed': false,
+  };
+  final Map<String, bool> _segmentLoading = {
+    'active': false,
+    'completed': false,
+  };
+  
   GroupDetails? _currentGroup;
   GroupDetailsPublic? _currentPublicGroup;
   List<GroupMember> _groupMembers = [];
@@ -35,8 +47,20 @@ class GroupCommunityProvider extends ChangeNotifier {
   bool _groupsHasMore = true;
   bool _isFetching = false;
 
-  // Join Requests State
-  List<GroupJoinRequest> _joinRequests = [];
+  // Join Requests State with caching
+  final Map<String, List<GroupJoinRequest>> _cachedJoinRequests = {
+    'pending': [],
+    'rejected': [],
+  };
+  final Map<String, bool> _requestsLoaded = {
+    'pending': false,
+    'rejected': false,
+  };
+  final Map<String, bool> _requestsLoading = {
+    'pending': false,
+    'rejected': false,
+  };
+  
   int _joinRequestsCurrentPage = 0;
   bool _joinRequestsHasMore = true;
 
@@ -53,13 +77,22 @@ class GroupCommunityProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _user != null;
 
-  List<Group> get groups => List.unmodifiable(_groups);
+  // Cache-aware getters
+  List<Group> get activeGroups => List.unmodifiable(_cachedGroups['active'] ?? []);
+  List<Group> get completedGroups => List.unmodifiable(_cachedGroups['completed'] ?? []);
+  List<GroupJoinRequest> get pendingRequests => List.unmodifiable(_cachedJoinRequests['pending'] ?? []);
+  List<GroupJoinRequest> get rejectedRequests => List.unmodifiable(_cachedJoinRequests['rejected'] ?? []);
+  
+  bool isSegmentLoading(String status) => _segmentLoading[status] ?? false;
+  bool isSegmentLoaded(String status) => _segmentLoaded[status] ?? false;
+  bool isRequestsLoading(String status) => _requestsLoading[status] ?? false;
+  bool isRequestsLoaded(String status) => _requestsLoaded[status] ?? false;
+  
   GroupDetails? get currentGroup => _currentGroup;
   GroupDetailsPublic? get currentPublicGroup => _currentPublicGroup;
   List<GroupMember> get groupMembers => List.unmodifiable(_groupMembers);
   List<GroupWithScore> get communities => List.unmodifiable(_communities);
-  List<GroupContribution> get groupContributions =>
-      List.unmodifiable(_groupContributions);
+  List<GroupContribution> get groupContributions => List.unmodifiable(_groupContributions);
   GroupStats? get groupStats => _groupStats;
 
   int get currentPage => _currentPage;
@@ -68,7 +101,6 @@ class GroupCommunityProvider extends ChangeNotifier {
   bool get groupsHasMore => _groupsHasMore;
   bool get isFetching => _isFetching;
 
-  List<GroupJoinRequest> get joinRequests => List.unmodifiable(_joinRequests);
   int get joinRequestsCurrentPage => _joinRequestsCurrentPage;
   bool get joinRequestsHasMore => _joinRequestsHasMore;
 
@@ -120,7 +152,6 @@ class GroupCommunityProvider extends ChangeNotifier {
     return colors[colorIndex];
   }
 
-
   String getGroupStatus(String groupStatus, String memberStatus) {
     if (memberStatus == 'PENDING') return 'pending';
     if (memberStatus == 'REJECTED') return 'rejected';
@@ -129,12 +160,51 @@ class GroupCommunityProvider extends ChangeNotifier {
     return 'pending';
   }
 
+  // Cache clearing methods
+  void clearGroupCache(String? status) {
+    if (status == null) {
+      _cachedGroups.clear();
+      _segmentLoaded.clear();
+      _segmentLoading.clear();
+    } else {
+      _cachedGroups[status] = [];
+      _segmentLoaded[status] = false;
+      _segmentLoading[status] = false;
+    }
+    notifyListeners();
+  }
+
+  void clearJoinRequestsCache(String? status) {
+    if (status == null) {
+      _cachedJoinRequests.clear();
+      _requestsLoaded.clear();
+      _requestsLoading.clear();
+    } else {
+      _cachedJoinRequests[status] = [];
+      _requestsLoaded[status] = false;
+      _requestsLoading[status] = false;
+    }
+    notifyListeners();
+  }
+
+  void clearAllCache() {
+    clearGroupCache(null);
+    clearJoinRequestsCache(null);
+    _groupMembers.clear();
+    _groupContributions.clear();
+    _groupStats = null;
+    notifyListeners();
+  }
+
   // Group Management Methods
   Future<ApiResponse<Group>> createGroup(CreateGroupRequest groupData) async {
     try {
       final response = await _groupService.createGroup(groupData);
       if (response.success && response.data != null) {
-        _groups.add(response.data!);
+        // Add to cache if it's an active group
+        if (response.data!.status == 'ACTIVE' || response.data!.status == 'FORMING') {
+          _cachedGroups['active']?.insert(0, response.data!);
+        }
         notifyListeners();
       }
       return response;
@@ -177,7 +247,16 @@ class GroupCommunityProvider extends ChangeNotifier {
     try {
       final response = await _groupService.updateGroup(id, updates);
       if (response.success && response.data != null) {
-        _groups = _groups.map((g) => g.id == id ? response.data! : g).toList();
+        // Update in cache
+        for (final status in ['active', 'completed']) {
+          if (_cachedGroups.containsKey(status)) {
+            final index = _cachedGroups[status]!.indexWhere((g) => g.id == id);
+            if (index != -1) {
+              _cachedGroups[status]![index] = response.data!;
+            }
+          }
+        }
+        
         if (_currentGroup?.id == id) {
           _currentGroup = response.data as GroupDetails?;
         }
@@ -193,7 +272,13 @@ class GroupCommunityProvider extends ChangeNotifier {
     try {
       final response = await _groupService.deleteGroup(id);
       if (response.success) {
-        _groups.removeWhere((g) => g.id == id);
+        // Remove from cache
+        for (final status in ['active', 'completed']) {
+          if (_cachedGroups.containsKey(status)) {
+            _cachedGroups[status]!.removeWhere((g) => g.id == id);
+          }
+        }
+        
         if (_currentGroup?.id == id) {
           _currentGroup = null;
         }
@@ -205,13 +290,40 @@ class GroupCommunityProvider extends ChangeNotifier {
     }
   }
 
+  // Enhanced getMyGroup with caching
   Future<ApiResponse<PaginatedResponse<Group>>> getMyGroup({
     int page = 0,
     int limit = 20,
-    String? status,
+    String? status = 'active',
+    bool forceRefresh = false,
   }) async {
     try {
+      final cacheKey = status ?? 'active';
+      
+      // Return cached data if available and not forcing refresh
+      if (page == 0 && 
+          _segmentLoaded[cacheKey] == true && 
+          !forceRefresh && 
+          !_segmentLoading[cacheKey]! &&
+          _cachedGroups[cacheKey]!.isNotEmpty) {
+        return ApiResponse(
+          success: true,
+          data: PaginatedResponse(
+            content: _cachedGroups[cacheKey]!,
+            page: 0,
+            size: limit,
+            totalElements: _cachedGroups[cacheKey]!.length,
+            totalPages: 1,
+            last: true,
+          ),
+          message: 'Loaded from cache',
+        );
+      }
+
       _isFetching = true;
+      if (page == 0) {
+        _segmentLoading[cacheKey] = true;
+      }
       notifyListeners();
 
       final response = await _groupService.getMyGroup(
@@ -224,19 +336,20 @@ class GroupCommunityProvider extends ChangeNotifier {
         final newGroups = response.data!.content;
 
         if (page == 0) {
-          _groups = newGroups;
+          // Replace cache on first page
+          _cachedGroups[cacheKey] = newGroups;
+          _segmentLoaded[cacheKey] = true;
+          _segmentLoading[cacheKey] = false;
         } else {
-          final existingGroupIds = _groups.map((g) => g.id).toSet();
+          // Append to cache for pagination
+          final existingGroupIds = _cachedGroups[cacheKey]!.map((g) => g.id).toSet();
           final uniqueNewGroups = newGroups
               .where((group) => !existingGroupIds.contains(group.id))
               .toList();
-          _groups.addAll(uniqueNewGroups);
+          _cachedGroups[cacheKey]!.addAll(uniqueNewGroups);
         }
 
         _groupsHasMore = !response.data!.last;
-        // todo: rework this
-        // _hasMore = response.data!.hasMore ?? false;
-
         _currentPage = page;
       }
 
@@ -247,51 +360,6 @@ class GroupCommunityProvider extends ChangeNotifier {
       _isFetching = false;
       notifyListeners();
     }
-  }
-
-  Future<void> loadMoreGroups() async {
-    if (!_hasMore || _isFetching) return;
-    await getMyGroup(page: _currentPage + 1, limit: 20);
-  }
-
-  void resetPagination() {
-    _currentPage = 1;
-    _hasMore = true;
-    _groups = [];
-    notifyListeners();
-  }
-
-  void resetGroupsPagination() {
-    _groupsCurrentPage = 0;
-    _groupsHasMore = true;
-    _groups = [];
-    notifyListeners();
-  }
-
-  // Spotlight Methods
-  Future<ApiResponse<List<SpotlightVideo>>> getSpotlights() async {
-    try {
-      _isFetchingSpotlight = true;
-      notifyListeners();
-
-      final response = await _groupService.getSpotlightService();
-
-      if (response.success && response.data != null) {
-        _spotlight = response.data!;
-      }
-
-      return response;
-    } catch (error) {
-      rethrow;
-    } finally {
-      _isFetchingSpotlight = false;
-      notifyListeners();
-    }
-  }
-
-  // In your GroupCommunityProvider class
-  Future<void> refreshSpotlights() async {
-    await getSpotlights();
   }
 
   // Group Settings Updates
@@ -331,14 +399,79 @@ class GroupCommunityProvider extends ChangeNotifier {
     }
   }
 
-  // Join Requests Methods
+  Future<void> loadMoreGroups({String? status = 'active'}) async {
+    if (!_hasMore || _isFetching) return;
+    await getMyGroup(page: _currentPage + 1, limit: 20, status: status);
+  }
+
+  void resetGroupsPagination() {
+    _groupsCurrentPage = 0;
+    _groupsHasMore = true;
+    _cachedGroups.forEach((key, value) => value.clear());
+    _segmentLoaded.forEach((key, value) => _segmentLoaded[key] = false);
+    notifyListeners();
+  }
+
+  // Spotlight Methods
+  Future<ApiResponse<List<SpotlightVideo>>> getSpotlights({bool forceRefresh = false}) async {
+    try {
+      if (_spotlight.isNotEmpty && !forceRefresh) {
+        return ApiResponse(
+          success: true,
+          data: _spotlight,
+          message: 'Loaded from cache',
+        );
+      }
+
+      _isFetchingSpotlight = true;
+      notifyListeners();
+
+      final response = await _groupService.getSpotlightService();
+
+      if (response.success && response.data != null) {
+        _spotlight = response.data!;
+      }
+
+      return response;
+    } catch (error) {
+      rethrow;
+    } finally {
+      _isFetchingSpotlight = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> refreshSpotlights() async {
+    await getSpotlights(forceRefresh: true);
+  }
+
+  // Enhanced join requests with caching
   Future<ApiResponse<List<GroupJoinRequest>>> getMyJoinRequests(
     String status, {
     int page = 0,
     int limit = 20,
+    bool forceRefresh = false,
   }) async {
     try {
+      final cacheKey = status.toLowerCase();
+      
+      // Return cached data if available
+      if (page == 0 && 
+          _requestsLoaded[cacheKey] == true && 
+          !forceRefresh && 
+          !_requestsLoading[cacheKey]! &&
+          _cachedJoinRequests[cacheKey]!.isNotEmpty) {
+        return ApiResponse(
+          success: true,
+          data: _cachedJoinRequests[cacheKey]!,
+          message: 'Loaded from cache',
+        );
+      }
+
       _isFetching = true;
+      if (page == 0) {
+        _requestsLoading[cacheKey] = true;
+      }
       notifyListeners();
 
       final response = await _groupService.getMyJoinRequests(
@@ -351,16 +484,17 @@ class GroupCommunityProvider extends ChangeNotifier {
         final joinRequestsData = response.data!;
 
         if (page == 0) {
-          _joinRequests = joinRequestsData;
+          _cachedJoinRequests[cacheKey] = joinRequestsData;
+          _requestsLoaded[cacheKey] = true;
+          _requestsLoading[cacheKey] = false;
         } else {
-          final existingRequestIds = _joinRequests.map((r) => r.id).toSet();
+          final existingRequestIds = _cachedJoinRequests[cacheKey]!.map((r) => r.id).toSet();
           final uniqueNewRequests = joinRequestsData
               .where((request) => !existingRequestIds.contains(request.id))
               .toList();
-          _joinRequests.addAll(uniqueNewRequests);
+          _cachedJoinRequests[cacheKey]!.addAll(uniqueNewRequests);
         }
 
-        // _joinRequestsHasMore = !response.data!.last;
         _joinRequestsCurrentPage = page;
       }
 
@@ -373,10 +507,10 @@ class GroupCommunityProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMoreJoinRequests() async {
+  Future<void> loadMoreJoinRequests(String status) async {
     if (!_joinRequestsHasMore || _isFetching) return;
     await getMyJoinRequests(
-      "pending",
+      status,
       page: _joinRequestsCurrentPage + 1,
       limit: 20,
     );
@@ -385,10 +519,12 @@ class GroupCommunityProvider extends ChangeNotifier {
   void resetJoinRequestsPagination() {
     _joinRequestsCurrentPage = 0;
     _joinRequestsHasMore = true;
-    _joinRequests = [];
+    _cachedJoinRequests.forEach((key, value) => value.clear());
+    _requestsLoaded.forEach((key, value) => _requestsLoaded[key] = false);
     notifyListeners();
   }
 
+  // Other existing methods remain the same...
   Future<ApiResponse<Map<String, int>>> getMyGroupCounts() async {
     try {
       return await _groupService.getMyGroupCounts();
@@ -397,11 +533,10 @@ class GroupCommunityProvider extends ChangeNotifier {
     }
   }
 
-   Future<ApiResponse<List<JoinRequest>>> getGroupJoinRequests(String groupId) async {
+  Future<ApiResponse<List<JoinRequest>>> getGroupJoinRequests(String groupId) async {
     try {
       final response = await _groupService.getGroupJoinRequests(groupId);
       if (response.success && response.data != null) {
-        // _joinRequests = response.data!.content;
         notifyListeners();
       }
       return ApiResponse<List<JoinRequest>>(
@@ -421,7 +556,8 @@ class GroupCommunityProvider extends ChangeNotifier {
     try {
       final response = await _groupService.finalizeGroup(groupId, payoutOrder);
       if (response.success) {
-        // Refresh group data after finalization
+        // Clear cache since group status changed
+        clearGroupCache(null);
         await getGroup(groupId);
       }
       return response;
@@ -476,6 +612,8 @@ class GroupCommunityProvider extends ChangeNotifier {
         message: null,
         slots: slots,
       );
+      // Clear cache since group membership changed
+      clearGroupCache('active');
       return response;
     } catch (error) {
       rethrow;
@@ -489,11 +627,14 @@ class GroupCommunityProvider extends ChangeNotifier {
     int slots = 1,
   }) async {
     try {
-      return await _groupService.joinGroup(
+      final response = await _groupService.joinGroup(
         groupId,
         message: message,
         slots: slots,
       );
+      // Clear cache since group membership changed
+      clearGroupCache('active');
+      return response;
     } catch (error) {
       rethrow;
     }
@@ -523,7 +664,12 @@ class GroupCommunityProvider extends ChangeNotifier {
 
   Future<ApiResponse<Map<String, dynamic>>> leaveGroup(String groupId) async {
     try {
-      return await _groupService.leaveGroup(groupId);
+      final response = await _groupService.leaveGroup(groupId);
+      if (response.success) {
+        // Clear cache since group membership changed
+        clearGroupCache(null);
+      }
+      return response;
     } catch (error) {
       rethrow;
     }
@@ -621,9 +767,8 @@ class GroupCommunityProvider extends ChangeNotifier {
       final response = await _groupService.startGroup(groupId);
       if (response.success && response.data != null) {
         _currentGroup = response.data as GroupDetails?;
-        _groups = _groups
-            .map((g) => g.id == groupId ? response.data! : g)
-            .toList();
+        // Update cache
+        clearGroupCache(null);
         notifyListeners();
       }
       return response;

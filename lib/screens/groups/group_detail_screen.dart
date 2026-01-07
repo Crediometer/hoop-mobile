@@ -412,6 +412,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Back button and settings icon
+                      SizedBox(height: 34.0),
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [

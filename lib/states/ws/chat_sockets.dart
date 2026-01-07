@@ -3,6 +3,13 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:audio_session/audio_session.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
+import 'package:hoop/dtos/podos/calls/call_models.dart';
+import 'package:hoop/main.dart';
+import 'package:hoop/screens/calls/call_screen.dart';
+import 'package:hoop/services/callkit_integration.dart';
+import 'package:hoop/states/webrtc_manager.dart';
 import 'package:vibration/vibration.dart';
 
 // DTOs and Models
@@ -66,7 +73,7 @@ class ChatModel {
 
 class Message {
   final String id;
-  final dynamic group; // String or int
+  final num group; // String or int
   final String? tempId;
   final dynamic sender; // String or int
   final String content;
@@ -420,46 +427,6 @@ class SendMessageParams {
   }
 }
 
-class CallData {
-  final String callId;
-  final String groupId;
-  final String groupName;
-  final String type; // 'audio' or 'video'
-  final String initiatorId;
-  final String initiatorName;
-  final List<String> participants;
-  final DateTime startedAt;
-
-  CallData({
-    required this.callId,
-    required this.groupId,
-    required this.groupName,
-    required this.type,
-    required this.initiatorId,
-    required this.initiatorName,
-    required this.participants,
-    required this.startedAt,
-  });
-
-  factory CallData.fromJson(Map<String, dynamic> json) {
-    return CallData(
-      callId: json['callId'] ?? json['id'] ?? '',
-      groupId: json['groupId'].toString(),
-      groupName: json['groupName'] ?? '',
-      type: json['type'] ?? 'audio',
-      initiatorId:
-          json['initiatorId']?.toString() ??
-          json['fromUserId']?.toString() ??
-          '',
-      initiatorName: json['initiatorName'] ?? json['userName'] ?? '',
-      participants: List<String>.from(json['participants'] ?? []),
-      startedAt: json['startedAt'] != null
-          ? DateTime.parse(json['startedAt'])
-          : DateTime.now(),
-    );
-  }
-}
-
 class TypingUser {
   final String userId;
   final String userName;
@@ -479,14 +446,14 @@ class TypingUser {
 }
 
 class TypingIndicator {
-  final String groupId;
+  final num groupId;
   final List<TypingUser> typingUsers;
 
   TypingIndicator({required this.groupId, required this.typingUsers});
 
   factory TypingIndicator.fromJson(Map<String, dynamic> json) {
     return TypingIndicator(
-      groupId: json['groupId'].toString(),
+      groupId: json['groupId'],
       typingUsers:
           (json['typingUsers'] as List?)
               ?.map((u) => TypingUser.fromJson(u))
@@ -498,24 +465,19 @@ class TypingIndicator {
 
 class MessagesResponse {
   final List<MessageGroup> groups;
-  final Map<String, dynamic>? pagination;
 
-  MessagesResponse({required this.groups, this.pagination});
+  MessagesResponse({required this.groups});
 
-  factory MessagesResponse.fromJson(Map<String, dynamic> json) {
+  factory MessagesResponse.fromJson(List<dynamic> json) {
     return MessagesResponse(
       groups:
-          (json['groups'] as List?)
-              ?.map((g) => MessageGroup.fromJson(g))
-              .toList() ??
-          [],
-      pagination: json['pagination'],
+          (json as List?)?.map((g) => MessageGroup.fromJson(g)).toList() ?? [],
     );
   }
 }
 
 class MessageGroup {
-  final dynamic groupId; // String or int
+  final num groupId; // String or int
   final List<Message> messages;
 
   MessageGroup({required this.groupId, required this.messages});
@@ -533,18 +495,23 @@ class MessageGroup {
 }
 
 class ChatWebSocketHandler with ChangeNotifier {
-  final BaseWebSocketService socketService;
+  final BaseWebSocketService socketService = BaseWebSocketService(
+    namespace: '/group-chat',
+  );
   final TokenManager tokenManager = TokenManager.instance;
 
   // State
   final List<MessageGroup> _messages = [];
-  String? _currentGroupId;
+
+  late CallKitIntegration _callKitIntegration;
+  late WebRTCManager _webrtcManager;
+  num? _currentGroupId;
   int _reconnectAttempts = 0;
-  final Map<String, List<TypingUser>> _typingData = {};
-  final Map<String, Set<String>> _unreadMessages = {};
+  final Map<num, List<TypingUser>> _typingData = {};
+  final Map<num, Set<String>> _unreadMessages = {};
   String? _lastReadMessageId;
-  final Map<String, Set<String>> _onlineUsersByGroup = {};
-  final Set<String> _onlineUsers = {};
+  final Map<num, Set<num>> _onlineUsersByGroup = {};
+  final Set<num> _onlineUsers = {};
 
   // Connection state
   bool _isConnected = false;
@@ -582,26 +549,29 @@ class ChatWebSocketHandler with ChangeNotifier {
   String? _currentToken;
   bool _tokenMonitoringStarted = false;
   final Duration _tokenCheckInterval = const Duration(seconds: 2);
+  WebRTCManager get webrtcManager => _webrtcManager;
 
-  ChatWebSocketHandler({required this.socketService}) {
+  ChatWebSocketHandler() {
     _initialize();
   }
 
   // Getters
   List<MessageGroup> get messages => List.unmodifiable(_messages);
-  String? get currentGroupId => _currentGroupId;
+  num? get currentGroupId => _currentGroupId;
   int get reconnectAttempts => _reconnectAttempts;
   Map<String, List<TypingUser>> get typingData => Map.unmodifiable(_typingData);
-  Map<String, Set<String>> get unreadMessages =>
-      Map.unmodifiable(_unreadMessages);
+  Map<num, Set<String>> get unreadMessages => Map.unmodifiable(_unreadMessages);
   String? get lastReadMessageId => _lastReadMessageId;
-  Set<String> get onlineUsers => Set.unmodifiable(_onlineUsers);
+  Set<num> get onlineUsers => Set.unmodifiable(_onlineUsers);
   Map<String, Set<String>> get onlineUsersByGroup =>
       Map.unmodifiable(_onlineUsersByGroup);
-
+  final List<MapEntry<String, Function(dynamic)>> _pendingHandlers = [];
   bool get isConnected => _isConnected;
   bool get isAuthenticated => _isAuthenticated;
   String get connectionStatus => _connectionStatus;
+
+  int get totalUnreadMessages =>
+      _unreadMessages.values.fold(0, (sum, set) => sum + set.length);
 
   bool get isTyping => _isTyping;
   Set<String> get typingUsers => Set.unmodifiable(_typingUsers);
@@ -633,6 +603,111 @@ class ChatWebSocketHandler with ChangeNotifier {
 
     // Initialize audio session
     _initializeAudio();
+
+    _initializeWebRTCManager();
+  }
+
+  void _initializeWebRTCManager() async {
+    try {
+      final userId = await _getUserIdFromTokenManager();
+      final userName = await _getUserName();
+
+      _webrtcManager = WebRTCManager();
+      _webrtcManager.initialize(this, 1, "Raji"); // todo: change this
+      _callKitIntegration = CallKitIntegration();
+
+      _callKitIntegration.initialize(webrtcManager);
+      // Setup callbacks
+      _webrtcManager.onIncomingCall = (callData) {
+        //logger.i('📨 Incoming call received via WebRTC');
+
+        // Send notification via existing chat system
+        _playRingtone();
+        _callKitIntegration.handleIncomingCallFromWebRTC(callData);
+        // You can also show a notification or update UI
+        // This will be handled by your CallKit integration
+      };
+
+      _webrtcManager.onCallStarted = (callData) {
+        //logger.i('📞 Call started via WebRTC');
+        // Update UI or show call screen
+      };
+
+      _webrtcManager.onCallEnded = (callData) {
+        //logger.i('📞 Call ended via WebRTC');
+        _stopRingtone();
+      };
+
+      //logger.i('✅ WebRTC Manager initialized');
+    } catch (e) {
+      //logger.e('❌ Error initializing WebRTC Manager: $e');
+    }
+  }
+
+  // Add WebRTC signaling methods to your ChatWebSocketHandler
+  void sendWebRTCOffer(Map<String, dynamic> data) {
+    emit('webrtc_offer', data);
+  }
+
+  void sendWebRTCAnswer(Map<String, dynamic> data) {
+    emit('webrtc_answer', data);
+  }
+
+  void sendWebRTCICECandidate(Map<String, dynamic> data) {
+    emit('webrtc_ice_candidate', data);
+  }
+
+  // Add call management methods to your existing ChatWebSocketHandler
+  Future<void> startWebRTCCall({
+    required String type,
+    required int groupId,
+    required String groupName,
+  }) async {
+    try {
+      final callData = await _webrtcManager.startCall(
+        type: type == 'video' ? CallType.video : CallType.audio,
+        groupId: groupId,
+        groupName: groupName,
+      );
+
+      // Send chat message about call start (optional)
+      final messageData = {
+        'groupId': groupId,
+        'message': 'Started a ${type} call',
+        'messageType': 'CALL',
+        'metadata': {
+          'eventType': 'CALL_STARTED',
+          'callData': callData.toJson(),
+        },
+      };
+
+      emit('send_message', messageData);
+
+      //logger.i('✅ WebRTC call started');
+    } catch (e) {
+      //logger.e('❌ Error starting WebRTC call: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> joinWebRTCCall(CallData callData) async {
+    try {
+      await _webrtcManager.joinCall(callData);
+      //logger.i('✅ Joined WebRTC call');
+    } catch (e) {
+      //logger.e('❌ Error joining WebRTC call: $e');
+      rethrow;
+    }
+  }
+
+  void endWebRTCCall() {
+    _webrtcManager.endCall();
+    //logger.i('✅ Ended WebRTC call');
+  }
+
+  void rejectWebRTCCall() {
+    _webrtcManager.rejectCall();
+    //logger.i('✅ Rejected WebRTC call');
   }
 
   // Audio initialization
@@ -764,13 +839,24 @@ class ChatWebSocketHandler with ChangeNotifier {
     _isConnected = true;
     _connectionStatus = 'connected';
     _reconnectAttempts = 0;
-
-    // Authenticate immediately after connection
-    _authenticate();
-
+    _registerPendingHandlers();
     _processMessageQueue();
     _notifyListeners();
     _emitEvent('connected');
+  }
+
+  // Register pending event handlers when socket is connected
+  void _registerPendingHandlers() {
+    for (final handlerEntry in _pendingHandlers) {
+      final event = handlerEntry.key;
+      final handler = handlerEntry.value;
+
+      socketService.socket?.on(event, handler);
+      debugPrint('✅ Registered event listener for: $event');
+    }
+
+    // Clear pending handlers after registration
+    _pendingHandlers.clear();
   }
 
   void _handleConnecting() {
@@ -829,24 +915,18 @@ class ChatWebSocketHandler with ChangeNotifier {
     _reconnectTimer = null;
   }
 
-  // Authentication
-  Future<void> _authenticate({List<String>? groups}) async {
-    if (!_isConnected) {
-      _queueMessage('chat_authenticate', {'groups': groups ?? []});
-      return;
-    }
-
-    final token = await tokenManager.getToken();
-    if (token == null) {
-      debugPrint('⚠️ No token available for authentication');
-      return;
-    }
-
-    emit('chat_authenticate', {'groups': groups ?? [], 'token': token});
-  }
-
   // Event Management
   void on(String event, Function(dynamic) handler) {
+    if (socketService.socket != null && socketService.isConnected) {
+      // Socket is already connected, register immediately
+      socketService.socket!.on(event, handler);
+      debugPrint('✅ Immediately registered event listener for: $event');
+    } else {
+      // Socket not ready yet, queue the handler
+      _pendingHandlers.add(MapEntry(event, handler));
+      debugPrint('⏳ Queued event listener for: $event');
+    }
+
     if (!_eventHandlers.containsKey(event)) {
       _eventHandlers[event] = [];
     }
@@ -877,6 +957,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
 
     on('chat_initialized', (data) {
+      debugPrint("data?? $data");
       _isAuthenticated = true;
       getMessages();
       getOnlineUsers();
@@ -974,6 +1055,7 @@ class ChatWebSocketHandler with ChangeNotifier {
 
     // Calling events
     on('call_started', (data) {
+      debugPrint("Incoming call received data??? $data");
       _handleCallStarted(data);
     });
 
@@ -1018,7 +1100,7 @@ class ChatWebSocketHandler with ChangeNotifier {
 
   // Message handling
   void _handleMessageReceived(Message message) {
-    final groupId = _normalizeKey(message.group);
+    final groupId = message.group;
 
     // Play notification if not our own message
     if (_userId != message.sender.toString() &&
@@ -1048,7 +1130,7 @@ class ChatWebSocketHandler with ChangeNotifier {
 
   void _handleMessageEdited(dynamic data) {
     final message = Message.fromJson(data);
-    final groupId = _normalizeKey(message.group);
+    final groupId = message.group;
 
     _updateMessageInGroup(groupId, message);
     _emitEvent('message_edited', message);
@@ -1085,44 +1167,43 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   void _handleMessagesList(dynamic data) {
-    try {
-      final response = MessagesResponse.fromJson(data);
-      _messages.clear();
-      _messages.addAll(response.groups);
+    // try {
 
-      // Track unread messages
-      final newUnreadMessages = <String, Set<String>>{};
+    final response = MessagesResponse.fromJson(data);
 
-      for (final group in response.groups) {
-        final groupId = _normalizeKey(group.groupId);
-        final unreadMessageIds = <String>{};
+    _messages.clear();
+    _messages.addAll(response.groups);
 
-        for (final message in group.messages) {
-          if (_userId != message.sender.toString() &&
-              message.type != 'system' &&
-              message.messageType != 'SYSTEM' &&
-              !_isMessageReadByUser(message, _userId)) {
-            unreadMessageIds.add(message.id);
-          }
-        }
+    // Track unread messages
+    final newUnreadMessages = <num, Set<String>>{};
+    for (final group in response.groups) {
+      final groupId = group.groupId;
+      final unreadMessageIds = <String>{};
 
-        if (unreadMessageIds.isNotEmpty) {
-          newUnreadMessages[groupId] = unreadMessageIds;
+      for (final message in group.messages) {
+        if (_userId != message.sender.toString() &&
+            message.type != 'system' &&
+            message.messageType != 'SYSTEM' &&
+            !_isMessageReadByUser(message, _userId)) {
+          unreadMessageIds.add(message.id);
         }
       }
 
-      _unreadMessages.clear();
-      _unreadMessages.addAll(newUnreadMessages);
-
-      _emitEvent('messages_list', response);
-    } catch (e) {
-      debugPrint('❌ Error parsing messages list: $e');
+      if (unreadMessageIds.isNotEmpty) {
+        newUnreadMessages[groupId] = unreadMessageIds;
+      }
     }
+    _unreadMessages.clear();
+    _unreadMessages.addAll(newUnreadMessages);
+    _emitEvent('messages_list', response);
+    // } catch (e) {
+    //   debugPrint('❌ Error parsing messages list: $e');
+    // }
   }
 
   void _handleReactionReceived(dynamic data, bool isAdded) {
     final reaction = data;
-    final groupId = reaction['groupId']?.toString();
+    final groupId = int.parse(reaction['groupId'].toString());
     final messageId = reaction['messageId'];
     final emoji = reaction['emoji'] ?? reaction['reaction']?['emoji'];
     final userId =
@@ -1245,15 +1326,15 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   void _handleUserOnline(dynamic data) {
-    final userId = data['userId']?.toString();
-    final groupId = data['groupId']?.toString();
+    final userId = int.parse(data['userId'].toString());
+    final groupId = int.parse(data['groupId'].toString());
 
     if (userId != null) {
       _onlineUsers.add(userId);
     }
 
     if (groupId != null && userId != null) {
-      _onlineUsersByGroup.putIfAbsent(groupId, () => <String>{});
+      _onlineUsersByGroup.putIfAbsent(groupId, () => <num>{});
       _onlineUsersByGroup[groupId]!.add(userId);
     }
 
@@ -1285,15 +1366,14 @@ class ChatWebSocketHandler with ChangeNotifier {
 
   void _handleOnlineUsers(dynamic data) {
     final groupIds = List<dynamic>.from(data['groupIds'] ?? []);
-    final users = List<dynamic>.from(data['users'] ?? []);
+    final users = List<num>.from(data['users'] ?? []);
 
-    final userIds = users.map((u) => u.toString()).toSet();
+    final Set<num> userIds = users.map((u) => u).toSet();
     _onlineUsers.clear();
     _onlineUsers.addAll(userIds);
 
     for (final groupId in groupIds) {
-      final groupKey = groupId.toString();
-      _onlineUsersByGroup[groupKey] = userIds;
+      _onlineUsersByGroup[groupId] = userIds;
     }
 
     _emitEvent('online_users', data);
@@ -1305,10 +1385,23 @@ class ChatWebSocketHandler with ChangeNotifier {
     debugPrint('📞 Incoming call received: $data');
 
     // Only handle if we're not the initiator
-    if (data['fromUserId']?.toString() != _userId) {
-      _playRingtone();
-      _emitEvent('call_started', data);
-    }
+    // if (data['fromUserId']?.toString() != _userId) {
+    _playRingtone();
+    _emitEvent('call_started', data);
+    // }
+
+    webrtcManager.answerCall().then((_) {
+      print("?? going Here ");
+      Navigator.push(
+        navigatorKey.currentContext!,
+        MaterialPageRoute(
+          builder: (context) => CallScreen(
+            callData: webrtcManager.activeCall!,
+            webrtcManager: webrtcManager,
+          ),
+        ),
+      );
+    });
   }
 
   void _handleCallAnswered(dynamic data) {
@@ -1500,7 +1593,7 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   // Group management
-  void joinGroup(String groupId) {
+  void joinGroup(num groupId) {
     _currentGroupId = groupId;
 
     if (!_isConnected) {
@@ -1512,7 +1605,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     markAllGroupMessagesAsRead(groupId);
   }
 
-  void leaveGroup(String groupId) {
+  void leaveGroup(num groupId) {
     if (_currentGroupId == groupId) {
       _currentGroupId = null;
     }
@@ -1574,7 +1667,7 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> sendFileMessage(
-    String groupId,
+    num groupId,
     List<int> fileBytes,
     String fileName,
     String mimeType, {
@@ -1585,7 +1678,7 @@ class ChatWebSocketHandler with ChangeNotifier {
 
     return sendMessage(
       SendMessageParams(
-        groupId: int.parse(groupId),
+        groupId: groupId.toInt(),
         message: caption ?? fileName,
         messageType: 'FILE',
         tempId: 'file-${DateTime.now().millisecondsSinceEpoch}',
@@ -1614,7 +1707,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     emit('get_messages', {'page': page, 'limit': limit, 'before': before});
   }
 
-  void markMessageAsRead(String messageId, String groupId) {
+  void markMessageAsRead(String messageId, num groupId) {
     if (!_isConnected) {
       _queueMessage('mark_message_read', {
         'messageId': messageId,
@@ -1634,7 +1727,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void markMessagesAsRead(List<String> messageIds, String groupId) {
+  void markMessagesAsRead(List<String> messageIds, num groupId) {
     if (!_isConnected) {
       _queueMessage('mark_messages_read', {
         'messageIds': messageIds,
@@ -1654,7 +1747,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void markAllGroupMessagesAsRead(String groupId) {
+  void markAllGroupMessagesAsRead(num groupId) {
     if (!_isConnected) {
       _queueMessage('mark_group_read', {'groupId': groupId});
       return;
@@ -1681,7 +1774,7 @@ class ChatWebSocketHandler with ChangeNotifier {
 
     // Update all messages to read status
     for (final group in _messages) {
-      _updateGroupMessagesStatus(_normalizeKey(group.groupId), 'read');
+      _updateGroupMessagesStatus(group.groupId, 'read');
     }
 
     emit('mark_all_read');
@@ -1719,7 +1812,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     emit('delete_message', {'messageId': messageId, 'groupId': groupId});
   }
 
-  void editMessage(String messageId, String groupId, String content) {
+  void editMessage(String messageId, num groupId, String content) {
     if (!_isConnected) {
       _queueMessage('edit_message', {
         'messageId': messageId,
@@ -1755,16 +1848,16 @@ class ChatWebSocketHandler with ChangeNotifier {
     emit('typing_stop', {'groupId': groupId});
   }
 
-  List<TypingUser> getTypingUsers(String groupId) {
+  List<TypingUser> getTypingUsers(num groupId) {
     return _typingData[groupId] ?? [];
   }
 
-  bool isUserTyping(String groupId, String userId) {
+  bool isUserTyping(num groupId, String userId) {
     final typers = getTypingUsers(groupId);
     return typers.any((user) => user.userId == userId);
   }
 
-  String getTypingDisplayText(String groupId) {
+  String getTypingDisplayText(num groupId) {
     final typers = getTypingUsers(groupId);
     if (typers.isEmpty) return '';
 
@@ -1800,14 +1893,14 @@ class ChatWebSocketHandler with ChangeNotifier {
     }
   }
 
-  List<String> getOnlineUsersForGroup(dynamic groupId) {
-    final groupKey = _normalizeKey(groupId);
+  List<num> getOnlineUsersForGroup(dynamic groupId) {
+    final groupKey = groupId;
     final users = _onlineUsersByGroup[groupKey];
     return users?.toList() ?? [];
   }
 
   int getOnlineCountForGroup(dynamic groupId) {
-    final groupKey = _normalizeKey(groupId);
+    final groupKey = groupId;
     final users = _onlineUsersByGroup[groupKey];
     return users?.length ?? 0;
   }
@@ -1838,7 +1931,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     List<int> fileBytes,
     String fileName,
     String mimeType,
-    String groupId,
+    num groupId,
   ) async {
     // Implement file upload to server
     // This should make an HTTP request to your upload endpoint
@@ -1847,10 +1940,6 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   // Helper methods
-  String _normalizeKey(dynamic key) {
-    if (key == null) return 'undefined';
-    return key.toString();
-  }
 
   bool _isMessageReadByUser(Message message, String? userId) {
     if (message.readBy == null || userId == null) return false;
@@ -1864,10 +1953,8 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void _addMessageToGroup(String groupId, Message message) {
-    final groupIndex = _messages.indexWhere(
-      (g) => _normalizeKey(g.groupId) == groupId,
-    );
+  void _addMessageToGroup(num groupId, Message message) {
+    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
 
     if (groupIndex == -1) {
       // Create new group
@@ -1897,10 +1984,8 @@ class ChatWebSocketHandler with ChangeNotifier {
     _notifyListeners();
   }
 
-  void _updateMessageInGroup(String groupId, Message message) {
-    final groupIndex = _messages.indexWhere(
-      (g) => _normalizeKey(g.groupId) == groupId,
-    );
+  void _updateMessageInGroup(num groupId, Message message) {
+    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
 
     if (groupIndex != -1) {
       final messageIndex = _messages[groupIndex].messages.indexWhere(
@@ -1914,10 +1999,8 @@ class ChatWebSocketHandler with ChangeNotifier {
     }
   }
 
-  void _removeMessageFromGroup(String groupId, String messageId) {
-    final groupIndex = _messages.indexWhere(
-      (g) => _normalizeKey(g.groupId) == groupId,
-    );
+  void _removeMessageFromGroup(num groupId, String messageId) {
+    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
 
     if (groupIndex != -1) {
       _messages[groupIndex].messages.removeWhere((m) => m.id == messageId);
@@ -1926,16 +2009,14 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   void _updateMessageReaction(
-    String groupId,
+    num groupId,
     String messageId,
     String emoji,
     String userId,
     String? userName,
     bool isAdded,
   ) {
-    final groupIndex = _messages.indexWhere(
-      (g) => _normalizeKey(g.groupId) == groupId,
-    );
+    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
 
     if (groupIndex != -1) {
       final messageIndex = _messages[groupIndex].messages.indexWhere(
@@ -2008,20 +2089,18 @@ class ChatWebSocketHandler with ChangeNotifier {
     }
   }
 
-  void _addUnreadMessage(String groupId, String messageId) {
+  void _addUnreadMessage(num groupId, String messageId) {
     _unreadMessages.putIfAbsent(groupId, () => <String>{});
     _unreadMessages[groupId]!.add(messageId);
     _notifyListeners();
   }
 
   void _markMessagesAsRead(
-    String groupId,
+    num groupId,
     List<String> messageIds,
     String? userId,
   ) {
-    final groupIndex = _messages.indexWhere(
-      (g) => _normalizeKey(g.groupId) == groupId,
-    );
+    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
 
     if (groupIndex != -1 && userId != null) {
       for (final message in _messages[groupIndex].messages) {
@@ -2073,10 +2152,8 @@ class ChatWebSocketHandler with ChangeNotifier {
     _notifyListeners();
   }
 
-  void _updateGroupMessagesStatus(String groupId, String status) {
-    final groupIndex = _messages.indexWhere(
-      (g) => _normalizeKey(g.groupId) == groupId,
-    );
+  void _updateGroupMessagesStatus(num groupId, String status) {
+    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
 
     if (groupIndex != -1 && _userId != null) {
       for (int i = 0; i < _messages[groupIndex].messages.length; i++) {
@@ -2127,6 +2204,7 @@ class ChatWebSocketHandler with ChangeNotifier {
     _eventHandlers.clear();
     _messageQueue.clear();
     socketService.dispose();
+    _pendingHandlers.clear();
     super.dispose();
   }
 

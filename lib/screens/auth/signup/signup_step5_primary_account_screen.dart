@@ -444,14 +444,7 @@ class _VerifyPrimaryAccountScreenState
                   Row(
                     children: [
                       Expanded(
-                        child: ElevatedButton(
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFF0B1A6C),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                          ),
+                        child: HoopButton(
                           onPressed: isAgreed
                               ? () async {
                                   await OnboardingService.markOnboardingComplete();
@@ -463,13 +456,8 @@ class _VerifyPrimaryAccountScreenState
                                   Navigator.pop(context, true);
                                 }
                               : null,
-                          child: const Text(
-                            "I have sent ₦100.00",
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            ),
-                          ),
+                          buttonText: "I have sent ₦100.00",
+                          disabled: !isAgreed,
                         ),
                       ),
                       const SizedBox(width: 10),

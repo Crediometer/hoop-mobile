@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/onesignal_state.dart';
+import 'package:hoop/states/ws/chat_sockets.dart';
+import 'package:hoop/states/ws/notification_socket.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:hoop/screens/features/primary_setup_required_screen.dart';
@@ -32,7 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Icons for bottom nav
   final List<IconData> _navIcons = [
-    Icons.people_outline, 
+    Icons.people_outline,
     Icons.chat_bubble_outline,
     Icons.videocam_outlined,
     Icons.credit_card,
@@ -224,10 +226,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Notification badge for Groups tab
-                        if (index == 1) // Groups tab
-                          Consumer<OneSignalService>(
-                            builder: (context, oneSignal, child) {
+                        // Icon rendering with proper conditions
+                        if (index == 0)
+                          // Community tab with notification badge
+                          Consumer<NotificationWebSocketHandler>(
+                            builder: (context, notification, child) {
                               return Stack(
                                 children: [
                                   Icon(
@@ -239,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ? Colors.grey
                                               : Colors.black54),
                                   ),
-                                  if (oneSignal.unreadCount > 0)
+                                  if (notification.unreadCount > 0)
                                     Positioned(
                                       right: 0,
                                       top: 0,
@@ -248,9 +251,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                         height: 18,
                                         decoration: BoxDecoration(
                                           color: Colors.red,
-                                          borderRadius: BorderRadius.circular(
-                                            9,
-                                          ),
+                                          borderRadius: BorderRadius.circular(9),
                                           border: Border.all(
                                             color: isDark
                                                 ? const Color(0xFF0F111A)
@@ -260,9 +261,61 @@ class _HomeScreenState extends State<HomeScreen> {
                                         ),
                                         child: Center(
                                           child: Text(
-                                            oneSignal.unreadCount > 9
+                                            notification.unreadCount > 9
                                                 ? '9+'
-                                                : oneSignal.unreadCount
+                                                : notification.unreadCount
+                                                      .toString(),
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                          )
+                        
+                        else if (index == 1)
+                          // Spotlight tab with chat badge
+                          Consumer<ChatWebSocketHandler>(
+                            builder: (context, handler, child) {
+                              return Stack(
+                                children: [
+                                  Icon(
+                                    _navIcons[index],
+                                    size: 26,
+                                    color: selected
+                                        ? const Color(0xFFF97316)
+                                        : (isDark
+                                              ? Colors.grey
+                                              : Colors.black54),
+                                  ),
+                                  if (handler.totalUnreadMessages > 0)
+                                    Positioned(
+                                      right: 0,
+                                      top: 0,
+                                      child: Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(9),
+                                          border: Border.all(
+                                            color: isDark
+                                                ? const Color(0xFF0F111A)
+                                                : Colors.white,
+                                            width: 2,
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            handler.totalUnreadMessages > 99
+                                                ? '99+'
+                                                : handler.totalUnreadMessages
                                                       .toString(),
                                             style: TextStyle(
                                               color: Colors.white,
@@ -278,6 +331,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             },
                           )
                         else
+                          // Transactions and Profile tabs (indices 3 and 4)
                           Icon(
                             _navIcons[index],
                             size: 26,

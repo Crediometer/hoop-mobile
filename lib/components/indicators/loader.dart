@@ -10,7 +10,7 @@ class WaveLoader extends StatefulWidget {
   final Color? waveColor;
   final Duration? waveDuration;
 
-  const WaveLoader({
+   WaveLoader({
     Key? key,
     this.size = 128,
     this.waveColor,
