@@ -61,19 +61,19 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
       fillColor: fillColor,
       enabledBorder: OutlineInputBorder(
         borderSide: BorderSide(color: borderColor, width: 1.2),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
       ),
       focusedBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
       ),
       errorBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
     );

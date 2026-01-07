@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/indicators/loader.dart';
+import 'package:hoop/components/state/empty_state.dart';
+import 'package:hoop/dtos/responses/SpotlightVideo.dart';
+import 'package:hoop/states/group_state.dart';
+import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
+import 'package:provider/provider.dart';
 
 class ShinersTab extends StatefulWidget {
   const ShinersTab({super.key});
@@ -8,34 +14,17 @@ class ShinersTab extends StatefulWidget {
 }
 
 class _ShinersTabState extends State<ShinersTab> {
-  final List<Map<String, dynamic>> spotlightStories = [
-    {
-      "id": 1,
-      "title": "Apple Watch Series 10 Review: This is It?",
-      "author": "EKUNDAYO",
-      "category": "TOP SAVER",
-      "imageUrl": "https://via.placeholder.com/400x300?text=Apple+Watch",
-      "badge": "🏆 Achievement: I STARTED ANOTHER APPLICATION OUT THERE, BUT IT TURNS OUT TO BE THE BEST THING THAT HAPPENED TO ME IN 2022",
-      "description": "So... this is the big \"redesign\", eh? Get \$350 off the EightSleep Pod 4 Ultra or \$200 off the Pod 4 at...",
-      "views": "4.6M",
-      "likes": "106.5K",
-      "timeAgo": "1 years ago",
-      "tags": ["Realtor", "Youth"],
-    },
-    {
-      "id": 2,
-      "title": "5 Best Foods for Hormone Balance",
-      "author": "DR. SARAH",
-      "category": "WELLNESS",
-      "imageUrl": "https://via.placeholder.com/400x300?text=Foods+Hormone",
-      "badge": "🌟 Health Tip",
-      "description": "Learn the top 5 foods that help balance your hormones naturally and improve your overall health.",
-      "views": "2.3M",
-      "likes": "89.2K",
-      "timeAgo": "2 months ago",
-      "tags": ["Health", "Nutrition"],
-    },
-  ];
+  @override
+  void initState() {
+    super.initState();
+    // Load spotlights when tab initializes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final provider = context.read<GroupCommunityProvider>();
+      if (provider.spotlight.isEmpty && !provider.isFetchingSpotlight) {
+        provider.getSpotlights();
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,98 +37,181 @@ class _ShinersTabState extends State<ShinersTab> {
     return Scaffold(
       backgroundColor: bgColor,
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // HEADER
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+        child: Consumer<GroupCommunityProvider>(
+          builder: (context, provider, child) {
+            final spotlightList = provider.spotlight;
+            final isLoading = provider.isFetchingSpotlight;
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                await provider.refreshSpotlights();
+              },
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          "Spotlight",
-                          style: TextStyle(
-                            color: textPrimary,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w800,
-                            letterSpacing: -0.5,
+                    // HEADER
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 16,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                "Spotlight",
+                                style: TextStyle(
+                                  color: textPrimary,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                              Row(
+                                children: [
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? Colors.white10
+                                          : Colors.grey[100],
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      onPressed: () {},
+                                      icon: Icon(
+                                        Icons.search,
+                                        color: textPrimary,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: isDark
+                                          ? Colors.white10
+                                          : Colors.grey[100],
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: IconButton(
+                                      onPressed: () =>
+                                          provider.refreshSpotlights(),
+                                      icon: Icon(
+                                        Icons.refresh,
+                                        color: textPrimary,
+                                        size: 24,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            color: isDark ? Colors.white10 : Colors.grey[100],
-                            shape: BoxShape.circle,
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  "Real success stories from our community",
+                                  style: TextStyle(
+                                    color: textSecondary,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 2.5),
+                              GestureDetector(
+                                onTap: () {},
+                                child: Text(
+                                  "Live YouTube Data",
+                                  style: TextStyle(
+                                    color: const Color(0xFF00BCD4),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
-                          child: IconButton(
-                            onPressed: () {},
-                            icon: Icon(
-                              Icons.search,
-                              color: textPrimary,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+
                     const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Text(
-                          "Real success stories from our community",
-                          style: TextStyle(color: textSecondary, fontSize: 14),
+
+                    if (isLoading && spotlightList.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 200.0),
+                        child: Center(
+                          child: WaveLoader(
+                            size: 150, // Custom size
+                            waveDuration: Duration(
+                              seconds: 3,
+                            ), // Custom animation duration
+                          ),
                         ),
-                        const Spacer(),
-                        GestureDetector(
-                          onTap: () {},
-                          child: Text(
-                            "Live YouTube Data",
-                            style: TextStyle(
-                              color: const Color(0xFF00BCD4),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                      ),
+
+                    if (spotlightList.isEmpty && !isLoading)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 200.0),
+                        child: HoopEmptyState(
+                          subtitle: "You might be the shiner!",
+                          title: "No spotlight stories yet",
+                          iconData: Icons.videocam_off_outlined,
+                          onPress: () async {
+                            await provider.refreshSpotlights();
+                          },
+                          secondaryActionText: "Refresh Stories",
+                        ),
+                      ),
+
+                    if (spotlightList.isNotEmpty && !isLoading)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          children: List.generate(
+                            spotlightList.length,
+                            (index) => _buildStoryCard(
+                              spotlightList[index],
+                              isDark,
+                              textPrimary,
+                              textSecondary,
+                              textTertiary,
                             ),
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+
+                    const SizedBox(height: 20),
+
+                    // Loading indicator at bottom if loading more
+                    if (isLoading && spotlightList.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Center(
+                          child: CircularProgressIndicator(
+                            color: const Color(0xFFF97316),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
-
-              const SizedBox(height: 8),
-
-              // SPOTLIGHT STORIES LIST
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: List.generate(
-                    spotlightStories.length,
-                    (index) => _buildStoryCard(
-                      spotlightStories[index],
-                      isDark,
-                      textPrimary,
-                      textSecondary,
-                      textTertiary,
-                    ),
-                  ),
-                ),
-              ),
-
-              const SizedBox(height: 20),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 
   Widget _buildStoryCard(
-    Map<String, dynamic> story,
+    SpotlightVideo spotlight,
     bool isDark,
     Color textPrimary,
     Color textSecondary,
@@ -149,7 +221,7 @@ class _ShinersTabState extends State<ShinersTab> {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1A1D27) : Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(10),
         boxShadow: isDark
             ? null
             : [
@@ -163,34 +235,64 @@ class _ShinersTabState extends State<ShinersTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // IMAGE SECTION WITH GRADIENT OVERLAY
+          // VIDEO/IMAGE SECTION
           Stack(
             children: [
-              // Placeholder image with gradient
+              // Video thumbnail or image
               Container(
                 height: 240,
+                width: double.infinity,
                 decoration: BoxDecoration(
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(20),
                     topRight: Radius.circular(20),
                   ),
+                  image:
+                      spotlight.thumbnail != null &&
+                          spotlight.thumbnail!.isNotEmpty
+                      ? DecorationImage(
+                          image: NetworkImage(spotlight.thumbnail!),
+                          fit: BoxFit.cover,
+                        )
+                      : null,
                   gradient: LinearGradient(
-                    colors: [
-                      Colors.deepPurple.shade400,
-                      Colors.pink.shade300,
-                    ],
+                    colors: [Colors.deepPurple.shade400, Colors.pink.shade300],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                 ),
-                child: Center(
-                  child: Icon(
-                    Icons.image,
-                    size: 80,
-                    color: Colors.white.withOpacity(0.3),
+                child:
+                    spotlight.thumbnail == null || spotlight.thumbnail!.isEmpty
+                    ? Center(
+                        child: Icon(
+                          Icons.videocam,
+                          size: 80,
+                          color: Colors.white.withOpacity(0.3),
+                        ),
+                      )
+                    : null,
+              ),
+
+              // Play button overlay
+              if (spotlight.youtubeVideoId != null &&
+                  spotlight.youtubeVideoId!.isNotEmpty)
+                Positioned.fill(
+                  child: Center(
+                    child: Container(
+                      width: 60,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.play_arrow,
+                        size: 40,
+                        color: Colors.white,
+                      ),
+                    ),
                   ),
                 ),
-              ),
 
               // Author avatar
               Positioned(
@@ -200,19 +302,44 @@ class _ShinersTabState extends State<ShinersTab> {
                   width: 48,
                   height: 48,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFFF6B6B),
+                    color: _getAvatarColor(spotlight.userName ?? 'A'),
                     shape: BoxShape.circle,
                   ),
                   child: Center(
                     child: Text(
-                      story["author"].toString().isNotEmpty
-                          ? story["author"].toString()[0]
-                          : "E",
+                      spotlight?.userAvatar ?? "-",
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 20,
                       ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // Category badge
+              Positioned(
+                top: 16,
+                right: 16,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.7),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    spotlight.category?.isNotEmpty == true
+                        ? spotlight.category!.toUpperCase()
+                        : 'SPOTLIGHT',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.5,
                     ),
                   ),
                 ),
@@ -234,7 +361,7 @@ class _ShinersTabState extends State<ShinersTab> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          story["author"],
+                          spotlight.userName ?? 'Anonymous',
                           style: TextStyle(
                             color: textSecondary,
                             fontSize: 12,
@@ -249,13 +376,15 @@ class _ShinersTabState extends State<ShinersTab> {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFE8F5E9),
+                            color: _getCategoryColor(spotlight.category),
                             borderRadius: BorderRadius.circular(6),
                           ),
-                          child: const Text(
-                            "TOP SAVER",
+                          child: Text(
+                            (spotlight.category?.isNotEmpty == true
+                                ? spotlight.category!.toUpperCase()
+                                : 'SPOTLIGHT'),
                             style: TextStyle(
-                              color: Color(0xFF2E7D32),
+                              color: _getCategoryTextColor(spotlight.category),
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                               letterSpacing: 0.5,
@@ -264,59 +393,69 @@ class _ShinersTabState extends State<ShinersTab> {
                         ),
                       ],
                     ),
-                    Icon(
-                      Icons.favorite_border,
-                      color: textTertiary,
-                      size: 20,
+                    IconButton(
+                      onPressed: () {
+                        // TODO: Implement like functionality
+                      },
+                      icon: Icon(
+                        spotlight.isLiked == true
+                            ? Icons.favorite
+                            : Icons.favorite_border,
+                        color: spotlight.isLiked == true
+                            ? Colors.red
+                            : textTertiary,
+                        size: 20,
+                      ),
                     ),
                   ],
                 ),
 
                 const SizedBox(height: 12),
 
-                // ACHIEVEMENT BADGE
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark
-                        ? Colors.green.shade900.withOpacity(0.3)
-                        : Colors.green.shade50,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: const Color(0xFF4CAF50).withOpacity(0.3),
-                      width: 1,
+                // ACHIEVEMENT BADGE (if available)
+                if (spotlight.achievement != null &&
+                    spotlight.achievement!.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? Colors.green.shade900.withOpacity(0.3)
+                          : Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: const Color(0xFF4CAF50).withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("🏆", style: TextStyle(fontSize: 18)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            spotlight.achievement!,
+                            style: TextStyle(
+                              color: const Color(0xFF4CAF50),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              height: 1.4,
+                            ),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        "🏆",
-                        style: TextStyle(fontSize: 18),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          story["badge"],
-                          style: TextStyle(
-                            color: const Color(0xFF4CAF50),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            height: 1.4,
-                          ),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
 
-                const SizedBox(height: 14),
+                if (spotlight.achievement != null &&
+                    spotlight.achievement!.isNotEmpty)
+                  const SizedBox(height: 14),
 
                 // TITLE
                 Text(
-                  story["title"],
+                  spotlight.title ?? '-',
                   style: TextStyle(
                     color: textPrimary,
                     fontSize: 16,
@@ -331,13 +470,13 @@ class _ShinersTabState extends State<ShinersTab> {
 
                 // DESCRIPTION
                 Text(
-                  story["description"],
+                  spotlight.description ?? '-',
                   style: TextStyle(
                     color: textSecondary,
                     fontSize: 13,
                     height: 1.4,
                   ),
-                  maxLines: 2,
+                  maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
 
@@ -355,11 +494,10 @@ class _ShinersTabState extends State<ShinersTab> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          story["views"],
-                          style: TextStyle(
-                            color: textTertiary,
-                            fontSize: 12,
+                          HoopFormatters.formatSocialCount(
+                            spotlight.views ?? 0,
                           ),
+                          style: TextStyle(color: textTertiary, fontSize: 12),
                         ),
                       ],
                     ),
@@ -373,27 +511,21 @@ class _ShinersTabState extends State<ShinersTab> {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          story["likes"],
-                          style: TextStyle(
-                            color: textTertiary,
-                            fontSize: 12,
+                          HoopFormatters.formatSocialCount(
+                            spotlight.likes ?? 0,
                           ),
+                          style: TextStyle(color: textTertiary, fontSize: 12),
                         ),
                       ],
                     ),
                     const SizedBox(width: 20),
-                    Icon(
-                      Icons.access_time,
-                      size: 16,
-                      color: textTertiary,
-                    ),
+                    Icon(Icons.access_time, size: 16, color: textTertiary),
                     const SizedBox(width: 6),
                     Text(
-                      story["timeAgo"],
-                      style: TextStyle(
-                        color: textTertiary,
-                        fontSize: 12,
+                      HoopFormatters.formatTimeAgo(
+                        HoopFormatters.formatDate(spotlight.createdAt!),
                       ),
+                      style: TextStyle(color: textTertiary, fontSize: 12),
                     ),
                   ],
                 ),
@@ -401,41 +533,87 @@ class _ShinersTabState extends State<ShinersTab> {
                 const SizedBox(height: 12),
 
                 // TAGS
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: List.generate(
-                    (story["tags"] as List).length,
-                    (index) {
-                      final tag = (story["tags"] as List)[index];
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.1)
-                              : Colors.grey[200],
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          tag,
-                          style: TextStyle(
-                            color: isDark ? Colors.white70 : Colors.grey[700],
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
+                if (spotlight.tags != null && spotlight.tags!.isNotEmpty)
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: spotlight.tags!
+                        .map(
+                          (tag) => Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.1)
+                                  : Colors.grey[200],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              tag,
+                              style: TextStyle(
+                                color: isDark
+                                    ? Colors.white70
+                                    : Colors.grey[700],
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
                           ),
-                        ),
-                      );
-                    },
+                        )
+                        .toList(),
                   ),
-                ),
               ],
             ),
           ),
         ],
       ),
     );
+  }
+
+  int min(int a, int b) => a < b ? a : b;
+
+  Color _getAvatarColor(String name) {
+    final colors = [
+      const Color(0xFFFF6B6B),
+      const Color(0xFF4ECDC4),
+      const Color(0xFF45B7D1),
+      const Color(0xFF96CEB4),
+      const Color(0xFFFECA57),
+      const Color(0xFFFF9FF3),
+    ];
+    final index = name.isNotEmpty ? name.codeUnitAt(0) % colors.length : 0;
+    return colors[index];
+  }
+
+  Color _getCategoryColor(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'top saver':
+        return const Color(0xFFE8F5E9);
+      case 'wellness':
+        return const Color(0xFFE3F2FD);
+      case 'investment':
+        return const Color(0xFFF3E5F5);
+      case 'business':
+        return const Color(0xFFFFF3E0);
+      default:
+        return const Color(0xFFF5F5F5);
+    }
+  }
+
+  Color _getCategoryTextColor(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'top saver':
+        return const Color(0xFF2E7D32);
+      case 'wellness':
+        return const Color(0xFF1565C0);
+      case 'investment':
+        return const Color(0xFF7B1FA2);
+      case 'business':
+        return const Color(0xFFEF6C00);
+      default:
+        return const Color(0xFF616161);
+    }
   }
 }

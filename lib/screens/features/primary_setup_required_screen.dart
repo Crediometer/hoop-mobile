@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/screens/auth/signup/signup_step5_primary_account_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -26,8 +27,9 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
-                  color:
-                      isDark ? const Color(0xFF1C1F2E) : const Color(0xFFFDEDE5),
+                  color: isDark
+                      ? const Color(0xFF1C1F2E)
+                      : const Color(0xFFFDEDE5),
                   borderRadius: BorderRadius.circular(18),
                 ),
                 child: const Icon(
@@ -41,10 +43,7 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
 
               const Text(
                 "Account Setup Required",
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
 
               const SizedBox(height: 8),
@@ -52,10 +51,7 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
               Text(
                 "To continue using the app, you need to complete your primary account setup for secure transactions.",
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade500,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
               ),
 
               const SizedBox(height: 26),
@@ -64,8 +60,9 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color:
-                      isDark ? const Color(0xFF1C1F2E) : const Color(0xFFEFF4FF),
+                  color: isDark
+                      ? const Color(0xFF1C1F2E)
+                      : const Color(0xFFEFF4FF),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
@@ -88,8 +85,9 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color:
-                      isDark ? const Color(0xFF182418) : const Color(0xFFE8FFEF),
+                  color: isDark
+                      ? const Color(0xFF182418)
+                      : const Color(0xFFE8FFEF),
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Row(
@@ -108,43 +106,31 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
 
               const SizedBox(height: 28),
 
-              // BUTTON
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF0B1A6C),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              HoopButton(
+                buttonText: "Setup Primary Account →",
+                isLoading: false,
+                onPressed: () async {
+                  final done = await Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const SetupPrimaryAccountScreen(popOnAdd: true),
                     ),
-                  ),
-                  onPressed: () async {
-                    final done = await Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const SetupPrimaryAccountScreen(popOnAdd: true),
-                      ),
-                    );
+                  );
 
-                    if (done == true) {
-                      await _markDone();
-                      Navigator.pop(context); // Back to Community
-                    }
-                  },
-                  child: const Text(
-                    "Setup Primary Account  →",
-                    style: TextStyle(fontSize: 16),
-                  ),
-                ),
+                  if (done == true) {
+                    await _markDone();
+                    Navigator.pop(context); // Back to Community
+                  }
+                },
               ),
+            
 
               const SizedBox(height: 12),
               Text(
                 "This is required to access all app features",
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
-              )
+              ),
             ],
           ),
         ),
