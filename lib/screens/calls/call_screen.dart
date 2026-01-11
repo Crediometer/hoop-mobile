@@ -40,7 +40,7 @@ class _CallScreenState extends State<CallScreen> {
     // Initialize local renderer
     _localRenderer = RTCVideoRenderer();
     await _localRenderer!.initialize();
-    
+
     // Set local stream if available
     final localStream = widget.webrtcManager.localStream;
     if (localStream != null) {
@@ -76,20 +76,20 @@ class _CallScreenState extends State<CallScreen> {
   void _setupCallbacks() {
     widget.webrtcManager.onRemoteStreamsUpdated =
         (Map<int, MediaStream> streams) {
-      // Add new streams
-      streams.forEach((userId, stream) {
-        if (!_remoteRenderers.containsKey(userId)) {
-          _addRemoteRenderer(userId, stream);
-        }
-      });
+          // Add new streams
+          streams.forEach((userId, stream) {
+            if (!_remoteRenderers.containsKey(userId)) {
+              _addRemoteRenderer(userId, stream);
+            }
+          });
 
-      // Remove old streams
-      _remoteRenderers.keys.toList().forEach((userId) {
-        if (!streams.containsKey(userId)) {
-          _removeRemoteRenderer(userId);
-        }
-      });
-    };
+          // Remove old streams
+          _remoteRenderers.keys.toList().forEach((userId) {
+            if (!streams.containsKey(userId)) {
+              _removeRemoteRenderer(userId);
+            }
+          });
+        };
   }
 
   void _startCallTimer() {
@@ -135,10 +135,7 @@ class _CallScreenState extends State<CallScreen> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.black,
-                      Colors.grey[900]!,
-                    ],
+                    colors: [Colors.black, Colors.grey[900]!],
                   ),
                 ),
               ),
@@ -149,14 +146,14 @@ class _CallScreenState extends State<CallScreen> {
               children: [
                 // Top bar with call info
                 _buildTopBar(),
-                
+
                 // Video grid or caller info
                 Expanded(
                   child: isVideoCall && remoteStreams.isNotEmpty
                       ? _buildVideoGrid(remoteStreams, participants)
                       : _buildAudioCallView(participants),
                 ),
-                
+
                 // Call controls
                 _buildCallControls(
                   isVideoCall: isVideoCall,
@@ -183,13 +180,13 @@ class _CallScreenState extends State<CallScreen> {
               Navigator.pop(context);
             },
           ),
-          
+
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 Text(
-                  widget.callData.groupName,
+                  widget.callData.groupName??'Test Group',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -200,18 +197,11 @@ class _CallScreenState extends State<CallScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.person,
-                      size: 14,
-                      color: Colors.green,
-                    ),
+                    Icon(Icons.person, size: 14, color: Colors.green),
                     SizedBox(width: 4),
                     Text(
                       '${widget.callData.participants.length} participants',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                     SizedBox(width: 8),
                     Container(
@@ -225,17 +215,14 @@ class _CallScreenState extends State<CallScreen> {
                     SizedBox(width: 8),
                     Text(
                       _formatDuration(_callDuration),
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ],
                 ),
               ],
             ),
           ),
-          
+
           // More options
           IconButton(
             icon: Icon(Icons.more_vert, color: Colors.white),
@@ -246,7 +233,10 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  Widget _buildVideoGrid(Map<int, MediaStream> remoteStreams, List<CallParticipant> participants) {
+  Widget _buildVideoGrid(
+    Map<int, MediaStream> remoteStreams,
+    List<CallParticipant> participants,
+  ) {
     final participantIds = remoteStreams.keys.toList();
     final totalParticipants = participantIds.length + 1; // +1 for local view
 
@@ -296,7 +286,7 @@ class _CallScreenState extends State<CallScreen> {
                     ),
                   ),
           ),
-          
+
           // Local preview (picture-in-picture)
           Positioned(
             bottom: 100,
@@ -321,10 +311,15 @@ class _CallScreenState extends State<CallScreen> {
                     ? RTCVideoView(
                         _localRenderer!,
                         mirror: true,
-                        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                       )
                     : Center(
-                        child: Icon(Icons.person, size: 30, color: Colors.white),
+                        child: Icon(
+                          Icons.person,
+                          size: 30,
+                          color: Colors.white,
+                        ),
                       ),
               ),
             ),
@@ -336,17 +331,22 @@ class _CallScreenState extends State<CallScreen> {
     // 3+ participants - grid view
     final gridParticipants = [
       if (_localRenderer != null) {'type': 'local', 'renderer': _localRenderer},
-      ...participantIds.map((id) => {
-            'type': 'remote',
-            'id': id,
-            'renderer': _remoteRenderers[id],
-            'participant': participants.firstWhere((p) => p.id == id, orElse: () => CallParticipant(
-                  id: id,
-                  name: 'User $id',
-                  avatar: '',
-                  role: ParticipantRole.participant,
-                )),
-          }),
+      ...participantIds.map(
+        (id) => {
+          'type': 'remote',
+          'id': id,
+          'renderer': _remoteRenderers[id],
+          'participant': participants.firstWhere(
+            (p) => p.id == id,
+            orElse: () => CallParticipant(
+              id: id,
+              name: 'User $id',
+              avatar: '',
+              role: ParticipantRole.participant,
+            ),
+          ),
+        },
+      ),
     ];
 
     return GridView.builder(
@@ -382,21 +382,23 @@ class _CallScreenState extends State<CallScreen> {
                     ? RTCVideoView(
                         renderer,
                         mirror: isLocal,
-                        objectFit: RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
+                        objectFit:
+                            RTCVideoViewObjectFit.RTCVideoViewObjectFitCover,
                       )
                     : Center(
                         child: _buildParticipantAvatar(
-                          callParticipant ?? CallParticipant(
-                            id: isLocal ? 0 : -1,
-                            name: isLocal ? 'You' : 'User',
-                            avatar: '',
-                            role: ParticipantRole.participant,
-                          ),
+                          callParticipant ??
+                              CallParticipant(
+                                id: isLocal ? 0 : -1,
+                                name: isLocal ? 'You' : 'User',
+                                avatar: '',
+                                role: ParticipantRole.participant,
+                              ),
                           size: 40,
                         ),
                       ),
               ),
-              
+
               // Participant info overlay
               Positioned(
                 bottom: 8,
@@ -412,20 +414,21 @@ class _CallScreenState extends State<CallScreen> {
                       if (callParticipant?.isAudioMuted ?? false)
                         Padding(
                           padding: EdgeInsets.only(right: 4),
-                          child: Icon(Icons.mic_off, size: 12, color: Colors.white),
+                          child: Icon(
+                            Icons.mic_off,
+                            size: 12,
+                            color: Colors.white,
+                          ),
                         ),
                       Text(
                         callParticipant?.name ?? (isLocal ? 'You' : 'User'),
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.white, fontSize: 12),
                       ),
                     ],
                   ),
                 ),
               ),
-              
+
               // Connection indicator
               Positioned(
                 top: 8,
@@ -450,12 +453,14 @@ class _CallScreenState extends State<CallScreen> {
   Widget _buildAudioCallView(List<CallParticipant> participants) {
     final currentUser = participants.firstWhere(
       (p) => p.id == widget.webrtcManager.activeCall?.initiator,
-      orElse: () => participants.isNotEmpty ? participants.first : CallParticipant(
-        id: 0,
-        name: 'Unknown',
-        avatar: '',
-        role: ParticipantRole.caller,
-      ),
+      orElse: () => participants.isNotEmpty
+          ? participants.first
+          : CallParticipant(
+              id: 0,
+              name: 'Unknown',
+              avatar: '',
+              role: ParticipantRole.caller,
+            ),
     );
 
     return Center(
@@ -464,9 +469,9 @@ class _CallScreenState extends State<CallScreen> {
         children: [
           // Caller avatar
           _buildParticipantAvatar(currentUser, size: 120),
-          
+
           SizedBox(height: 24),
-          
+
           // Caller name
           Text(
             currentUser.name,
@@ -476,20 +481,17 @@ class _CallScreenState extends State<CallScreen> {
               fontWeight: FontWeight.bold,
             ),
           ),
-          
+
           SizedBox(height: 8),
-          
+
           // Call status
           Text(
             widget.webrtcManager.isCallActive ? 'Connected' : 'Connecting...',
-            style: TextStyle(
-              color: Colors.green,
-              fontSize: 16,
-            ),
+            style: TextStyle(color: Colors.green, fontSize: 16),
           ),
-          
+
           SizedBox(height: 40),
-          
+
           // Participants list
           Container(
             padding: EdgeInsets.symmetric(horizontal: 20),
@@ -497,10 +499,7 @@ class _CallScreenState extends State<CallScreen> {
               children: [
                 Text(
                   'Participants (${participants.length})',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
                 SizedBox(height: 12),
                 LimitedBox(
@@ -514,22 +513,15 @@ class _CallScreenState extends State<CallScreen> {
                         leading: _buildParticipantAvatar(participant, size: 36),
                         title: Text(
                           participant.name,
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                          ),
+                          style: TextStyle(color: Colors.white, fontSize: 16),
                         ),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (participant.isAudioMuted)
+                            if (participant.isAudioMuted ?? false)
                               Icon(Icons.mic_off, size: 16, color: Colors.red),
                             SizedBox(width: 8),
-                            Icon(
-                              Icons.circle,
-                              size: 10,
-                              color: Colors.green,
-                            ),
+                            Icon(Icons.circle, size: 10, color: Colors.green),
                           ],
                         ),
                       );
@@ -544,7 +536,10 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  Widget _buildParticipantAvatar(CallParticipant participant, {double size = 60}) {
+  Widget _buildParticipantAvatar(
+    CallParticipant participant, {
+    double size = 60,
+  }) {
     return Container(
       width: size,
       height: size,
@@ -553,10 +548,7 @@ class _CallScreenState extends State<CallScreen> {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            Colors.blue.shade700,
-            Colors.purple.shade500,
-          ],
+          colors: [Colors.blue.shade700, Colors.purple.shade500],
         ),
       ),
       child: Center(
@@ -603,7 +595,7 @@ class _CallScreenState extends State<CallScreen> {
                 isActive: _isSpeakerEnabled,
                 onPressed: _toggleSpeaker,
               ),
-              
+
               // Bluetooth toggle
               _buildControlButton(
                 icon: Icons.bluetooth,
@@ -611,7 +603,7 @@ class _CallScreenState extends State<CallScreen> {
                 isActive: _isBluetoothEnabled,
                 onPressed: _toggleBluetooth,
               ),
-              
+
               // Record toggle
               _buildControlButton(
                 icon: _isRecording ? Icons.stop : Icons.fiber_manual_record,
@@ -620,7 +612,7 @@ class _CallScreenState extends State<CallScreen> {
                 activeColor: Colors.red,
                 onPressed: _toggleRecording,
               ),
-              
+
               // More options
               _buildControlButton(
                 icon: Icons.more_horiz,
@@ -629,9 +621,9 @@ class _CallScreenState extends State<CallScreen> {
               ),
             ],
           ),
-          
+
           SizedBox(height: 20),
-          
+
           // Main controls row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -643,7 +635,7 @@ class _CallScreenState extends State<CallScreen> {
                 backgroundColor: isAudioMuted ? Colors.red : Colors.white24,
                 onPressed: widget.webrtcManager.toggleAudio,
               ),
-              
+
               // Toggle video (only for video calls)
               if (isVideoCall)
                 _buildMainControlButton(
@@ -652,7 +644,7 @@ class _CallScreenState extends State<CallScreen> {
                   backgroundColor: isVideoMuted ? Colors.red : Colors.white24,
                   onPressed: widget.webrtcManager.toggleVideo,
                 ),
-              
+
               // End call
               _buildMainControlButton(
                 icon: Icons.call_end,
@@ -664,7 +656,7 @@ class _CallScreenState extends State<CallScreen> {
                   Navigator.pop(context);
                 },
               ),
-              
+
               // Flip camera (only for video calls)
               if (isVideoCall)
                 _buildMainControlButton(
@@ -673,7 +665,7 @@ class _CallScreenState extends State<CallScreen> {
                   backgroundColor: Colors.white24,
                   onPressed: _flipCamera,
                 ),
-              
+
               // Add participant
               _buildMainControlButton(
                 icon: Icons.person_add,
@@ -709,7 +701,11 @@ class _CallScreenState extends State<CallScreen> {
             ),
           ),
           child: IconButton(
-            icon: Icon(icon, size: 24, color: isActive ? activeColor : Colors.white),
+            icon: Icon(
+              icon,
+              size: 24,
+              color: isActive ? activeColor : Colors.white,
+            ),
             onPressed: onPressed,
           ),
         ),
@@ -749,22 +745,12 @@ class _CallScreenState extends State<CallScreen> {
             ],
           ),
           child: IconButton(
-            icon: Icon(
-              icon,
-              size: isLarge ? 32 : 24,
-              color: Colors.white,
-            ),
+            icon: Icon(icon, size: isLarge ? 32 : 24, color: Colors.white),
             onPressed: onPressed,
           ),
         ),
         SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 12,
-          ),
-        ),
+        Text(label, style: TextStyle(color: Colors.white, fontSize: 12)),
       ],
     );
   }
@@ -809,10 +795,7 @@ class _CallScreenState extends State<CallScreen> {
   void _flipCamera() {
     // TODO: Implement camera flipping
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Camera flipped'),
-        duration: Duration(seconds: 1),
-      ),
+      SnackBar(content: Text('Camera flipped'), duration: Duration(seconds: 1)),
     );
   }
 
@@ -858,7 +841,10 @@ class _CallScreenState extends State<CallScreen> {
           children: [
             ListTile(
               leading: Icon(Icons.people, color: Colors.white),
-              title: Text('View Participants', style: TextStyle(color: Colors.white)),
+              title: Text(
+                'View Participants',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _showParticipantsList();
@@ -867,7 +853,10 @@ class _CallScreenState extends State<CallScreen> {
             Divider(color: Colors.white30),
             ListTile(
               leading: Icon(Icons.share, color: Colors.white),
-              title: Text('Share Call Link', style: TextStyle(color: Colors.white)),
+              title: Text(
+                'Share Call Link',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _shareCallLink();
@@ -876,7 +865,10 @@ class _CallScreenState extends State<CallScreen> {
             Divider(color: Colors.white30),
             ListTile(
               leading: Icon(Icons.settings, color: Colors.white),
-              title: Text('Call Settings', style: TextStyle(color: Colors.white)),
+              title: Text(
+                'Call Settings',
+                style: TextStyle(color: Colors.white),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _showCallSettings();
@@ -924,9 +916,9 @@ class _CallScreenState extends State<CallScreen> {
                 trailing: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (participant.isAudioMuted)
+                    if (participant.isAudioMuted ?? false)
                       Icon(Icons.mic_off, color: Colors.red, size: 16),
-                    if (participant.isVideoMuted)
+                    if (participant.isVideoMuted ?? false)
                       Icon(Icons.videocam_off, color: Colors.red, size: 16),
                   ],
                 ),
@@ -946,11 +938,9 @@ class _CallScreenState extends State<CallScreen> {
 
   void _shareCallLink() {
     // TODO: Generate and share call link
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Call link copied to clipboard'),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Call link copied to clipboard')));
   }
 
   void _showCallSettings() {

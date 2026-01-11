@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/screens/tabs/market_storm.dart';
 import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/onesignal_state.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
@@ -343,15 +344,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 4),
 
                         // Tab label
-                        if (selected)
-                          Text(
-                            _tabLabels[index],
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: const Color(0xFFF97316),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                        // if (selected)
+                        //   Text(
+                        //     _tabLabels[index],
+                        //     style: TextStyle(
+                        //       fontSize: 10,
+                        //       color: const Color(0xFFF97316),
+                        //       fontWeight: FontWeight.w500,
+                        //     ),
+                        //   ),
 
                         // Orange indicator dot
                         if (selected && _tabLabels[index].isEmpty)

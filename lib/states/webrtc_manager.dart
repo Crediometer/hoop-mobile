@@ -110,7 +110,7 @@ class WebRTCManager with ChangeNotifier {
     _chatHandler.on('call_started', (data) {
       logger.i('📨 Incoming call via WebSocket');
       try {
-        final callData = CallData.fromJson(data['callData']);
+        final callData = CallData.fromJson(data);
         _handleIncomingCallViaWebSocket(callData);
       } catch (e) {
         logger.e('❌ Error parsing incoming call: $e');
@@ -746,10 +746,12 @@ class WebRTCManager with ChangeNotifier {
 
   // Handle incoming call via WebSocket (for calls initiated from web)
   void _handleIncomingCallViaWebSocket(CallData callData) {
-    logger.i('📨 Incoming call from WebSocket');
+    logger.i(
+      '📨 Incoming call from WebSocket ${_activeCall == null && _incomingCall == null} ${_activeCall == null} ${_incomingCall == null}',
+    );
 
     // Only handle if not already in a call
-    if (_activeCall == null && _incomingCall == null) {
+    if (_activeCall == null) { // && _incomingCall == null
       _incomingCall = callData;
       onIncomingCall?.call(callData);
       notifyListeners();
@@ -1155,7 +1157,8 @@ class WebRTCManager with ChangeNotifier {
   }
 
   void setIncomingCall(CallData? callData) {
-    _incomingCall = callData;
+    print("Incoming call from WebSocket?? ${callData?.toJson()}");
+    if (callData != null) _handleIncomingCallViaWebSocket(callData);
     notifyListeners();
   }
 

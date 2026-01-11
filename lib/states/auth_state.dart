@@ -1,5 +1,9 @@
+import 'dart:convert';
 import 'dart:developer';
+import 'dart:async';
 
+import 'package:crypto/crypto.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/status/OperationStatus.dart';
 import 'package:hoop/dtos/podos/tokens/shared_preferences.dart';
@@ -13,20 +17,36 @@ import 'package:hoop/dtos/responses/AuthResponse.dart';
 import 'package:hoop/dtos/responses/User.dart';
 import 'package:hoop/main.dart';
 import 'package:hoop/services/auth_service.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:uuid/uuid.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
   bool _isLoading = true;
   bool _needsAccountOnboarding = true;
+  bool _needsUserOnboarding = true;
   String? _bvnRequestId;
   List<dynamic>? _banks;
+
+  // Device info
+  String? _deviceId;
+  String? _deviceName;
+  String? _deviceFingerprint;
+
+  // Session management
+  String? _currentSessionId;
+  String? _pendingDeviceChangeSessionId;
+
+  // Getter for device ID
+  String? get deviceId => _deviceId;
 
   // Getters
   User? get user => _user;
   bool get isAuthenticated => _user != null;
   bool get isLoading => _isLoading;
   bool get needsAccountOnboarding => _needsAccountOnboarding;
+  bool get needsUserOnboarding => _needsUserOnboarding;
   String? get bvnRequestId => _bvnRequestId;
   List<dynamic>? get banks => _banks;
 
@@ -76,6 +96,16 @@ class AuthProvider extends ChangeNotifier {
         _needsAccountOnboarding = true;
         await prefs.setString('needsAccountOnboarding', 'true');
       }
+      final userOnbaording = prefs.getString('needsUserOnboarding');
+      final delay = Duration(milliseconds: 500);
+      Timer(delay, () async {
+        if (userOnbaording != null) {
+          _needsUserOnboarding = userOnbaording == 'true';
+        } else {
+          _needsUserOnboarding = true;
+          await prefs.setString('needsUserOnboarding', 'true');
+        }
+      });
 
       // Check if user is already logged in
       await getProfile();
@@ -92,7 +122,9 @@ class AuthProvider extends ChangeNotifier {
       if (isValid) {
         final response = await _apiService.getProfile();
         if (response.success && response.data != null) {
-          _user = response.data as User?;
+          _user = response.data;
+
+          // here get users details and save to shared_pref
         }
       }
     } catch (error) {
@@ -103,10 +135,79 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<ApiResponse> login(
-    String email,
-    String password, {
+  // Initialize device info
+  Future<void> initializeDeviceInfo() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _deviceId = prefs.getString('device_id');
+
+      if (_deviceId == null) {
+        _deviceId = const Uuid().v4();
+        await prefs.setString('device_id', _deviceId!);
+      }
+
+      // Get device info
+      final deviceInfo = await DeviceInfoPlugin().deviceInfo;
+      _deviceName = _getDeviceName(deviceInfo);
+      _deviceFingerprint = await _generateDeviceFingerprint(deviceInfo);
+    } catch (e) {
+      print('Error initializing device info: $e');
+      _deviceId = const Uuid().v4();
+    }
+  }
+
+  String _getDeviceName(BaseDeviceInfo deviceInfo) {
+    if (deviceInfo is AndroidDeviceInfo) {
+      return '${deviceInfo.manufacturer} ${deviceInfo.model}';
+    } else if (deviceInfo is IosDeviceInfo) {
+      return 'iPhone ${deviceInfo.model}';
+    } else if (deviceInfo is WebBrowserInfo) {
+      return '${deviceInfo.browserName.name} on ${deviceInfo.platform}';
+    }
+    return 'Unknown Device';
+  }
+
+  Future<String> _generateDeviceFingerprint(BaseDeviceInfo deviceInfo) async {
+    final info = <String, dynamic>{};
+
+    if (deviceInfo is AndroidDeviceInfo) {
+      info['manufacturer'] = deviceInfo.manufacturer;
+      info['model'] = deviceInfo.model;
+      info['brand'] = deviceInfo.brand;
+      info['device'] = deviceInfo.device;
+      info['board'] = deviceInfo.board;
+      info['hardware'] = deviceInfo.hardware;
+    } else if (deviceInfo is IosDeviceInfo) {
+      info['model'] = deviceInfo.model;
+      info['name'] = deviceInfo.name;
+      info['systemName'] = deviceInfo.systemName;
+      info['systemVersion'] = deviceInfo.systemVersion;
+    }
+
+    // Add app version
+    final packageInfo = await PackageInfo.fromPlatform();
+    info['appVersion'] = packageInfo.version;
+    info['buildNumber'] = packageInfo.buildNumber;
+
+    // Hash the info
+    final jsonString = jsonEncode(info);
+    final bytes = utf8.encode(jsonString);
+    final digest = sha256.convert(bytes);
+
+    return digest.toString();
+  }
+
+  Future<ApiResponse<AuthResponse>> login({
+    required String email,
+    required String password,
     String? twoFactorCode,
+    String? biometricToken,
+    String? deviceId,
+    String? deviceName,
+    String? deviceFingerprint,
+    String? otp,
+    String? requestId,
+    String? sessionId,
   }) async {
     try {
       // Clear storage
@@ -118,25 +219,43 @@ class AuthProvider extends ChangeNotifier {
         await prefs.setString('joinIntent', joinIntent);
       }
 
+      // Use provided device info or default
+      final loginDeviceId = deviceId ?? _deviceId ?? const Uuid().v4();
+      final loginDeviceName = deviceName ?? _deviceName ?? 'Mobile Device';
+      final loginDeviceFingerprint = deviceFingerprint ?? _deviceFingerprint;
+
       final response = await _apiService.login(
         email: email,
         password: password,
         twoFactorCode: twoFactorCode,
+        biometricToken: biometricToken,
+        deviceId: loginDeviceId,
+        deviceName: loginDeviceName,
+        deviceFingerprint: loginDeviceFingerprint,
+        otp: otp,
+        requestId: requestId,
+        sessionId: sessionId,
       );
 
       if (response.success && response.data != null) {
-        log("?? ${response.data?.toJson()}");
+        log("Login response: ${response.data?.toJson()}");
         final AuthResponse data = response.data!;
 
-        log("?? ${response.data?.toJson()}");
         // Store tokens
         await _apiService.storeTokens(
           token: data.token,
           refreshToken: "",
           expiresIn: data.expiresIn ?? 0,
-          userId: data.userId,
+          userId: data.data?.id ?? 0,
         );
 
+        // Store session ID if present
+        if (data.sessionId != null) {
+          _currentSessionId = data.sessionId;
+          await prefs.setString('current_session_id', data.sessionId!);
+        }
+
+        // Handle different response statuses
         if (data.operationStatus == OperationStatus.TEMPORARY_REDIRECT) {
           _needsAccountOnboarding = true;
           await prefs.setString('needsAccountOnboarding', 'true');
@@ -145,6 +264,9 @@ class AuthProvider extends ChangeNotifier {
           await prefs.setString('needsAccountOnboarding', 'false');
         }
 
+        // Store last login email
+        await prefs.setString('last_login_email', email);
+
         notifyListeners();
       }
 
@@ -152,6 +274,247 @@ class AuthProvider extends ChangeNotifier {
     } catch (error) {
       print('Login failed: $error');
       return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse<AuthResponse>> biometricLogin({
+    required String email,
+    required String biometricToken,
+  }) async {
+    try {
+      // Ensure device info is initialized
+      if (_deviceId == null) {
+        await initializeDeviceInfo();
+      }
+
+      final response = await _apiService.biometricLogin(
+        email: email,
+        biometricToken: biometricToken,
+        deviceId: _deviceId!,
+        deviceName: _deviceName,
+        deviceFingerprint: _deviceFingerprint,
+      );
+
+      if (response.success && response.data != null) {
+        final AuthResponse data = response.data!;
+
+        await _apiService.storeTokens(
+          token: data.token,
+          refreshToken: "",
+          expiresIn: data.expiresIn ?? 0,
+          userId: data.data?.id ?? 0,
+        );
+
+        // Store session ID if present
+        if (data.sessionId != null) {
+          _currentSessionId = data.sessionId;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('current_session_id', data.sessionId!);
+        }
+
+        notifyListeners();
+      }
+
+      return response;
+    } catch (error) {
+      print('Biometric login failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse<AuthResponse>> verifyNewDevice({
+    required String email,
+    required String otp,
+    required String requestId,
+    required String sessionId,
+  }) async {
+    try {
+      final response = await _apiService.verifyNewDevice(
+        email: email,
+        otp: otp,
+        requestId: requestId,
+        sessionId: sessionId,
+        deviceId: _deviceId!,
+        deviceName: _deviceName,
+        deviceFingerprint: _deviceFingerprint,
+      );
+
+      if (response.success && response.data != null) {
+        final AuthResponse data = response.data!;
+
+        await _apiService.storeTokens(
+          token: data.token,
+          refreshToken: "",
+          expiresIn: data.expiresIn ?? 0,
+          userId: data.data?.id ?? 0,
+        );
+
+        // Update current session
+        if (data.sessionId != null) {
+          _currentSessionId = data.sessionId;
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('current_session_id', data.sessionId!);
+        }
+
+        notifyListeners();
+      }
+
+      return response;
+    } catch (error) {
+      print('Verify new device failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse<dynamic>> enableBiometricLogin({
+    required String email,
+    required String pin,
+    bool enableLogin = false,
+    bool enableTransactions = false,
+    String? otp,
+    String? requestId,
+  }) async {
+    try {
+      return await _apiService.enableBiometric(
+        email: email,
+        deviceId: _deviceId!,
+        pin: pin,
+        enableLogin: enableLogin,
+        enableTransactions: enableTransactions,
+        otp: otp,
+        requestId: requestId,
+      );
+    } catch (error) {
+      print('Enable biometric failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse<dynamic>> changeDevice({
+    required String email,
+    required String newDeviceId,
+    required String newDeviceName,
+  }) async {
+    try {
+      final response = await _apiService.changeDevice(
+        email: email,
+        newDeviceId: newDeviceId,
+        newDeviceName: newDeviceName,
+      );
+
+      if (response.success) {
+        _pendingDeviceChangeSessionId = response.data?['sessionId'];
+      }
+
+      return response;
+    } catch (error) {
+      print('Change device failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse<dynamic>> verifyDeviceChange({
+    required String email,
+    required String requestId,
+    required String otp,
+    required String sessionId,
+  }) async {
+    try {
+      return await _apiService.verifyDeviceChange(
+        email: email,
+        requestId: requestId,
+        otp: otp,
+        sessionId: sessionId,
+      );
+    } catch (error) {
+      print('Verify device change failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  // Generate biometric token (to be called from mobile app)
+  Future<String> generateBiometricToken() async {
+    if (_deviceId == null) {
+      await initializeDeviceInfo();
+    }
+
+    final timestamp = (DateTime.now().millisecondsSinceEpoch / 1000).round();
+
+    // In production, this should be signed with a private key
+    // For now, we'll create a simple token format
+    return '$_deviceId:$_deviceName:$timestamp:${_generateSignature(_deviceId!, timestamp)}';
+  }
+
+  String _generateSignature(String deviceId, int timestamp) {
+    // In production, use proper cryptographic signing
+    // For now, create a simple hash
+    final data = '$deviceId:$timestamp';
+    final bytes = utf8.encode(data);
+    final digest = sha256.convert(bytes);
+    return digest.toString();
+  }
+
+  // Check if biometric login should be offered
+  Future<bool> shouldOfferBiometricLogin(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Check if user has biometric login enabled from backend
+      final user = _user;
+      if (user?.biometricLoginEnabled == true) {
+        return true;
+      }
+
+      // Check local preferences
+      final biometricEnabled =
+          prefs.getBool('biometric_enabled_$email') ?? false;
+      final lastLoginEmail = prefs.getString('last_login_email');
+
+      return biometricEnabled && lastLoginEmail == email;
+    } catch (e) {
+      print('Error checking biometric offer: $e');
+      return false;
+    }
+  }
+
+  // Save biometric credentials locally (for auto-fill)
+  Future<void> saveBiometricCredentials(String email, String password) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('biometric_enabled_$email', true);
+      await prefs.setString('biometric_email', email);
+      await prefs.setString('biometric_password', password);
+    } catch (e) {
+      print('Error saving biometric credentials: $e');
+    }
+  }
+
+  // Clear biometric credentials
+  Future<void> clearBiometricCredentials(String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('biometric_enabled_$email');
+      await prefs.remove('biometric_email');
+      await prefs.remove('biometric_password');
+    } catch (e) {
+      print('Error clearing biometric credentials: $e');
+    }
+  }
+
+  // Get saved biometric credentials
+  Future<Map<String, String>?> getBiometricCredentials() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final email = prefs.getString('biometric_email');
+      final password = prefs.getString('biometric_password');
+
+      if (email != null && password != null) {
+        return {'email': email, 'password': password};
+      }
+      return null;
+    } catch (e) {
+      print('Error getting biometric credentials: $e');
+      return null;
     }
   }
 
@@ -198,9 +561,34 @@ class AuthProvider extends ChangeNotifier {
   Future<ApiResponse> updateProfile(Map<String, dynamic> updates) async {
     try {
       final response = await _apiService.updateProfile(updates);
-      if (response.success && response.data != null) {
-        _user = User.fromJson(response.data as Map<String, dynamic>);
-        notifyListeners();
+      if (response.success) {
+        getProfile();
+      }
+      return response;
+    } catch (error) {
+      print('Profile update failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse> setPin(Map<String, dynamic> updates) async {
+    try {
+      final response = await _apiService.setTransactionPin(updates);
+      if (response.success) {
+        getProfile();
+      }
+      return response;
+    } catch (error) {
+      print('Profile update failed: $error');
+      return ApiResponse(success: false, error: error.toString());
+    }
+  }
+
+  Future<ApiResponse> updatePin(Map<String, dynamic> updates) async {
+    try {
+      final response = await _apiService.updateTransactionPin(updates);
+      if (response.success) {
+        getProfile();
       }
       return response;
     } catch (error) {
@@ -502,5 +890,11 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('needsAccountOnboarding', needs ? 'true' : 'false');
     notifyListeners();
+  }
+
+    void setNeedsUserOnboarding(bool needs) async {
+    _needsAccountOnboarding = needs;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('needsUserOnboarding', needs ? 'true' : 'false');
   }
 }

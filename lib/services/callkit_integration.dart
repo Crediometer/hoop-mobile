@@ -3,6 +3,7 @@ import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:hoop/dtos/podos/calls/call_models.dart';
 import 'package:hoop/states/webrtc_manager.dart';
+import 'package:uuid/uuid.dart';
 
 class CallKitIntegration {
   static final CallKitIntegration _instance = CallKitIntegration._internal();
@@ -24,7 +25,6 @@ class CallKitIntegration {
   }
 
   Future<void> _setupCallKit() async {
-    // Setup event listeners
     FlutterCallkitIncoming.onEvent.listen((CallEvent? event) {
       switch (event?.event) {
         case Event.actionCallIncoming:
@@ -57,48 +57,45 @@ class CallKitIntegration {
   Future<void> handleIncomingCallFromWebRTC(CallData callData) async {
     print('📞 Handling incoming call from WebRTC: ${callData.callId}');
 
+    final Uuid _uuid = Uuid();
     final params = CallKitParams(
-      id: callData.callId,
-      nameCaller: callData.participants
-          .firstWhere((p) => p.id == callData.initiator)
-          .name,
-      appName: 'Hoop Calls',
-      avatar: '',
-      handle: 'Group: ${callData.groupName}',
+      id: _uuid.v4(),
+      nameCaller: callData.initiatorName,
+      appName: 'Hoop Africa',
+      avatar:
+          'https://png.pngtree.com/png-clipart/20230927/original/pngtree-man-avatar-image-for-profile-png-image_13001877.png',
+      handle: '+1 (555) 123-4567',
       type: callData.type == CallType.video ? 1 : 0,
       duration: 45000,
-      textAccept: 'Accept',
-      callingNotification: NotificationParams(
-        callbackText: 'Call back',
-        showNotification: true,
-        isShowCallback: true,
-      ),
-      missedCallNotification: NotificationParams(
-        callbackText: 'Missed Call',
-        isShowCallback: true,
-        showNotification: true,
-      ),
+      textAccept: 'Hooper',
       textDecline: 'Decline',
       // textMissedCall: 'Missed call',
       // textCallback: 'Call back',
+      callingNotification: NotificationParams(
+        callbackText: 'Call Hoop Back',
+        count: 1,
+
+        isShowCallback: true,
+        subtitle: 'Test Calling...',
+        showNotification: true,
+      ),
       extra: <String, dynamic>{
-        'callData': callData.toJson(),
-        'callType': callData.type == CallType.video ? 'video' : 'audio',
-        'groupId': callData.groupId,
-        'initiator': callData.initiator,
+        'userId': 'test_user_123',
+        'callType':  callData.type == CallType.video ? 'video' : 'voice',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
       },
       ios: IOSParams(
         iconName: 'CallKitLogo',
         handleType: 'generic',
-        supportsVideo: callData.type == CallType.video,
+        supportsVideo: true,
         maximumCallGroups: 2,
         maximumCallsPerCallGroup: 1,
         audioSessionMode: 'default',
         audioSessionActive: true,
         audioSessionPreferredSampleRate: 44100.0,
         audioSessionPreferredIOBufferDuration: 0.005,
-        supportsDTMF: false,
-        supportsHolding: false,
+        supportsDTMF: true,
+        supportsHolding: true,
         supportsGrouping: false,
         supportsUngrouping: false,
         ringtonePath: 'system_ringtone_default',
@@ -106,16 +103,84 @@ class CallKitIntegration {
       android: AndroidParams(
         isCustomNotification: true,
         isShowLogo: true,
-        // isShowCallback: true,
-        // isShowMissedCallNotification: true,
         ringtonePath: 'system_ringtone_default',
         backgroundColor: '#7C3AED',
-        backgroundUrl: '',
+        backgroundUrl:
+            'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500',
         actionColor: '#10B981',
         incomingCallNotificationChannelName: 'Incoming Calls',
         missedCallNotificationChannelName: 'Missed Calls',
       ),
+      missedCallNotification: NotificationParams(
+        showNotification: true,
+        isShowCallback: true,
+        subtitle: 'Missed call from Test',
+        callbackText: 'Call back',
+      ),
     );
+
+    // final params = CallKitParams(
+    //   id: callData.callId,
+    //   nameCaller: callData.participants
+    //       .firstWhere((p) => p.id == callData.initiator)
+    //       .name,
+    //   appName: 'Hoop Africa',
+    //   // avatar: '',
+    //   handle: 'Group: ${callData.groupName ?? 'Test'}',
+    //   type: callData.type == CallType.video ? 1 : 0,
+    //   duration: 45000,
+    //   textAccept: 'Hooper',
+    //   callingNotification: NotificationParams(
+    //     callbackText: 'Call back',
+    //     showNotification: true,
+    //     isShowCallback: true,
+    //   ),
+    //   missedCallNotification: NotificationParams(
+    //     callbackText: 'Missed Call',
+    //     isShowCallback: true,
+    //     showNotification: true,
+    //   ),
+
+    //   textDecline: 'Decline',
+    //   // textMissedCall: 'Missed call',
+    //   // textCallback: 'Call back',
+    //   extra: <String, dynamic>{
+    //     'callData': callData.toJson(),
+    //     'callType': callData.type == CallType.video ? 'video' : 'audio',
+    //     'groupId': callData.groupId,
+    //     'initiator': callData.initiator,
+    //   },
+    //   ios: IOSParams(
+    //     iconName: 'CallKitLogo',
+    //     handleType: 'generic',
+    //     supportsVideo: callData.type == CallType.video,
+    //     maximumCallGroups: 2,
+    //     maximumCallsPerCallGroup: 1,
+    //     audioSessionMode: 'default',
+    //     audioSessionActive: true,
+    //     audioSessionPreferredSampleRate: 44100.0,
+    //     configureAudioSession: true,
+    //     audioSessionPreferredIOBufferDuration: 0.005,
+    //     supportsDTMF: true,
+    //     supportsHolding: true,
+    //     supportsGrouping: true,
+    //     supportsUngrouping: true,
+    //     // ringtonePath: 'system_ringtone_default',
+    //   ),
+    //   android: AndroidParams(
+    //     isCustomNotification: true,
+    //     isShowLogo: true,
+    //     // textColor: HoopTheme.primaryBlue.toString(),
+    //     // isShowCallback: true,
+    //     // isShowMissedCallNotification: true,
+    //     ringtonePath: 'system_ringtone_default',
+    //     backgroundColor: '#7C3AED',
+    //     backgroundUrl: '',
+    //     actionColor: '#10B981',
+    //     incomingCallNotificationChannelName: 'Incoming Calls',
+    //     missedCallNotificationChannelName: 'Missed Calls',
+    //   ),
+    // );
 
     await FlutterCallkitIncoming.showCallkitIncoming(params);
     _activeCallKitId = callData.callId;

@@ -1,89 +1,79 @@
+// lib/dtos/responses/auth_response.dart
+import 'package:hoop/components/status/OperationStatus.dart';
 import 'package:hoop/dtos/responses/User.dart';
 
 class AuthResponse {
   final String token;
-  final String firstName;
-  final String lastName;
-  final String email;
-  final String? refreshToken;  // Make nullable
-  final int? expiresIn;  // Make nullable
-  final int operationStatus;
-  final int userId;
+  final int? expiresIn;
+  final OperationStatus operationStatus;
+  final User? data;
+  
+  // New fields for biometric/2FA flows
+  final String? sessionId;
+  final String? requestId;
+  final bool? requires2FA;
+  final bool? requiresDeviceVerification;
+  final String? message;
+  final String? deviceId;
+  final String? deviceName;
+  final bool? biometricEnabled;
+  final bool? biometricTransactionEnabled;
 
   AuthResponse({
     required this.token,
-    required this.firstName,
-    required this.lastName,
-    required this.email,
-    this.refreshToken,
     this.expiresIn,
     required this.operationStatus,
-    required this.userId,
+    this.data,
+    this.sessionId,
+    this.requestId,
+    this.requires2FA,
+    this.requiresDeviceVerification,
+    this.message,
+    this.deviceId,
+    this.deviceName,
+    this.biometricEnabled,
+    this.biometricTransactionEnabled,
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json) {
-    print("Parsing AuthResponse JSON: $json");
-    
-    // Try to extract firstName with case-insensitive approach
-    String firstName = '';
-    if (json.containsKey('firstName')) {
-      firstName = json['firstName']?.toString() ?? '';
-    } else if (json.containsKey('firstname')) {
-      firstName = json['firstname']?.toString() ?? '';
-    } else if (json.containsKey('first_name')) {
-      firstName = json['first_name']?.toString() ?? '';
-    }
-    
-    // Try to extract lastName with case-insensitive approach
-    String lastName = '';
-    if (json.containsKey('lastName')) {
-      lastName = json['lastName']?.toString() ?? '';
-    } else if (json.containsKey('lastname')) {
-      lastName = json['lastname']?.toString() ?? '';
-    } else if (json.containsKey('last_name')) {
-      lastName = json['last_name']?.toString() ?? '';
-    }
-
-    // Extract token - check multiple possible field names
-    String token = '';
-    if (json.containsKey('token')) {
-      token = json['token']?.toString() ?? '';
-    } else if (json.containsKey('accessToken')) {
-      token = json['accessToken']?.toString() ?? '';
-    } else if (json.containsKey('access_token')) {
-      token = json['access_token']?.toString() ?? '';
-    }
-
-    // Try to create User object from root fields if not provided
-  
-
     return AuthResponse(
-      token: token,
-      firstName: firstName,
-      lastName: lastName,
-      email: json['email']?.toString() ?? '',
-      refreshToken: json['refreshToken']?.toString(),
-      expiresIn: json['expiresIn'] != null ? int.tryParse(json['expiresIn'].toString()) : null,
-      operationStatus: json['operationStatus'] != null ? int.tryParse(json['operationStatus'].toString()) ?? 0 : 0,
-      userId: json['userId'] != null ? int.tryParse(json['userId'].toString()) ?? 0 : 0,
+      token: json['token'] ?? '',
+      expiresIn: json['expiresIn'],
+      operationStatus: OperationStatus.firstWhere(
+        (e) => e.value == (json['status'] ?? 200),
+        orElse: () => OperationStatus.OK,
+      ),
+      data: json['data'] != null ? User.fromJson(json['data']) : null,
+      sessionId: json['sessionId'],
+      requestId: json['requestId'],
+      requires2FA: json['requires2FA'] ?? false,
+      requiresDeviceVerification: json['requiresDeviceVerification'] ?? false,
+      message: json['message'],
+      deviceId: json['deviceId'],
+      deviceName: json['deviceName'],
+      biometricEnabled: json['biometricEnabled'],
+      biometricTransactionEnabled: json['biometricTransactionEnabled'],
     );
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'token': token,
-      'firstName': firstName,
-      'lastName': lastName,
-      'email': email,
-      if (refreshToken != null) 'refreshToken': refreshToken,
-      if (expiresIn != null) 'expiresIn': expiresIn,
-      'operationStatus': operationStatus,
-      'userId': userId,
-    };
-  }
+  Map<String, dynamic> toJson() => {
+        'token': token,
+        'expiresIn': expiresIn,
+        'status': operationStatus,
+        'data': data?.toJson(),
+        'sessionId': sessionId,
+        'requestId': requestId,
+        'requires2FA': requires2FA,
+        'requiresDeviceVerification': requiresDeviceVerification,
+        'message': message,
+        'deviceId': deviceId,
+        'deviceName': deviceName,
+        'biometricEnabled': biometricEnabled,
+        'biometricTransactionEnabled': biometricTransactionEnabled,
+      };
 
-  @override
-  String toString() {
-    return 'AuthResponse( token: $token, firstName: $firstName, lastName: $lastName, email: $email, operationStatus: $operationStatus, userId: $userId)';
-  }
+  // Helper methods
+  bool get isSuccess => operationStatus == OperationStatus.OK;
+  bool get needs2FA => requires2FA == true;
+  bool get needsDeviceVerification => requiresDeviceVerification == true;
 }

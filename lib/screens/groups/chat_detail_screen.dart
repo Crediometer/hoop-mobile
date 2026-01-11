@@ -284,12 +284,21 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             icon: Icon(Icons.videocam_outlined, color: textPrimary, size: 24),
             onPressed: () async {
               final callData = await handler.startWebRTCCall(
+                context,
                 type: 'video',
                 groupId: int.parse(widget.group['id'].toString()),
                 groupName: widget.group["name"],
               );
 
-           
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CallScreen(
+                    callData: callData,
+                    webrtcManager: handler.webrtcManager,
+                  ),
+                ),
+              );
             },
           ),
           const SizedBox(width: 8),
@@ -770,7 +779,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
 
   List<Message> _getMessagesForGroup(ChatWebSocketHandler handler) {
     try {
-      return handler.messages
+      return handler.messages.value
           .firstWhere(
             (msg) => msg.groupId.toString() == widget.group['id'].toString(),
           )

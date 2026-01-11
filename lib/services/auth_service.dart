@@ -19,11 +19,18 @@ class AuthHttpService extends BaseHttpService {
 
   // ==================== AUTHENTICATION METHODS ====================
 
-  // Login with email/password and optional 2FA
+
   Future<ApiResponse<AuthResponse>> login({
     required String email,
     required String password,
     String? twoFactorCode,
+    String? biometricToken,
+    String? deviceId,
+    String? deviceName,
+    String? deviceFingerprint,
+    String? otp,
+    String? requestId,
+    String? sessionId,
   }) async {
     try {
       final response = await postTyped<AuthResponse>(
@@ -32,6 +39,13 @@ class AuthHttpService extends BaseHttpService {
           'email': email,
           'password': password,
           if (twoFactorCode != null) 'twoFactorCode': twoFactorCode,
+          if (biometricToken != null) 'biometricToken': biometricToken,
+          if (deviceId != null) 'deviceId': deviceId,
+          if (deviceName != null) 'deviceName': deviceName,
+          if (deviceFingerprint != null) 'deviceFingerprint': deviceFingerprint,
+          if (otp != null) 'otp': otp,
+          if (requestId != null) 'requestId': requestId,
+          if (sessionId != null) 'sessionId': sessionId,
         },
         fromJson: (json) => AuthResponse.fromJson(json),
         requiresAuth: false,
@@ -45,6 +59,162 @@ class AuthHttpService extends BaseHttpService {
       return response;
     } catch (e) {
       return ApiResponse<AuthResponse>(
+        success: false,
+        message: e.toString(),
+        statusCode: 500,
+      );
+    }
+  }
+
+  Future<ApiResponse<AuthResponse>> biometricLogin({
+    required String email,
+    required String biometricToken,
+    required String deviceId,
+    String? deviceName,
+    String? deviceFingerprint,
+  }) async {
+    try {
+      final response = await postTyped<AuthResponse>(
+        'auth/biometric-login',
+        body: {
+          'email': email,
+          'biometricToken': biometricToken,
+          'deviceId': deviceId,
+          if (deviceName != null) 'deviceName': deviceName,
+          if (deviceFingerprint != null) 'deviceFingerprint': deviceFingerprint,
+        },
+        fromJson: (json) => AuthResponse.fromJson(json),
+        requiresAuth: false,
+      );
+
+      if (response.success && response.data != null && tokenManager != null) {
+        await tokenManager!.saveToken(response.data!.token);
+      }
+
+      return response;
+    } catch (e) {
+      return ApiResponse<AuthResponse>(
+        success: false,
+        message: e.toString(),
+        statusCode: 500,
+      );
+    }
+  }
+
+  Future<ApiResponse<AuthResponse>> verifyNewDevice({
+    required String email,
+    required String otp,
+    required String requestId,
+    required String sessionId,
+    required String deviceId,
+    String? deviceName,
+    String? deviceFingerprint,
+  }) async {
+    try {
+      final response = await postTyped<AuthResponse>(
+        'auth/verify-new-device',
+        body: {
+          'email': email,
+          'otp': otp,
+          'requestId': requestId,
+          'sessionId': sessionId,
+          'deviceId': deviceId,
+          if (deviceName != null) 'deviceName': deviceName,
+          if (deviceFingerprint != null) 'deviceFingerprint': deviceFingerprint,
+        },
+        fromJson: (json) => AuthResponse.fromJson(json),
+        requiresAuth: false,
+      );
+
+      if (response.success && response.data != null && tokenManager != null) {
+        await tokenManager!.saveToken(response.data!.token);
+      }
+
+      return response;
+    } catch (e) {
+      return ApiResponse<AuthResponse>(
+        success: false,
+        message: e.toString(),
+        statusCode: 500,
+      );
+    }
+  }
+
+  Future<ApiResponse<dynamic>> enableBiometric({
+    required String email,
+    required String deviceId,
+    required String pin,
+    bool enableLogin = false,
+    bool enableTransactions = false,
+    String? otp,
+    String? requestId,
+  }) async {
+    try {
+      return await postTyped<dynamic>(
+        'auth/enable-biometric',
+        body: {
+          'email': email,
+          'deviceId': deviceId,
+          'pin': pin,
+          'enableLogin': enableLogin,
+          'enableTransactions': enableTransactions,
+          if (otp != null) 'otp': otp,
+          if (requestId != null) 'requestId': requestId,
+        },
+        fromJson: (json) => json,
+      );
+    } catch (e) {
+      return ApiResponse<dynamic>(
+        success: false,
+        message: e.toString(),
+        statusCode: 500,
+      );
+    }
+  }
+
+  Future<ApiResponse<dynamic>> changeDevice({
+    required String email,
+    required String newDeviceId,
+    required String newDeviceName,
+  }) async {
+    try {
+      return await postTyped<dynamic>(
+        'auth/change-device',
+        body: {
+          'email': email,
+          'newDeviceId': newDeviceId,
+          'newDeviceName': newDeviceName,
+        },
+        fromJson: (json) => json,
+      );
+    } catch (e) {
+      return ApiResponse<dynamic>(
+        success: false,
+        message: e.toString(),
+        statusCode: 500,
+      );
+    }
+  }
+
+  Future<ApiResponse<dynamic>> verifyDeviceChange({
+    required String email,
+    required String requestId,
+    required String otp,
+    required String sessionId,
+  }) async {
+    try {
+      return await postTyped<dynamic>(
+        'auth/verify-device-change',
+        body: {
+          'email': email,
+          'requestId': requestId,
+          'otp': otp,
+          'sessionId': sessionId,
+        },
+        fromJson: (json) => json,
+      );
+    } catch (e) {
+      return ApiResponse<dynamic>(
         success: false,
         message: e.toString(),
         statusCode: 500,
@@ -186,9 +356,30 @@ class AuthHttpService extends BaseHttpService {
   }
 
   // Update user profile
+
   Future<ApiResponse<User>> updateProfile(Map<String, dynamic> updates) async {
     return patchTyped<User>(
       'user/update-profile',
+      body: updates,
+      fromJson: (json) => User.fromJson(json),
+    );
+  }
+
+  Future<ApiResponse<User>> setTransactionPin(
+    Map<String, dynamic> updates,
+  ) async {
+    return patchTyped<User>(
+      'user/set-transaction-pin',
+      body: updates,
+      fromJson: (json) => User.fromJson(json),
+    );
+  }
+
+  Future<ApiResponse<User>> updateTransactionPin(
+    Map<String, dynamic> updates,
+  ) async {
+    return patchTyped<User>(
+      'user/update-transaction-pin',
       body: updates,
       fromJson: (json) => User.fromJson(json),
     );

@@ -305,14 +305,19 @@ class _GroupsTabState extends State<GroupsTab> {
                 const SizedBox(height: 16),
 
                 // CONTENT AREA
-                Expanded(
-                  child: _buildSegmentContent(
-                    isDark,
-                    textPrimary,
-                    textSecondary,
-                    handler.messages,
-                    provider,
-                  ),
+                ValueListenableBuilder<List<MessageGroup>>(
+                  valueListenable: handler.messages,
+                  builder: (context, value, child) {
+                    return Expanded(
+                      child: _buildSegmentContent(
+                        isDark,
+                        textPrimary,
+                        textSecondary,
+                        value,
+                        provider,
+                      ),
+                    );
+                  },
                 ),
               ],
             );
@@ -1451,28 +1456,32 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                (handler
-                                            .unreadMessages[num.parse( widget.group.id)]
-                                            ?.length ??
-                                        dueDate)
-                                    .toString(),
+                            ValueListenableBuilder<Map<num, Set<String>>>(
+                              valueListenable: handler.unreadMessages,
+                              builder: (context, value, child) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    (value[num.parse(widget.group.id)]
+                                                ?.length ??
+                                            dueDate)
+                                        .toString(),
 
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),

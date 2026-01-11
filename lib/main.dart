@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:hoop/constants/strings.dart';
+import 'package:hoop/screens/auth/login_screen.dart';
 import 'package:hoop/screens/auth/signup/signup_step5_primary_account_screen.dart';
+import 'package:hoop/screens/features/home_screen.dart';
 import 'package:hoop/screens/groups/chat_detail_screen.dart';
 import 'package:hoop/screens/groups/create_group.dart';
 import 'package:hoop/screens/groups/group_detail_public_screen.dart';
@@ -8,19 +9,19 @@ import 'package:hoop/screens/groups/group_detail_screen.dart';
 import 'package:hoop/screens/groups/group_invite.dart';
 import 'package:hoop/screens/notifications/notification_screen.dart';
 import 'package:hoop/screens/notifications/notification_setting.dart';
+import 'package:hoop/screens/onboarding/onboarding_screen.dart';
+import 'package:hoop/screens/onboarding/splash_screen.dart';
 import 'package:hoop/screens/settings/primary_account_info.dart';
 import 'package:hoop/screens/settings/profile_setting.dart';
 import 'package:hoop/screens/settings/security_setting.dart';
 import 'package:hoop/services/websocket_service.dart';
+import 'package:hoop/states/auth_state.dart';
+import 'package:hoop/states/group_state.dart';
 import 'package:hoop/states/onesignal_state.dart';
 import 'package:hoop/states/webrtc_manager.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
 import 'package:hoop/states/ws/notification_socket.dart';
 import 'package:provider/provider.dart';
-import 'package:hoop/states/auth_state.dart';
-import 'package:hoop/states/group_state.dart';
-import 'package:hoop/screens/auth/login_screen.dart';
-import 'package:hoop/screens/features/home_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -54,7 +55,7 @@ class MyApp extends StatelessWidget {
           lazy: true,
         ),
         ChangeNotifierProvider<ChatWebSocketHandler>(
-          create: (_) => ChatWebSocketHandler(),
+          create: (_) => ChatWebSocketHandler().instance,
           lazy: true,
         ),
         ChangeNotifierProvider<WebRTCManager>(
@@ -110,16 +111,13 @@ class MainApp extends StatelessWidget {
   }
 }
 
-// Route generator function
 Route<dynamic> _generateRoute(RouteSettings settings) {
-  // Helper to get arguments safely
   Map<String, dynamic> getArguments() {
     return (settings.arguments as Map<String, dynamic>?) ?? {};
   }
 
   print("settings.name??? ${settings.name}");
   switch (settings.name) {
-    // ========== AUTH ROUTES ==========
     case '/':
       return MaterialPageRoute(
         builder: (_) => const AuthWrapper(),
@@ -244,11 +242,11 @@ class AuthWrapper extends StatelessWidget {
       builder: (context, authProvider, child) {
         // Show loading state
         if (authProvider.isLoading) {
-          return const Scaffold(
-            body: Center(child: CircularProgressIndicator()),
-          );
+          return SplashScreen();
         }
-
+        if (authProvider.needsUserOnboarding) {
+          return OnboardingScreen();
+        }
         // If not authenticated, show login screen
         if (!authProvider.isAuthenticated) {
           return const LoginScreen();
@@ -267,7 +265,6 @@ class AuthWrapper extends StatelessWidget {
     );
   }
 }
-
 
 // import 'package:flutter/material.dart';
 // import 'package:flutter_callkit_incoming/entities/entities.dart';
@@ -361,7 +358,7 @@ class AuthWrapper extends StatelessWidget {
 //             _stopCallTimer();
 //             break;
 //           default:
-//             break;  
+//             break;
 //         }
 //       });
 //     } catch (e) {
@@ -826,7 +823,9 @@ class AuthWrapper extends StatelessWidget {
 //       decoration: BoxDecoration(
 //         color: isSelected ? Colors.blue.withOpacity(0.1) : Colors.grey[50],
 //         borderRadius: BorderRadius.circular(12),
-//         border: Border.all(color: isSelected ? Colors.blue : Colors.grey.shade300),
+//         border: Border.all(
+//           color: isSelected ? Colors.blue : Colors.grey.shade300,
+//         ),
 //       ),
 //       child: Row(
 //         children: [
@@ -1264,7 +1263,11 @@ class AuthWrapper extends StatelessWidget {
 //             padding: const EdgeInsets.symmetric(vertical: 30),
 //             child: const Column(
 //               children: [
-//                 Icon(Icons.call_received_outlined, size: 40, color: Colors.white),
+//                 Icon(
+//                   Icons.call_received_outlined,
+//                   size: 40,
+//                   color: Colors.white,
+//                 ),
 //                 SizedBox(height: 10),
 //                 Text(
 //                   'Incoming Call',
@@ -1813,7 +1816,11 @@ class AuthWrapper extends StatelessWidget {
 //                           ],
 //                         ),
 //                       ),
-//                       Icon(Icons.call_received_outlined, color: Colors.green, size: 24),
+//                       Icon(
+//                         Icons.call_received_outlined,
+//                         color: Colors.green,
+//                         size: 24,
+//                       ),
 //                     ],
 //                   ),
 //                   const SizedBox(height: 16),
@@ -2250,3 +2257,6 @@ class AuthWrapper extends StatelessWidget {
 //     );
 //   }
 // }
+
+
+// final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();

@@ -324,6 +324,7 @@ class _ProfileTabState extends State<ProfileTab> {
                   );
                 },
               ),
+            
               _buildMenuItem(
                 icon: Icons.security,
                 iconColor: const Color(0xFF06B6D4),
@@ -1483,7 +1484,13 @@ class _ProfileTabState extends State<ProfileTab> {
                         Expanded(
                           child: HoopButton(
                             buttonText: 'Change Photo',
-                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (builder)=> SignupStep4FacialVerificationScreen())),
+                            onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (builder) =>
+                                    SignupStep4FacialVerificationScreen(),
+                              ),
+                            ),
                           ),
                         ),
                       ],

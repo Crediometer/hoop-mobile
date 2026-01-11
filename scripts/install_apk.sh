@@ -49,7 +49,7 @@ if ! command -v adb >/dev/null 2>&1; then
 fi
 
 # Optional: try to detect package name from AndroidManifest
-PACKAGE_NAME="com.example.hoop"
+PACKAGE_NAME="africa.hoop.mobile"
 MANIFEST="$ROOT_DIR/android/app/src/main/AndroidManifest.xml"
 if [[ -f "$MANIFEST" ]]; then
   if grep -q "package=\"" "$MANIFEST"; then

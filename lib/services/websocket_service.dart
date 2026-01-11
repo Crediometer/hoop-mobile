@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:hoop/constants/strings.dart';
 import 'package:hoop/dtos/podos/tokens/token_manager.dart';
 import 'package:socket_io_client/socket_io_client.dart' as io;
-import 'package:shared_preferences/shared_preferences.dart';
 
 typedef SocketEventHandler = void Function(dynamic data);
 

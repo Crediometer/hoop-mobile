@@ -5,6 +5,7 @@ import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/screens/notifications/notification_screen.dart';
 import 'package:hoop/screens/settings/community_preference.dart';
+import 'package:hoop/screens/tabs/market_storm.dart';
 import 'package:iconsax/iconsax.dart';
 import 'package:swipe_cards/swipe_cards.dart';
 import 'package:hoop/states/group_state.dart';
@@ -102,22 +103,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   Future<void> _handleJoinGroup(GroupWithScore group) async {
-    // try {
-    //   final provider = Provider.of<GroupCommunityProvider>(
-    //     context,
-    //     listen: false,
-    //   );
-    //   final response = await provider.joinCommunityGroup(group.group.id);
-
-    //   if (response.success) {
-    //     _showSnackBar("Successfully joined ${group.group.name}!");
-    //   } else {
-    //     _showSnackBar("Failed to join group: ${response.message}");
-    //   }
-    // } catch (error) {
-    //   _showSnackBar("Error joining group: ${error.toString()}");
-    // }
-
     Navigator.pushNamed(
       context,
       "/group/detail/public",
@@ -143,53 +128,30 @@ class _CommunityScreenState extends State<CommunityScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Consumer<GroupCommunityProvider>(
-          builder: (context, provider, child) {
-            final groups = provider.communities;
-
-            return selectedTab == 0
-                ? _buildCardsView(groups)
-                : _buildListView(groups);
-          },
-        ),
-      ),
-    );
-  }
-
-  Widget _buildErrorState(bool isDark) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.error_outline, size: 60, color: HoopTheme.primaryRed),
-            const SizedBox(height: 20),
-            Text(
-              'Could not load groups',
-              style: TextStyle(
-                color: isDark ? Colors.white : Colors.black87,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            // SINGLE HEADER (Always visible)
+            Consumer<GroupCommunityProvider>(
+              builder: (context, provider, child) {
+                return _buildHeader();
+              },
             ),
-            const SizedBox(height: 10),
-            Text(
-              _errorMessage,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: isDark ? Colors.white70 : Colors.black54,
-                fontSize: 14,
+            
+            // TAB BAR (Always visible)
+            _buildTabBar(),
+            
+            // MAIN CONTENT (Changes based on selected tab)
+            Expanded(
+              child: Consumer<GroupCommunityProvider>(
+                builder: (context, provider, child) {
+                  final groups = provider.communities;
+                  
+                  if (selectedTab == 0) return _buildCardsView(groups);
+                  if (selectedTab == 1) return _buildListView(groups);
+                  if (selectedTab == 2) return MarketStormTab();
+                  return Container(); // Fallback
+                },
               ),
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: _fetchCommunityGroups,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: HoopTheme.primaryRed,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Try Again'),
             ),
           ],
         ),
@@ -197,48 +159,14 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  Widget _buildCardsView(List<GroupWithScore> groups) {
+  Widget _buildHeader() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Column(
-      children: [
-        _buildHeader(isDark),
-        const SizedBox(height: 10),
-        _buildTabBar(isDark),
-        const SizedBox(height: 10),
-
-        Expanded(
-          child: (_hasError && groups.isEmpty)
-              ? _buildErrorState(isDark)
-              : (_isLoading && groups.isEmpty)
-              ? WaveLoader(
-                  size: 150, // Custom size
-                  waveDuration: Duration(
-                    seconds: 3,
-                  ), // Custom animation duration
-                )
-              : _swipeItems.isEmpty
-              ? HoopEmptyState(
-                  title: 'No groups found nearby',
-                  subtitle:
-                      'Try adjusting your location settings or check back later',
-                  iconData: Icons.group_outlined,
-                  secondaryActionText: "Refresh Communinty",
-                  onPress: _fetchCommunityGroups,
-                )
-              // _buildEmptyCardsState(isDark)
-              : _buildSwipeCards(),
-        ),
-      ],
-    );
-  }
-  Widget _buildHeader(bool isDark) {
     final textPrimary = isDark ? Colors.white : Colors.black87;
     final textSecondary = isDark ? Colors.white54 : Colors.black54;
     final textTertiary = isDark ? Colors.white30 : Colors.black38;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -307,27 +235,9 @@ class _CommunityScreenState extends State<CommunityScreen> {
     );
   }
 
-  Widget _buildIconButton(
-    IconData icon,
-    Color color,
-    bool isDark,
-    VoidCallback? callBack,
-  ) {
-    return Container(
-      decoration: BoxDecoration(
-        color: isDark ? Colors.white10 : Colors.grey[100],
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        onPressed: callBack,
-        icon: Icon(icon, color: color, size: 24),
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-      ),
-    );
-  }
-
-  Widget _buildTabBar(bool isDark) {
+  Widget _buildTabBar() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20),
       padding: const EdgeInsets.all(4),
@@ -339,6 +249,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
         children: [
           _buildTab("Cards", Icons.grid_view_rounded, 0, isDark),
           _buildTab("List", Icons.list_rounded, 1, isDark),
+          _buildTab("Market Storm", Icons.bar_chart, 2, isDark),
         ],
       ),
     );
@@ -388,6 +299,91 @@ class _CommunityScreenState extends State<CommunityScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIconButton(
+    IconData icon,
+    Color color,
+    bool isDark,
+    VoidCallback? callBack,
+  ) {
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white10 : Colors.grey[100],
+        shape: BoxShape.circle,
+      ),
+      child: IconButton(
+        onPressed: callBack,
+        icon: Icon(icon, color: color, size: 24),
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+      ),
+    );
+  }
+
+  Widget _buildCardsView(List<GroupWithScore> groups) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return (_hasError && groups.isEmpty)
+        ? _buildErrorState(isDark)
+        : (_isLoading && groups.isEmpty)
+        ? Center(
+            child: WaveLoader(
+              size: 150,
+              waveDuration: Duration(seconds: 3),
+            ),
+          )
+        : _swipeItems.isEmpty
+        ? HoopEmptyState(
+            title: 'No groups found nearby',
+            subtitle:
+                'Try adjusting your location settings or check back later',
+            iconData: Icons.group_outlined,
+            secondaryActionText: "Refresh Community",
+            onPress: _fetchCommunityGroups,
+          )
+        : _buildSwipeCards();
+  }
+
+  Widget _buildErrorState(bool isDark) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 60, color: HoopTheme.primaryRed),
+            const SizedBox(height: 20),
+            Text(
+              'Could not load groups',
+              style: TextStyle(
+                color: isDark ? Colors.white : Colors.black87,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              _errorMessage,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: isDark ? Colors.white70 : Colors.black54,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 20),
+            ElevatedButton(
+              onPressed: _fetchCommunityGroups,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: HoopTheme.primaryRed,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Try Again'),
+            ),
+          ],
         ),
       ),
     );
@@ -444,224 +440,218 @@ class _CommunityScreenState extends State<CommunityScreen> {
 
   Widget _buildListView(List<GroupWithScore> groups) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textPrimary = isDark ? Colors.white : Colors.black87;
-    final textSecondary = isDark ? Colors.white54 : Colors.black54;
-    final textTertiary = isDark ? Colors.white30 : Colors.black38;
 
     return RefreshIndicator(
       onRefresh: _fetchCommunityGroups,
-      child: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(isDark),
-                const SizedBox(height: 10),
-                _buildTabBar(isDark),
-                const SizedBox(height: 10),
-              ],
-            ),
-          ),
-
-          SliverList(
-            delegate: SliverChildBuilderDelegate((context, index) {
-              if (_hasError && groups.isEmpty) return _buildErrorState(isDark);
-              if (_isLoading && groups.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 150.0),
-                  child: Center(
-                    child: WaveLoader(
-                      size: 150, // Custom size
-                      waveDuration: Duration(seconds: 3),
-                    ),
+      child: (_hasError && groups.isEmpty)
+          ? SingleChildScrollView(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.7,
+                child: _buildErrorState(isDark),
+              ),
+            )
+          : (_isLoading && groups.isEmpty)
+          ? SingleChildScrollView(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.7,
+                child: Center(
+                  child: WaveLoader(
+                    size: 150,
+                    waveDuration: Duration(seconds: 3),
                   ),
-                );
-              }
-              if (groups.isEmpty) {
-                return Padding(
-                  padding: const EdgeInsets.only(top: 150.0),
-                  child: Center(
-                    child: HoopEmptyState(
-                      title: 'No groups found nearby',
-                      subtitle:
-                          'Try adjusting your location settings or check back later',
-                      iconData: Icons.group_outlined,
-                      secondaryActionText: "Refresh Communinty",
-                      onPress: _fetchCommunityGroups,
-                    ),
-                  ),
-                );
-              }
-              final group = groups[index];
-
-              // Use dynamic colors from theme
-              final cardColor = HoopTheme.getCommunityCardColor(index, isDark);
-              final category = group.group.tags.isNotEmpty
-                  ? group.group.tags.first
-                  : 'General';
-              final categoryColor = HoopTheme.getCategoryBackgroundColor(
-                category,
-                isDark,
-              );
-              final categoryTextColor = HoopTheme.getCategoryTextColor(
-                category,
-                isDark,
-              );
-
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                decoration: BoxDecoration(
-                  color: cardColor,
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: isDark
-                      ? null
-                      : [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 12,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 6,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: categoryColor,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: Text(
-                                  category.toUpperCase(),
-                                  style: TextStyle(
-                                    color: categoryTextColor,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 12,
+              ),
+            )
+          : groups.isEmpty
+          ? SingleChildScrollView(
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height * 0.7,
+                child: Center(
+                  child: HoopEmptyState(
+                    title: 'No groups found nearby',
+                    subtitle:
+                        'Try adjusting your location settings or check back later',
+                    iconData: Icons.group_outlined,
+                    secondaryActionText: "Refresh Community",
+                    onPress: _fetchCommunityGroups,
+                  ),
+                ),
+              ),
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              itemCount: groups.length,
+              itemBuilder: (context, index) {
+                final group = groups[index];
+                final textPrimary = isDark ? Colors.white : Colors.black87;
+                final textSecondary = isDark ? Colors.white54 : Colors.black54;
+                final textTertiary = isDark ? Colors.white30 : Colors.black38;
+
+                // Use dynamic colors from theme
+                final cardColor = HoopTheme.getCommunityCardColor(index, isDark);
+                final category = group.group.tags.isNotEmpty
+                    ? group.group.tags.first
+                    : 'General';
+                final categoryColor = HoopTheme.getCategoryBackgroundColor(
+                  category,
+                  isDark,
+                );
+                final categoryTextColor = HoopTheme.getCategoryTextColor(
+                  category,
+                  isDark,
+                );
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: BoxDecoration(
+                    color: cardColor,
+                    borderRadius: BorderRadius.circular(14),
+                    boxShadow: isDark
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.04),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: categoryColor,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: Text(
+                                    category.toUpperCase(),
+                                    style: TextStyle(
+                                      color: categoryTextColor,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                '${group.group.maxMembers} max members',
-                                style: TextStyle(
-                                  color: textTertiary,
-                                  fontSize: 11,
+                                const SizedBox(height: 6),
+                                Text(
+                                  '${group.group.maxMembers} max members',
+                                  style: TextStyle(
+                                    color: textTertiary,
+                                    fontSize: 11,
+                                  ),
                                 ),
+                              ],
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              onPressed: () => _handleJoinGroup(group),
+                              icon: Icon(
+                                Icons.favorite_border,
+                                color: isDark
+                                    ? Colors.white70
+                                    : HoopTheme.primaryRed,
                               ),
-                            ],
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            onPressed: () => _handleJoinGroup(group),
-                            icon: Icon(
-                              Icons.favorite_border,
-                              color: isDark
-                                  ? Colors.white70
-                                  : HoopTheme.primaryRed,
-                            ),
-                            padding: EdgeInsets.zero,
-                            constraints: const BoxConstraints(
-                              minWidth: 40,
-                              minHeight: 40,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        group.group.name,
-                        style: TextStyle(
-                          color: textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      if (group.distanceKm != null)
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.location_on_outlined,
-                              size: 14,
-                              color: textSecondary,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                '${group.distanceKm!.toStringAsFixed(1)} km away',
-                                style: TextStyle(
-                                  color: textSecondary,
-                                  fontSize: 13,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 40,
+                                minHeight: 40,
                               ),
                             ),
                           ],
                         ),
-                      const SizedBox(height: 10),
-                      if (group.group.description != null &&
-                          group.group.description!.isNotEmpty)
+                        const SizedBox(height: 12),
                         Text(
-                          group.group.description!,
-                          style: TextStyle(color: textSecondary, fontSize: 13),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          _buildDetailChip(
-                            Icons.attach_money,
-                            'Contribution',
-                            '₦${group.group.contributionAmount.toStringAsFixed(0)}',
-                            HoopTheme.successGreen,
-                            isDark,
-                          ),
-                          const SizedBox(width: 12),
-                          _buildDetailChip(
-                            Icons.schedule,
-                            'Duration',
-                            group.group.displayCycleDuration,
-                            HoopTheme.primaryRed,
-                            isDark,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton(
-                        onPressed: () => _handleJoinGroup(group),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: HoopTheme.primaryRed,
-                          foregroundColor: Colors.white,
-                          minimumSize: const Size(double.infinity, 44),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+                          group.group.name,
+                          style: TextStyle(
+                            color: textPrimary,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
-                        child: const Text('Join Group'),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        if (group.distanceKm != null)
+                          Row(
+                            children: [
+                              Icon(
+                                Icons.location_on_outlined,
+                                size: 14,
+                                color: textSecondary,
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  '${group.distanceKm!.toStringAsFixed(1)} km away',
+                                  style: TextStyle(
+                                    color: textSecondary,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        const SizedBox(height: 10),
+                        if (group.group.description != null &&
+                            group.group.description!.isNotEmpty)
+                          Text(
+                            group.group.description!,
+                            style: TextStyle(color: textSecondary, fontSize: 13),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            _buildDetailChip(
+                              Icons.attach_money,
+                              'Contribution',
+                              '₦${group.group.contributionAmount.toStringAsFixed(0)}',
+                              HoopTheme.successGreen,
+                              isDark,
+                            ),
+                            const SizedBox(width: 12),
+                            _buildDetailChip(
+                              Icons.schedule,
+                              'Duration',
+                              group.group.displayCycleDuration,
+                              HoopTheme.primaryRed,
+                              isDark,
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton(
+                          onPressed: () => _handleJoinGroup(group),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: HoopTheme.primaryRed,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 44),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Join Group'),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              );
-            }, childCount: groups.isNotEmpty ? groups.length : 1),
-          ),
-        ],
-      ),
+                );
+              },
+            ),
     );
   }
 
@@ -737,7 +727,6 @@ class __GroupCardState extends State<_GroupCard> {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       padding: const EdgeInsets.all(24),
-      // height: 561,
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF2C2C2C) : swipeCardColor,
         borderRadius: BorderRadius.circular(24),
@@ -898,10 +887,6 @@ class __GroupCardState extends State<_GroupCard> {
                   ElevatedButton.icon(
                     onPressed: () async {
                       try {
-                        // await provider.joinCommunityGroup(
-                        //   widget.group.group.id,
-                        // );
-
                         Navigator.pushNamed(
                           context,
                           "/group/detail/public",
