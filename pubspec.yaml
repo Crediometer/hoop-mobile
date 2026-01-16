@@ -40,8 +40,9 @@ dependencies:
   qr_flutter: 
   crypto: ^3.0.0
   flutter_svg:
+  flutter_local_notifications: ^16.1.0
   device_info_plus: ^9.0.0
-
+  geolocator: ^11.0.0
   uuid: ^4.4.0
   camera: 
   image: ^4.0.17
@@ -58,7 +59,6 @@ dependencies:
   flutter_webrtc: ^1.2.1
   permission_handler: ^11.1.0
   logger: ^2.0.2
-
   share_plus: 
   onesignal_flutter: ^5.3.5
   emoji_picker_flutter: ^3.0.5
@@ -70,7 +70,6 @@ dependencies:
   local_auth: ^3.0.0
   audio_session: ^0.1.11  
   vibration: ^3.1.5
-  overlay_support: ^1.0.0
 
 
 dev_dependencies:

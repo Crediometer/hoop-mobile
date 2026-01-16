@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/services/group_services.dart';
 import 'package:hoop/states/group_state.dart';
@@ -1144,7 +1145,7 @@ class _GroupDetailScreenState extends State<GroupDetailScreen> {
               final initials = HoopFormatters.getInitials(
                 '${member.firstName} ${member.lastName}',
               );
-              final avatarColor = _getAvatarColor(member.userId);
+              final avatarColor = _getAvatarColor(member.userId.toString());
               final statusColor = _getStatusColor(member.status ?? '');
               final isCurrentUser = false; // You'll need to implement this
 

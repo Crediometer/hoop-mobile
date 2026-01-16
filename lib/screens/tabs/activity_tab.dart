@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/states/auth_state.dart';
@@ -68,7 +69,7 @@ class _ActivityTabState extends State<ActivityTab> {
                     ),
                   ),
 
-                  if (selectedIndex != 2) // Hide withdraw button for ATM tab
+                  if (selectedIndex != 0) // Hide withdraw button for ATM tab
                     ElevatedButton(
                       onPressed: _handleWithdraw,
                       style: ElevatedButton.styleFrom(
@@ -92,7 +93,9 @@ class _ActivityTabState extends State<ActivityTab> {
                               ),
                             )
                           : Text(
-                              selectedIndex == 0 ? 'Deposit' : 'Withdraw',
+                              selectedIndex == 2
+                                  ? 'Request For Card'
+                                  : 'Withdraw',
                               style: TextStyle(color: Colors.white),
                             ),
                     ),
@@ -244,8 +247,8 @@ class _ActivityTabState extends State<ActivityTab> {
                           decoration: BoxDecoration(
                             color: selectedIndex == 0
                                 ? (isDark
-                                    ? const Color(0xFF1E2430)
-                                    : Colors.white)
+                                      ? const Color(0xFF1E2430)
+                                      : Colors.white)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -255,7 +258,9 @@ class _ActivityTabState extends State<ActivityTab> {
                               style: TextStyle(
                                 color: selectedIndex == 0
                                     ? (isDark ? Colors.white : Colors.black87)
-                                    : (isDark ? Colors.white70 : Colors.black54),
+                                    : (isDark
+                                          ? Colors.white70
+                                          : Colors.black54),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -271,8 +276,8 @@ class _ActivityTabState extends State<ActivityTab> {
                           decoration: BoxDecoration(
                             color: selectedIndex == 1
                                 ? (isDark
-                                    ? const Color(0xFF1E2430)
-                                    : Colors.white)
+                                      ? const Color(0xFF1E2430)
+                                      : Colors.white)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -282,7 +287,9 @@ class _ActivityTabState extends State<ActivityTab> {
                               style: TextStyle(
                                 color: selectedIndex == 1
                                     ? (isDark ? Colors.white : Colors.black87)
-                                    : (isDark ? Colors.white70 : Colors.black54),
+                                    : (isDark
+                                          ? Colors.white70
+                                          : Colors.black54),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -298,8 +305,8 @@ class _ActivityTabState extends State<ActivityTab> {
                           decoration: BoxDecoration(
                             color: selectedIndex == 2
                                 ? (isDark
-                                    ? const Color(0xFF1E2430)
-                                    : Colors.white)
+                                      ? const Color(0xFF1E2430)
+                                      : Colors.white)
                                 : Colors.transparent,
                             borderRadius: BorderRadius.circular(8),
                           ),
@@ -309,7 +316,9 @@ class _ActivityTabState extends State<ActivityTab> {
                               style: TextStyle(
                                 color: selectedIndex == 2
                                     ? (isDark ? Colors.white : Colors.black87)
-                                    : (isDark ? Colors.white70 : Colors.black54),
+                                    : (isDark
+                                          ? Colors.white70
+                                          : Colors.black54),
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -324,9 +333,7 @@ class _ActivityTabState extends State<ActivityTab> {
               const SizedBox(height: 36),
 
               // Content based on selected tab
-              Expanded(
-                child: _buildSelectedTabContent(isDark),
-              ),
+              Expanded(child: _buildSelectedTabContent(isDark)),
             ],
           ),
         ),
@@ -359,7 +366,7 @@ class _ActivityTabState extends State<ActivityTab> {
           subtitle: 'Withdraw funds to your bank account',
         );
       case 2: // ATM Card
-        return _buildATMComingSoon(isDark);
+        return SingleChildScrollView(child: _buildATMComingSoon(isDark));
       default:
         return Container();
     }
@@ -384,13 +391,7 @@ class _ActivityTabState extends State<ActivityTab> {
               color: backgroundColor,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Center(
-              child: Icon(
-                icon,
-                color: iconColor,
-                size: 34,
-              ),
-            ),
+            child: Center(child: Icon(icon, color: iconColor, size: 34)),
           ),
           const SizedBox(height: 20),
           Text(
@@ -404,9 +405,7 @@ class _ActivityTabState extends State<ActivityTab> {
           const SizedBox(height: 8),
           Text(
             subtitle,
-            style: TextStyle(
-              color: isDark ? Colors.white54 : Colors.black54,
-            ),
+            style: TextStyle(color: isDark ? Colors.white54 : Colors.black54),
             textAlign: TextAlign.center,
           ),
         ],
@@ -416,13 +415,13 @@ class _ActivityTabState extends State<ActivityTab> {
 
   Widget _buildATMComingSoon(bool isDark) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 10),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           // ATM Card Illustration
           Container(
-            width: 280,
+            width: 380,
             height: 180,
             decoration: BoxDecoration(
               gradient: LinearGradient(
@@ -455,15 +454,18 @@ class _ActivityTabState extends State<ActivityTab> {
                       borderRadius: BorderRadius.circular(5),
                     ),
                     child: Center(
-                      child: Icon(
-                        Icons.sim_card,
-                        color: Colors.white,
-                        size: 18,
+                      child: RotatedBox(
+                        quarterTurns: 3,
+                        child: Icon(
+                          Icons.sim_card,
+                          color: Colors.white,
+                          size: 24,
+                        ),
                       ),
                     ),
                   ),
                 ),
-                
+
                 // Contactless Icon
                 Positioned(
                   top: 30,
@@ -474,7 +476,7 @@ class _ActivityTabState extends State<ActivityTab> {
                     size: 30,
                   ),
                 ),
-                
+
                 // Card Number
                 Positioned(
                   top: 80,
@@ -489,7 +491,7 @@ class _ActivityTabState extends State<ActivityTab> {
                     ),
                   ),
                 ),
-                
+
                 // Card Holder
                 Positioned(
                   bottom: 30,
@@ -516,7 +518,7 @@ class _ActivityTabState extends State<ActivityTab> {
                     ],
                   ),
                 ),
-                
+
                 // Expiry
                 Positioned(
                   bottom: 30,
@@ -546,9 +548,9 @@ class _ActivityTabState extends State<ActivityTab> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 40),
-          
+
           // Coming Soon Badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -572,9 +574,9 @@ class _ActivityTabState extends State<ActivityTab> {
               ),
             ),
           ),
-          
+
           const SizedBox(height: 20),
-          
+
           // Title
           Text(
             'ATM Card Withdrawals',
@@ -584,9 +586,9 @@ class _ActivityTabState extends State<ActivityTab> {
               fontWeight: FontWeight.w700,
             ),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Description
           Text(
             'Withdraw cash directly from any ATM with your virtual card. '
@@ -598,9 +600,9 @@ class _ActivityTabState extends State<ActivityTab> {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: 30),
-          
+
           // Features List
           Container(
             padding: const EdgeInsets.all(20),
@@ -613,8 +615,8 @@ class _ActivityTabState extends State<ActivityTab> {
                 _buildFeatureItem(
                   isDark: isDark,
                   icon: Icons.credit_card,
-                  title: 'Virtual Mastercard',
-                  description: 'Get a free virtual card',
+                  title: 'Physical VerveCard',
+                  description: 'Get a physical ATM card',
                 ),
                 const SizedBox(height: 16),
                 _buildFeatureItem(
@@ -633,11 +635,10 @@ class _ActivityTabState extends State<ActivityTab> {
               ],
             ),
           ),
-          
+
           const SizedBox(height: 30),
-          
-          // Notify Me Button
-          ElevatedButton(
+          HoopButton(
+            buttonText: 'Notify Me',
             onPressed: () {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -649,21 +650,6 @@ class _ActivityTabState extends State<ActivityTab> {
                 ),
               );
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: HoopTheme.primaryBlue,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              'Notify Me',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
           ),
         ],
       ),
@@ -687,11 +673,7 @@ class _ActivityTabState extends State<ActivityTab> {
                 : HoopTheme.primaryBlue.withOpacity(0.1),
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(
-            icon,
-            color: HoopTheme.primaryBlue,
-            size: 20,
-          ),
+          child: Icon(icon, color: HoopTheme.primaryBlue, size: 20),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -726,7 +708,7 @@ class _ActivityTabState extends State<ActivityTab> {
     _amountText = '';
     _enteredAmount = 0;
     _biometricToken = null;
-    
+
     // Immediately show the amount entry sheet
     _showAmountEntrySheet();
   }
@@ -889,15 +871,16 @@ class _ActivityTabState extends State<ActivityTab> {
                                   : const Color(0xFFF6EAEA),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color:
-                                    const Color(0xFFCC5555).withOpacity(0.4),
+                                color: const Color(0xFFCC5555).withOpacity(0.4),
                                 width: 1,
                               ),
                             ),
                             child: Row(
                               children: [
-                                const Text('⚠️',
-                                    style: TextStyle(fontSize: 18)),
+                                const Text(
+                                  '⚠️',
+                                  style: TextStyle(fontSize: 18),
+                                ),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
@@ -990,18 +973,13 @@ class _ActivityTabState extends State<ActivityTab> {
 
                                   // Close amount sheet
                                   Navigator.of(context).pop();
-                                  
-                                  if (selectedIndex == 0) {
-                                    // Handle deposit
-                                    _processDeposit(amount: _enteredAmount);
-                                  } else {
-                                    // Handle withdrawal with authentication
-                                    _authenticateAndProcessWithdrawal(
-                                      amount: _enteredAmount,
-                                      totalDebited: debited,
-                                    );
-                                  }
-                                  
+
+                                  // Handle withdrawal with authentication
+                                  _authenticateAndProcessWithdrawal(
+                                    amount: _enteredAmount,
+                                    totalDebited: debited,
+                                  );
+
                                   // Reset amount after proceeding
                                   _amountText = '';
                                   _enteredAmount = 0;
@@ -1019,7 +997,7 @@ class _ActivityTabState extends State<ActivityTab> {
                                   elevation: 0,
                                 ),
                                 child: Text(
-                                  selectedIndex == 0 ? 'Deposit' : 'Withdraw',
+                                  'Withdraw',
                                   style: TextStyle(
                                     color: Colors.white,
                                     fontSize: 16,
@@ -1124,8 +1102,8 @@ class _ActivityTabState extends State<ActivityTab> {
         return {'authenticated': false, 'token': null};
       }
 
-      final List<BiometricType> availableBiometrics =
-          await _localAuth.getAvailableBiometrics();
+      final List<BiometricType> availableBiometrics = await _localAuth
+          .getAvailableBiometrics();
 
       if (availableBiometrics.isEmpty) {
         return {'authenticated': false, 'token': null};
@@ -1143,11 +1121,8 @@ class _ActivityTabState extends State<ActivityTab> {
         // In a real app, this would come from your backend after biometric verification
         final deviceId = await _getDeviceId(); // You need to implement this
         final token = await _generateBiometricToken(deviceId); // Mock function
-        
-        return {
-          'authenticated': true,
-          'token': token,
-        };
+
+        return {'authenticated': true, 'token': token};
       }
 
       return {'authenticated': false, 'token': null};
@@ -1294,8 +1269,9 @@ class _ActivityTabState extends State<ActivityTab> {
                                 showPIN
                                     ? Icons.visibility_off
                                     : Icons.visibility,
-                                color:
-                                    isDark ? Colors.white70 : Colors.grey[600],
+                                color: isDark
+                                    ? Colors.white70
+                                    : Colors.grey[600],
                               ),
                               onPressed: () {
                                 setModalState(() {
@@ -1463,7 +1439,7 @@ class _ActivityTabState extends State<ActivityTab> {
     String? biometricToken,
   }) async {
     final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    
+
     setState(() => _isProcessing = true);
 
     try {
@@ -1488,10 +1464,10 @@ class _ActivityTabState extends State<ActivityTab> {
       // TODO: Call your single withdrawal endpoint
       // Example:
       // final response = await authProvider.processWithdrawal(payload);
-      
+
       // Simulate API call
       await Future.delayed(const Duration(seconds: 1));
-      
+
       // Show success message
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1504,10 +1480,9 @@ class _ActivityTabState extends State<ActivityTab> {
           ),
         );
       }
-      
+
       // Reset biometric token
       _biometricToken = null;
-      
     } catch (e) {
       print('Withdrawal processing error: $e');
       if (mounted) {
@@ -1523,19 +1498,6 @@ class _ActivityTabState extends State<ActivityTab> {
         setState(() => _isProcessing = false);
       }
     }
-  }
-
-  void _processDeposit({required int amount}) {
-    // Show success message for deposit
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Deposit of ₦$amount requested successfully!',
-        ),
-        backgroundColor: HoopTheme.successGreen,
-        duration: const Duration(seconds: 3),
-      ),
-    );
   }
 
   void _showSecuritySetupPrompt() {

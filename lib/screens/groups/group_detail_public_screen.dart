@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/screens/groups/join_group_modal.dart';
 import 'package:hoop/services/group_services.dart';
@@ -56,6 +57,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
       setState(() => _isLoading = true);
 
       final groupId = widget.group['id'];
+      print("widget.group??? $groupId");
       if (groupId == null) return;
 
       // Load group details
@@ -63,8 +65,8 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
         context,
         listen: false,
       );
-      final groupResponse = await provider.getPublicGroup(groupId.toString());
-
+      final groupResponse = await provider.getPublicGroup(groupId);
+      print("groupResponse.data?? ${groupResponse.data}");
       if (groupResponse.success && groupResponse.data != null) {
         setState(() => _group = groupResponse.data);
       }
@@ -78,7 +80,8 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
   Future<void> _handleJoinGroup(slots, message) async {
     try {
       setState(() => _isProcessingAction = true);
-      final groupId = _group?.group.id.toString();
+      final groupId = _group!.id.toString();
+
       if (groupId == null) return;
 
       final provider = Provider.of<GroupCommunityProvider>(
@@ -94,7 +97,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
       if (response.success) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Successfully joined ${_group?.group.name}!'),
+            content: Text('Successfully joined ${_group?.name}!'),
             backgroundColor: HoopTheme.successGreen,
           ),
         );
@@ -116,7 +119,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
   Future<void> _handleStartGroup() async {
     try {
       setState(() => _isProcessingAction = true);
-      final groupId = _group?.group.id.toString();
+      final groupId = _group?.id.toString();
       if (groupId == null) return;
 
       final provider = Provider.of<GroupCommunityProvider>(
@@ -205,18 +208,20 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     final textTertiary = isDark ? Colors.grey[500] : Colors.grey[500];
 
     // Use actual group data or fallback to widget data
-    final Group? displayGroup = _group?.group;
+    final GroupDetailsPublic? displayGroup = _group;
     final groupName = displayGroup?.name ?? 'Group';
     final description = displayGroup?.description ?? '';
     final location = displayGroup?.location ?? '';
-    final membersCount = displayGroup is Group
-        ? displayGroup.approvedMembersCount
+    final membersCount = displayGroup is GroupDetailsPublic
+        ? displayGroup.currentMembersCount
         : 0;
-    final maxMembers = displayGroup is Group ? displayGroup.maxMembers : 0;
-    final contributionAmount = displayGroup is Group
+    final maxMembers = displayGroup is GroupDetailsPublic
+        ? displayGroup.maxMembers
+        : 0;
+    final contributionAmount = displayGroup is GroupDetailsPublic
         ? displayGroup.contributionAmount
         : 0;
-    final frequency = displayGroup is Group
+    final frequency = displayGroup is GroupDetailsPublic
         ? displayGroup.contributionFrequency
         : '';
 
@@ -279,7 +284,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            if (displayGroup is Group &&
+                            if (displayGroup is GroupDetailsPublic &&
                                 displayGroup.requireApproval == true)
                               const Text(
                                 "Approval Required",
@@ -290,7 +295,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
                                   letterSpacing: 0.2,
                                 ),
                               ),
-                            if (displayGroup is Group &&
+                            if (displayGroup is GroupDetailsPublic &&
                                 displayGroup.requireApproval == true)
                               const SizedBox(width: 8),
                             const Text(
@@ -607,7 +612,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
     Color textPrimary,
     Color? textSecondary,
     Color? textTertiary,
-    Group? groupData,
+    GroupDetailsPublic? groupData,
   ) {
     final totalPayout =
         (groupData?.contributionAmount ?? 1) * (groupData?.maxMembers ?? 1);
@@ -672,13 +677,11 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    "Start: ${groupData is Group ? _formatDate(groupData.startDate ?? '') : 'N/A'}",
+                    "Start: ${groupData is GroupDetailsPublic ? _formatDate(groupData?.startDate ?? '') : 'N/A'}",
                     style: TextStyle(color: textTertiary, fontSize: 12),
                   ),
                   Text(
-                    groupData is Group && groupData.cycleDurationDays != null
-                        ? "End: ${_formatDate(groupData.cycleDurationDays.toString()!)}"
-                        : "No end date",
+                    "No end date",
                     style: TextStyle(color: textTertiary, fontSize: 12),
                   ),
                 ],
@@ -725,25 +728,20 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
               const SizedBox(height: 12),
               _infoRow(
                 "Private Group:",
-                (groupData is Group && groupData.isPrivate == true)
-                    ? "Yes"
-                    : "No",
+                (groupData?.isPrivate == true) ? "Yes" : "No",
                 textTertiary,
               ),
               const SizedBox(height: 8),
               _infoRow(
                 "Allow Pairing:",
-                (groupData is Group && groupData.allowPairing == true)
-                    ? "Yes"
-                    : "No",
+                (groupData?.allowPairing == true) ? "Yes" : "No",
                 textTertiary,
               ),
               const SizedBox(height: 8),
               _infoRow(
                 "Payout Order:",
-                (groupData is Group && groupData.payoutOrder != null)
-                    ? groupData.payoutOrder!
-                    : "Not set",
+
+                groupData?.payoutOrder ?? "Not set",
                 textTertiary,
               ),
             ],
@@ -886,7 +884,7 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
               final initials = HoopFormatters.getInitials(
                 '${member.firstName} ${member.lastName}',
               );
-              final avatarColor = _getAvatarColor(member.userId);
+              final avatarColor = _getAvatarColor(member.userId.toString());
               final statusColor = _getStatusColor(member.status ?? '');
               final isCurrentUser = false; // You'll need to implement this
 

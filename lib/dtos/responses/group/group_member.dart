@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class GroupMember {
-  final String userId;
+  final num userId;
   final String firstName;
   final String lastName;
   final String email;
@@ -43,7 +43,7 @@ class GroupMember {
 
   factory GroupMember.fromJson(Map<String, dynamic> json) {
     return GroupMember(
-      userId: json['userId']?.toString() ?? '',
+      userId: json['userId'],
       firstName: json['firstName'] ?? '',
       lastName: json['lastName'] ?? '',
       email: json['email'] ?? '',
@@ -88,7 +88,7 @@ class GroupMember {
   }
 
   GroupMember copyWith({
-    String? userId,
+    int? userId,
     String? firstName,
     String? lastName,
     String? email,

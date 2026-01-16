@@ -40,7 +40,7 @@ class AuthResponse {
       token: json['token'] ?? '',
       expiresIn: json['expiresIn'],
       operationStatus: OperationStatus.firstWhere(
-        (e) => e.value == (json['status'] ?? 200),
+        (e) => e.value == (json['operationStatus'] ?? 200),
         orElse: () => OperationStatus.OK,
       ),
       data: json['data'] != null ? User.fromJson(json['data']) : null,

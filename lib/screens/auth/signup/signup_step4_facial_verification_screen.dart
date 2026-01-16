@@ -55,7 +55,6 @@
 //   );
 // }
 
-
 //   @override
 //   Widget build(BuildContext context) {
 //     final theme = Theme.of(context);
@@ -324,6 +323,11 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/responses/ApiResponse.dart';
+import 'package:hoop/states/auth_state.dart';
+import 'package:hoop/utils/helpers/conveters.dart';
 import 'package:hoop/widgets/progress_bar.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
@@ -350,7 +354,7 @@ class _SignupStep4FacialVerificationScreenState
   final int currentStep = 4;
   bool _isVerificationComplete = false;
   bool _isCapturing = false;
-  
+
   // Camera & Liveness detection state
   CameraController? _cameraController;
   FaceDetector? _faceDetector;
@@ -358,7 +362,7 @@ class _SignupStep4FacialVerificationScreenState
   bool _isCameraInitialized = false;
   bool _isProcessing = false;
   DateTime _lastProcessTime = DateTime.now();
-  
+
   // Face tracking state
   final List<FaceData> _faceHistory = [];
   double _livenessScore = 0.0;
@@ -369,7 +373,7 @@ class _SignupStep4FacialVerificationScreenState
   bool _hasGoodLighting = false;
   bool _hasGoodOrientation = false;
   int _trackedFaceId = -1;
-  
+
   // Configuration
   static const int historyLength = 25;
   static const int minFramesForAnalysis = 15;
@@ -410,13 +414,13 @@ class _SignupStep4FacialVerificationScreenState
       if (cameras.isEmpty) {
         throw Exception('No camera available');
       }
-      
+
       // Use front camera
       final frontCamera = cameras.firstWhere(
         (cam) => cam.lensDirection == CameraLensDirection.front,
         orElse: () => cameras.first,
       );
-      
+
       // Initialize camera
       _cameraController = CameraController(
         frontCamera,
@@ -424,14 +428,14 @@ class _SignupStep4FacialVerificationScreenState
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.yuv420,
       );
-      
+
       await _cameraController!.initialize();
-      
+
       // Start image stream only if we're not in image review mode
       if (_imageBytes == null) {
         await _cameraController!.startImageStream(_processCameraImage);
       }
-      
+
       // Initialize face detector
       final options = FaceDetectorOptions(
         enableLandmarks: true,
@@ -441,21 +445,20 @@ class _SignupStep4FacialVerificationScreenState
         minFaceSize: 0.15,
       );
       _faceDetector = FaceDetector(options: options);
-      
+
       // Initialize sensors
       _accelerometerSubscription = accelerometerEvents.listen((event) {
         setState(() {
-          _hasGoodOrientation = event.x.abs() < maxTiltAngle && 
-                               event.y.abs() < maxTiltAngle;
+          _hasGoodOrientation =
+              event.x.abs() < maxTiltAngle && event.y.abs() < maxTiltAngle;
         });
       });
-      
+
       setState(() {
         _isCameraInitialized = true;
         _detectionStatus = 'Ready';
         _detectionDetails = 'Position your face in the oval';
       });
-      
     } catch (e) {
       print('Camera initialization error: $e');
       setState(() {
@@ -466,7 +469,7 @@ class _SignupStep4FacialVerificationScreenState
   }
 
   void _processCameraImage(CameraImage image) async {
-    if (_isProcessing || 
+    if (_isProcessing ||
         !_isCameraInitialized ||
         _cameraController == null ||
         _imageBytes != null || // Stop processing if we have captured image
@@ -489,16 +492,15 @@ class _SignupStep4FacialVerificationScreenState
 
       // Calculate brightness
       _brightnessLevel = _calculateBrightness(image);
-      _hasGoodLighting = _brightnessLevel > minBrightness && 
-                         _brightnessLevel < maxBrightness;
-      
+      _hasGoodLighting =
+          _brightnessLevel > minBrightness && _brightnessLevel < maxBrightness;
+
       // Process face detection
       final inputImage = _convertToInputImage(image);
       if (inputImage == null) return;
-      
+
       final faces = await _faceDetector!.processImage(inputImage);
       await _analyzeFaces(faces, _brightnessLevel);
-      
     } catch (e) {
       print('Face detection error: $e');
     } finally {
@@ -510,18 +512,18 @@ class _SignupStep4FacialVerificationScreenState
   double _calculateBrightness(CameraImage image) {
     final yPlane = image.planes[0];
     final yBytes = yPlane.bytes;
-    
+
     final sampleSize = 5000;
     final step = math.max(1, yBytes.length ~/ sampleSize);
-    
+
     int sum = 0;
     int count = 0;
-    
+
     for (int i = 0; i < yBytes.length; i += step) {
       sum += yBytes[i];
       count++;
     }
-    
+
     return count > 0 ? (sum / count) / 255.0 : 0.0;
   }
 
@@ -540,10 +542,7 @@ class _SignupStep4FacialVerificationScreenState
         bytesPerRow: image.planes[0].bytesPerRow,
       );
 
-      return InputImage.fromBytes(
-        bytes: bytes,
-        metadata: inputImageData,
-      );
+      return InputImage.fromBytes(bytes: bytes, metadata: inputImageData);
     } catch (e) {
       return null;
     }
@@ -571,7 +570,7 @@ class _SignupStep4FacialVerificationScreenState
         }
       }
     }
-    
+
     primaryFace ??= faces.first;
     _trackedFaceId = primaryFace.trackingId ?? -1;
 
@@ -597,13 +596,15 @@ class _SignupStep4FacialVerificationScreenState
     if (_faceHistory.length >= minFramesForAnalysis) {
       final score = _calculateLivenessScore();
       final isLive = score >= livenessThreshold;
-      
+
       _updateDetectionStatus(
         isLive ? 'Verification Complete' : 'Verifying...',
-        isLive ? 'Identity confirmed successfully' : 'Keep looking at the camera',
+        isLive
+            ? 'Identity confirmed successfully'
+            : 'Keep looking at the camera',
         isLive,
       );
-      
+
       // If live, capture the image automatically
       if (isLive && _imageBytes == null && !_isCapturing) {
         _isCapturing = true;
@@ -621,32 +622,37 @@ class _SignupStep4FacialVerificationScreenState
 
   double _calculateLivenessScore() {
     if (_faceHistory.isEmpty) return 0.0;
-    
+
     double score = 0.0;
-    
+
     // 1. Lighting (20%)
     if (_hasGoodLighting) score += 0.20;
-    
+
     // 2. Orientation (20%)
     if (_hasGoodOrientation) score += 0.20;
-    
+
     // 3. Detection consistency (25%)
     if (_faceHistory.length >= minFramesForAnalysis) {
       score += 0.25;
     }
-    
+
     // 4. Natural movement (20%)
     if (_faceHistory.length > 5) {
-      final movements = _faceHistory.map((f) => 
-        (f.headEulerAngleX.abs() + f.headEulerAngleY.abs() + f.headEulerAngleZ.abs())
-      ).toList();
-      
+      final movements = _faceHistory
+          .map(
+            (f) =>
+                (f.headEulerAngleX.abs() +
+                f.headEulerAngleY.abs() +
+                f.headEulerAngleZ.abs()),
+          )
+          .toList();
+
       final avgMovement = movements.reduce((a, b) => a + b) / movements.length;
       if (avgMovement > 2.0 && avgMovement < 15.0) {
         score += 0.20;
       }
     }
-    
+
     // 5. Eye activity (15%)
     if (_faceHistory.length > 3) {
       final eyeStates = _faceHistory.map((f) => f.averageEyeOpenness).toList();
@@ -655,14 +661,16 @@ class _SignupStep4FacialVerificationScreenState
         score += 0.15;
       }
     }
-    
+
     return score.clamp(0.0, 1.0);
   }
 
   double _calculateVariance(List<double> values) {
     if (values.isEmpty) return 0.0;
     final mean = values.reduce((a, b) => a + b) / values.length;
-    final variance = values.map((v) => math.pow(v - mean, 2)).reduce((a, b) => a + b) / values.length;
+    final variance =
+        values.map((v) => math.pow(v - mean, 2)).reduce((a, b) => a + b) /
+        values.length;
     return variance;
   }
 
@@ -678,14 +686,14 @@ class _SignupStep4FacialVerificationScreenState
 
       // Stop the camera stream first
       await _cameraController!.stopImageStream();
-      
+
       // Take picture
       final image = await _cameraController!.takePicture();
       final bytes = await image.readAsBytes();
-      
+
       // Dispose camera resources
       _cleanupCamera();
-      
+
       setState(() {
         _imageBytes = bytes;
         _isVerificationComplete = true;
@@ -693,13 +701,12 @@ class _SignupStep4FacialVerificationScreenState
         _detectionStatus = 'Image Captured';
         _detectionDetails = 'Review your photo below';
       });
-      
     } catch (e) {
       print('Error capturing image: $e');
       setState(() {
         _isCapturing = false;
       });
-      
+
       // Restart camera stream if capture failed
       if (_cameraController != null && _cameraController!.value.isInitialized) {
         await _cameraController!.startImageStream(_processCameraImage);
@@ -717,7 +724,7 @@ class _SignupStep4FacialVerificationScreenState
       _detectionStatus = 'Initializing Camera';
       _detectionDetails = 'Please hold phone upright';
     });
-    
+
     // Reinitialize camera
     await _initializeCameraAndDetection();
   }
@@ -729,7 +736,7 @@ class _SignupStep4FacialVerificationScreenState
         _detectionDetails = details;
         _isLive = isLive;
         _livenessScore = _calculateLivenessScore();
-        
+
         // If verification is complete and we have a good score, mark as verified
         if (isLive && _livenessScore >= livenessThreshold && !_isCapturing) {
           _isVerificationComplete = true;
@@ -740,7 +747,8 @@ class _SignupStep4FacialVerificationScreenState
 
   void _pauseDetection() {
     _accelerometerSubscription?.pause();
-    if (_cameraController != null && _cameraController!.value.isStreamingImages) {
+    if (_cameraController != null &&
+        _cameraController!.value.isStreamingImages) {
       _cameraController!.stopImageStream();
     }
   }
@@ -768,7 +776,7 @@ class _SignupStep4FacialVerificationScreenState
     }
   }
 
-  void _onSubmit() {
+  void _onSubmit() async {
     if (_imageBytes == null || !_isVerificationComplete) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -779,15 +787,42 @@ class _SignupStep4FacialVerificationScreenState
       return;
     }
 
-    // Show success toast
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Signup Successfully 🎉'),
-        backgroundColor: Colors.green,
-        duration: Duration(seconds: 2),
-      ),
-    );
-    
+    String filename = 'verification-${DateTime.now().toIso8601String()}.png';
+    String? imageB64 = uint8ListToBase64(_imageBytes);
+    if (imageB64 == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Failed: Error converting image'),
+          backgroundColor: HoopTheme.primaryRed,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
+    ApiResponse<dynamic> facialDone = await AuthProvider()
+        .sendFacialVerification(imageB64!, filename);
+    if (facialDone.success) {
+      // Show success toast
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(facialDone.message ?? 'Signup Successfully 🎉'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      return;
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            facialDone.error ??
+                facialDone.message ??
+                'Failed: Error converting image',
+          ),
+          backgroundColor: HoopTheme.primaryRed,
+          duration: Duration(seconds: 4),
+        ),
+      );
+    }
     // Here you would typically navigate to next screen
     // Navigator.push(context, MaterialPageRoute(builder: (_) => NextScreen()));
   }
@@ -817,7 +852,7 @@ class _SignupStep4FacialVerificationScreenState
                 height: double.infinity,
               ),
             ),
-            
+
             // Overlay with success message
             Positioned.fill(
               child: Container(
@@ -826,21 +861,21 @@ class _SignupStep4FacialVerificationScreenState
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.6),
-                    ],
+                    colors: [Colors.transparent, Colors.black.withOpacity(0.6)],
                   ),
                 ),
               ),
             ),
-            
+
             // Success indicator
             Positioned(
               top: 16,
               right: 16,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: Colors.green,
                   borderRadius: BorderRadius.circular(20),
@@ -861,7 +896,7 @@ class _SignupStep4FacialVerificationScreenState
                 ),
               ),
             ),
-            
+
             // Retake button
             Positioned(
               bottom: 16,
@@ -874,7 +909,10 @@ class _SignupStep4FacialVerificationScreenState
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                 ),
                 child: const Row(
                   children: [
@@ -915,7 +953,7 @@ class _SignupStep4FacialVerificationScreenState
     }
 
     return Container(
-      height: 300, // Taller for landscape feel
+      height: 420, // Taller for landscape feel
       width: double.infinity,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
@@ -930,20 +968,17 @@ class _SignupStep4FacialVerificationScreenState
           children: [
             // Camera preview
             SizedBox(
-              height: double.infinity,
+              height: 420,
               width: double.infinity,
               child: CameraPreview(_cameraController!),
             ),
-            
+
             // Overlay with shimmer effect when live
             if (_isLive)
               Positioned.fill(
-                child: HolographicShimmer(
-                  isActive: true,
-                  speed: 0.7,
-                ),
+                child: HolographicShimmer(isActive: true, speed: 0.7),
               ),
-            
+
             // Face detection overlay
             Positioned.fill(
               child: CustomPaint(
@@ -954,7 +989,7 @@ class _SignupStep4FacialVerificationScreenState
                 ),
               ),
             ),
-            
+
             // Status overlay
             Positioned(
               left: 12,
@@ -1006,8 +1041,8 @@ class _SignupStep4FacialVerificationScreenState
                             color: _livenessScore > 0.7
                                 ? Colors.green
                                 : _livenessScore > 0.4
-                                    ? Colors.amber
-                                    : Colors.red,
+                                ? Colors.amber
+                                : Colors.red,
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
@@ -1022,7 +1057,7 @@ class _SignupStep4FacialVerificationScreenState
                         fontSize: 12,
                       ),
                     ),
-                    
+
                     // Progress bar
                     if (_faceHistory.isNotEmpty)
                       Column(
@@ -1063,35 +1098,7 @@ class _SignupStep4FacialVerificationScreenState
                 ),
               ),
             ),
-            
-            // Manual capture button
-            if (!_isCapturing && !_isLive)
-              Positioned(
-                top: 16,
-                right: 16,
-                child: ElevatedButton(
-                  onPressed: _captureVerificationImage,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.9),
-                    foregroundColor: Colors.black,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 10,
-                    ),
-                  ),
-                  child: const Row(
-                    children: [
-                      Icon(Icons.camera_alt, size: 16),
-                      SizedBox(width: 6),
-                      Text('Capture'),
-                    ],
-                  ),
-                ),
-              ),
-            
+
             // Capturing indicator
             if (_isCapturing)
               Positioned.fill(
@@ -1199,8 +1206,7 @@ class _SignupStep4FacialVerificationScreenState
       children: [
         Row(
           children: [
-            const Icon(Icons.lightbulb_outline,
-                color: Colors.amber, size: 20),
+            const Icon(Icons.lightbulb_outline, color: Colors.amber, size: 20),
             const SizedBox(width: 8),
             Text(
               'Verification Tips:',
@@ -1273,11 +1279,7 @@ class _SignupStep4FacialVerificationScreenState
         children: [
           Row(
             children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isActive ? Colors.blue : Colors.grey,
-              ),
+              Icon(icon, size: 18, color: isActive ? Colors.blue : Colors.grey),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -1311,51 +1313,9 @@ class _SignupStep4FacialVerificationScreenState
           SizedBox(
             width: double.infinity,
             height: 52,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF1347CD),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 8,
-                shadowColor: Colors.blueAccent.withOpacity(0.5),
-              ),
+            child: HoopButton(
+              buttonText: 'Complete Signup',
               onPressed: _onSubmit,
-              child: const Text(
-                'Complete Signup',
-                style: TextStyle(fontSize: 16, color: Colors.white),
-              ),
-            ),
-          ),
-        
-        if (!_isVerificationComplete && _imageBytes == null)
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: OutlinedButton(
-              style: OutlinedButton.styleFrom(
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                side: const BorderSide(color: Colors.grey),
-              ),
-              onPressed: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Please complete facial verification first'),
-                    backgroundColor: Colors.orange,
-                  ),
-                );
-              },
-              child: Text(
-                'Skip for Now',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.white70
-                      : Colors.grey[700],
-                ),
-              ),
             ),
           ),
       ],
@@ -1394,27 +1354,20 @@ class _HolographicShimmerState extends State<HolographicShimmer>
   @override
   void initState() {
     super.initState();
-    
+
     _controller = AnimationController(
       duration: Duration(milliseconds: (3000 / widget.speed).round()),
       vsync: this,
     )..repeat();
-    
-    _gradientAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOutSine,
-    ));
-    
+
+    _gradientAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOutSine),
+    );
+
     _waveAnimation = Tween<double>(
       begin: 0.0,
       end: 2 * math.pi,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeInOut,
-    ));
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -1472,7 +1425,7 @@ class _HolographicPainter extends CustomPainter {
 
     final center = Offset(size.width / 2, size.height / 2);
     final maxDimension = math.max(size.width, size.height);
-    
+
     final gradient = ui.Gradient.sweep(
       center,
       colors,
@@ -1509,7 +1462,7 @@ class _HolographicPainter extends CustomPainter {
       final x = center.dx + math.cos(angle) * distance;
       final y = center.dy + math.sin(angle) * distance;
       final particleSize = 1.0 + math.sin(waveProgress + i) * 2.0;
-      
+
       canvas.drawCircle(Offset(x, y), particleSize, particlePaint);
     }
   }
@@ -1586,18 +1539,17 @@ class FaceDetectionOverlayPainter extends CustomPainter {
     if (faceHistory.isNotEmpty) {
       final recentFace = faceHistory.last;
       final faceCenter = center; // Simplified for demo
-      
+
       // Draw face outline
       final facePaint = Paint()
-        ..color = isLive ? Colors.green.withOpacity(0.3) : Colors.blue.withOpacity(0.3)
+        ..color = isLive
+            ? Colors.green.withOpacity(0.3)
+            : Colors.blue.withOpacity(0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
 
       canvas.drawOval(
-        Rect.fromCircle(
-          center: faceCenter,
-          radius: 30,
-        ),
+        Rect.fromCircle(center: faceCenter, radius: 30),
         facePaint,
       );
     }
@@ -1635,7 +1587,7 @@ class FaceData {
     required this.brightness,
   });
 
-  double get averageEyeOpenness => 
+  double get averageEyeOpenness =>
       (leftEyeOpenProbability + rightEyeOpenProbability) / 2.0;
 }
 
@@ -1643,10 +1595,7 @@ class _VerificationTip extends StatelessWidget {
   final String boldText;
   final String normalText;
 
-  const _VerificationTip({
-    required this.boldText,
-    required this.normalText,
-  });
+  const _VerificationTip({required this.boldText, required this.normalText});
 
   @override
   Widget build(BuildContext context) {

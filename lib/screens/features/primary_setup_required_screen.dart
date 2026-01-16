@@ -6,11 +6,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 class PrimarySetupRequiredScreen extends StatelessWidget {
   const PrimarySetupRequiredScreen({super.key});
 
-  Future<void> _markDone() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool("needsSetup", false);
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -119,7 +114,6 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
                   );
 
                   if (done == true) {
-                    await _markDone();
                     Navigator.pop(context); // Back to Community
                   }
                 },

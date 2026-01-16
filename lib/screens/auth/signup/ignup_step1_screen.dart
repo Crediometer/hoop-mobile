@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:hoop/components/inputs/input.dart';
 import 'package:hoop/screens/auth/signup/signup_step2_otp_screen.dart';
+import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/widgets/progress_bar.dart';
+import 'package:iconsax/iconsax.dart';
+import 'package:provider/provider.dart';
 
 class SignupStep1Screen extends StatefulWidget {
   const SignupStep1Screen({super.key});
@@ -11,97 +16,80 @@ class SignupStep1Screen extends StatefulWidget {
 
 class _SignupStep1ScreenState extends State<SignupStep1Screen> {
   final _formKey = GlobalKey<FormState>();
-  bool agreeToTerms = false;
   bool isPasswordVisible = false;
   bool isConfirmPasswordVisible = false;
+  bool isLoading = false;
 
-  final TextEditingController firstNameController = TextEditingController();
-  final TextEditingController lastNameController = TextEditingController();
-  final TextEditingController emailController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController passwordController = TextEditingController();
-  final TextEditingController confirmPasswordController =
-      TextEditingController();
+  Future<void> goToNextStep() async {
+    if (_formKey.currentState!.validate()) {
+      setState(() => isLoading = true);
+      final authProvider = context.read<AuthProvider>();
 
-  void goToNextStep() {
-    if (_formKey.currentState!.validate() && agreeToTerms) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) =>
-              SignupStep2OtpScreen(email: emailController.text.trim()),
-        ),
-      );
-    } else if (!agreeToTerms) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please agree to Terms and Privacy Policy'),
-        ),
-      );
+      if (!authProvider.acceptTerms) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please agree to Terms and Privacy Policy'),
+          ),
+        );
+        return;
+      }
+
+      final result = await authProvider.sendEmailVerification();
+      setState(() => isLoading = false);
+      if (mounted) {
+        Navigator.pop(context); // Hide loading
+
+        if (result['success'] == true) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SignupStep2OtpScreen(),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                result['message'] ?? 'Failed to send verification code',
+              ),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
-  }
-
-  bool get hasMinLength => passwordController.text.length >= 8;
-  bool get hasUppercase => passwordController.text.contains(RegExp(r'[A-Z]'));
-  bool get hasLowercase => passwordController.text.contains(RegExp(r'[a-z]'));
-  bool get hasNumber => passwordController.text.contains(RegExp(r'[0-9]'));
-  bool get hasSpecialChar =>
-      passwordController.text.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
-
-  InputDecoration _inputDecoration(
-    String hint,
-    Color fillColor,
-    Color hintColor,
-    Color borderColor,
-  ) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: hintColor),
-      filled: true,
-      fillColor: fillColor,
-      enabledBorder: OutlineInputBorder(
-        borderSide: BorderSide(color: borderColor, width: 1.2),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.blueAccent, width: 1.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Colors that adapt to system mode
-    final backgroundColor = isDark ? const Color(0xFF0C0E1A) : Colors.white;
-    final cardColor = isDark ? const Color(0xFF1C1F2E) : Colors.white;
-
     final textColor = isDark ? Colors.white : Colors.black87;
     final hintColor = isDark ? Colors.grey : Colors.black54;
-    final borderColor = isDark ? Colors.white70 : Colors.black45;
+
+    // Get controllers from provider
+    final firstNameController = authProvider.firstNameController;
+    final lastNameController = authProvider.lastNameController;
+    final emailController = authProvider.emailController;
+    final phoneController = authProvider.phoneController;
+    final passwordController = authProvider.passwordController;
+    final confirmPasswordController = authProvider.confirmPasswordController;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
+      backgroundColor: isDark ? const Color(0xFF0C0E1A) : Colors.white,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 🔹 Back Arrow Button
+              // Progress bar
               const SignupProgressBar(currentStep: 1, totalSteps: 6),
               const SizedBox(height: 24),
+
+              // Back button and title
               Row(
                 children: [
                   GestureDetector(
@@ -139,111 +127,102 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                 key: _formKey,
                 child: Column(
                   children: [
+                    // First Name
                     _buildLabel("First Name", textColor),
-                    TextFormField(
+                    HoopInput(
                       controller: firstNameController,
-                      decoration: _inputDecoration(
-                        "John",
-                        cardColor,
-                        hintColor,
-                        borderColor,
-                      ),
+                      hintText: "John",
                       validator: (value) => value!.isEmpty
                           ? "Please enter your first name"
                           : null,
                     ),
                     const SizedBox(height: 20),
 
+                    // Last Name
                     _buildLabel("Last Name", textColor),
-                    TextFormField(
+                    HoopInput(
                       controller: lastNameController,
-                      decoration: _inputDecoration(
-                        "Doe",
-                        cardColor,
-                        hintColor,
-                        borderColor,
-                      ),
+                      hintText: 'Doe',
                       validator: (value) =>
                           value!.isEmpty ? "Please enter your last name" : null,
                     ),
                     const SizedBox(height: 20),
 
+                    // Email
                     _buildLabel("Email Address", textColor),
-                    TextFormField(
+                    HoopInput(
                       controller: emailController,
                       keyboardType: TextInputType.emailAddress,
-                      decoration: _inputDecoration(
-                        "john@example.com",
-                        cardColor,
-                        hintColor,
-                        borderColor,
-                      ),
-                      validator: (value) => value!.isEmpty
-                          ? "Please enter your email"
-                          : (!value.contains("@")
-                                ? "Enter a valid email"
-                                : null),
+                      hintText: "john@example.com",
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Please enter your email";
+                        }
+                        if (!value.contains("@") || !value.contains(".")) {
+                          return "Enter a valid email";
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
 
+                    // Phone
                     _buildLabel("Phone Number", textColor),
-                    TextFormField(
+                    HoopInput(
                       controller: phoneController,
                       keyboardType: TextInputType.phone,
-                      decoration: _inputDecoration(
-                        "+234 800 000 0000",
-                        cardColor,
-                        hintColor,
-                        borderColor,
-                      ),
-                      validator: (value) =>
-                          value!.isEmpty ? "Enter your phone number" : null,
+                      hintText: "+234 800 000 0000",
+                      validator: (value) {
+                        if (value!.isEmpty) {
+                          return "Enter your phone number";
+                        }
+                        // Remove non-digits for validation
+                        final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
+                        if (digitsOnly.length < 10 || digitsOnly.length > 15) {
+                          return "Enter a valid phone number (10-15 digits)";
+                        }
+                        return null;
+                      },
                     ),
                     const SizedBox(height: 20),
 
+                    // Password
                     _buildLabel("Password", textColor),
-                    TextFormField(
+                    HoopInput(
                       controller: passwordController,
                       obscureText: !isPasswordVisible,
                       onChanged: (value) => setState(() {}),
-                      decoration:
-                          _inputDecoration(
-                            "Create a strong password",
-                            cardColor,
-                            hintColor,
-                            borderColor,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                isPasswordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: hintColor,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  isPasswordVisible = !isPasswordVisible;
-                                });
-                              },
-                            ),
-                          ),
+                      hintText: "Create a strong password",
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          isPasswordVisible ? Iconsax.eye : Iconsax.eye_slash1,
+                          color: hintColor,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            isPasswordVisible = !isPasswordVisible;
+                          });
+                        },
+                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return "Please enter a password";
                         }
-                        if (!hasMinLength) {
+                        if (value.length < 8) {
                           return "Password must be at least 8 characters";
                         }
-                        if (!hasUppercase) {
+                        if (!value.contains(RegExp(r'[A-Z]'))) {
                           return "Password must contain uppercase letter";
                         }
-                        if (!hasLowercase) {
+                        if (!value.contains(RegExp(r'[a-z]'))) {
                           return "Password must contain lowercase letter";
                         }
-                        if (!hasNumber) {
+                        if (!value.contains(RegExp(r'[0-9]'))) {
                           return "Password must contain a number";
                         }
-                        if (!hasSpecialChar) {
+                        if (!value.contains(
+                          RegExp(r'[!@#$%^&*(),.?":{}|<>]'),
+                        )) {
                           return "Password must contain a special character";
                         }
                         return null;
@@ -259,36 +238,40 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                     ),
                     const SizedBox(height: 8),
 
+                    // Password strength indicator
                     if (passwordController.text.isNotEmpty)
-                      _buildPasswordStrength(isDark, cardColor, textColor),
+                      Consumer<AuthProvider>(
+                        builder: (context, authProvider, child) {
+                          return _buildPasswordStrength(
+                            isDark,
+                            textColor,
+                            authProvider,
+                          );
+                        },
+                      ),
                     const SizedBox(height: 16),
 
+                    // Confirm Password
                     _buildLabel("Confirm Password", textColor),
-                    TextFormField(
+                    HoopInput(
                       controller: confirmPasswordController,
                       obscureText: !isConfirmPasswordVisible,
-                      decoration:
-                          _inputDecoration(
-                            "Confirm your password",
-                            cardColor,
-                            hintColor,
-                            borderColor,
-                          ).copyWith(
-                            suffixIcon: IconButton(
-                              icon: Icon(
-                                isConfirmPasswordVisible
-                                    ? Icons.visibility
-                                    : Icons.visibility_off,
-                                color: hintColor,
-                              ),
-                              onPressed: () {
-                                setState(() {
-                                  isConfirmPasswordVisible =
-                                      !isConfirmPasswordVisible;
-                                });
-                              },
-                            ),
-                          ),
+                      onChanged: (value) => setState(() {}),
+                      hintText: "Confirm your password",
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          isConfirmPasswordVisible
+                              ? Iconsax.eye
+                              : Iconsax.eye_slash1,
+                          color: hintColor,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            isConfirmPasswordVisible =
+                                !isConfirmPasswordVisible;
+                          });
+                        },
+                      ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return "Please confirm your password";
@@ -301,97 +284,80 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                     ),
                     const SizedBox(height: 16),
 
-                    Row(
-                      children: [
-                        Checkbox(
-                          value: agreeToTerms,
-                          onChanged: (value) {
-                            setState(() {
-                              agreeToTerms = value ?? false;
-                            });
-                          },
-                          activeColor: Colors.blueAccent,
-                        ),
-                        Flexible(
-                          child: Wrap(
-                            children: [
-                              Text(
-                                "I agree to the ",
-                                style: TextStyle(color: textColor),
+                    // Terms and Conditions
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        return Row(
+                          children: [
+                            Checkbox(
+                              value: authProvider.acceptTerms,
+                              onChanged: (value) {
+                                authProvider.setAcceptTerms(value ?? false);
+                              },
+                              activeColor: Colors.blueAccent,
+                            ),
+                            Flexible(
+                              child: GestureDetector(
+                                onTap: () {
+                                  // Optionally toggle checkbox on text tap
+                                  authProvider.setAcceptTerms(
+                                    !authProvider.acceptTerms,
+                                  );
+                                },
+                                child: Wrap(
+                                  children: [
+                                    Text(
+                                      "I agree to the ",
+                                      style: TextStyle(color: textColor),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        // Navigate to terms
+                                      },
+                                      child: const Text(
+                                        "Terms of Service",
+                                        style: TextStyle(
+                                          color: Colors.blueAccent,
+                                        ),
+                                      ),
+                                    ),
+                                    Text(
+                                      " and ",
+                                      style: TextStyle(color: textColor),
+                                    ),
+                                    GestureDetector(
+                                      onTap: () {
+                                        // Navigate to privacy policy
+                                      },
+                                      child: const Text(
+                                        "Privacy Policy",
+                                        style: TextStyle(
+                                          color: Colors.blueAccent,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
-                              const Text(
-                                "Terms of Service",
-                                style: TextStyle(color: Colors.blueAccent),
-                              ),
-                              Text(" and ", style: TextStyle(color: textColor)),
-                              const Text(
-                                "Privacy Policy",
-                                style: TextStyle(color: Colors.blueAccent),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
+                            ),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
 
-                    // Gradient button
-                    GestureDetector(
-                      onTap: agreeToTerms ? goToNextStep : null,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 300),
-                        width: double.infinity,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          gradient: agreeToTerms
-                              ? const LinearGradient(
-                                  colors: [
-                                    Color(0xFF0a1866),
-                                    Color(0xFF1347cd),
-                                  ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                )
-                              : LinearGradient(
-                                  colors: [
-                                    isDark
-                                        ? const Color(0xFF1E293B)
-                                        : Colors.grey[300]!,
-                                    isDark
-                                        ? const Color(0xFF1E293B)
-                                        : Colors.grey[300]!,
-                                  ],
-                                  begin: Alignment.centerLeft,
-                                  end: Alignment.centerRight,
-                                ),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: agreeToTerms
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.blueAccent.withOpacity(0.25),
-                                    blurRadius: 12,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                  BoxShadow(
-                                    color: Colors.blueAccent.withOpacity(0.4),
-                                    blurRadius: 20,
-                                    spreadRadius: -4,
-                                  ),
-                                ]
-                              : [],
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          "Send Verification Code →",
-                          style: TextStyle(
-                            color: agreeToTerms
-                                ? Colors.white
-                                : textColor.withOpacity(0.6),
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
+                    // Submit Button
+                    Consumer<AuthProvider>(
+                      builder: (context, authProvider, child) {
+                        return HoopButton(
+                          buttonText: "Send Verification Code →",
+                          onPressed: authProvider.acceptTerms
+                              ? goToNextStep
+                              : null,
+                          isLoading: isLoading,
+                          disabled: !authProvider.acceptTerms,
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -413,11 +379,25 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
     );
   }
 
-  Widget _buildPasswordStrength(bool isDark, Color cardColor, Color textColor) {
+  Widget _buildPasswordStrength(
+    bool isDark,
+    Color textColor,
+    AuthProvider authProvider,
+  ) {
+    // Calculate validation using provider's password text
+    final password = authProvider.passwordController.text;
+    final hasMinLength = password.length >= 8;
+    final hasUppercase = password.contains(RegExp(r'[A-Z]'));
+    final hasLowercase = password.contains(RegExp(r'[a-z]'));
+    final hasNumber = password.contains(RegExp(r'[0-9]'));
+    final hasSpecialChar = password.contains(RegExp(r'[!@#$%^&*(),.?":{}|<>]'));
+    final passwordsMatch =
+        password == authProvider.confirmPasswordController.text;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
+        color: isDark ? const Color(0xFF1C1F2E) : Colors.grey[100],
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -466,6 +446,12 @@ class _SignupStep1ScreenState extends State<SignupStep1Screen> {
                     _PasswordRequirement(
                       text: "Number",
                       isValid: hasNumber,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 8),
+                    _PasswordRequirement(
+                      text: "Passwords match",
+                      isValid: passwordsMatch,
                       isDark: isDark,
                     ),
                   ],

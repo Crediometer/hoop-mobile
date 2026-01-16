@@ -15,16 +15,9 @@ class NotificationIsolateMessage {
   final dynamic data;
   final SendPort? replyPort;
 
-  NotificationIsolateMessage({
-    required this.type,
-    this.data,
-    this.replyPort,
-  });
+  NotificationIsolateMessage({required this.type, this.data, this.replyPort});
 
-  Map<String, dynamic> toJson() => {
-    'type': type,
-    'data': data,
-  };
+  Map<String, dynamic> toJson() => {'type': type, 'data': data};
 }
 
 // Isolate worker class
@@ -34,7 +27,7 @@ class NotificationIsolateWorker {
   final Map<String, List<Map<String, dynamic>>> _notificationsByType = {};
   final Map<String, int> _notificationCounts = {};
   final Map<String, List<Map<String, dynamic>>> _searchCache = {};
-  
+
   NotificationIsolateWorker(this._sendPort);
 
   void handleMessage(NotificationIsolateMessage message) {
@@ -67,30 +60,32 @@ class NotificationIsolateWorker {
       }
     } catch (e, stack) {
       debugPrint('❌ Error in notification isolate: $e\n$stack');
-      _sendPort.send(NotificationIsolateMessage(
-        type: 'error',
-        data: {'error': e.toString(), 'stack': stack.toString()},
-      ));
+      _sendPort.send(
+        NotificationIsolateMessage(
+          type: 'error',
+          data: {'error': e.toString(), 'stack': stack.toString()},
+        ),
+      );
     }
   }
 
   void _processNotificationBatch(List<dynamic> notificationsData) {
     final processed = <Map<String, dynamic>>[];
     final now = DateTime.now().millisecondsSinceEpoch;
-    
+
     for (final data in notificationsData) {
       try {
         final notification = _parseSingleNotification(data);
         processed.add(notification);
-        
+
         // Add to main list
         _notifications.add(notification);
-        
+
         // Index by type for faster filtering
         final type = notification['type']?.toString() ?? 'unknown';
         _notificationsByType.putIfAbsent(type, () => []);
         _notificationsByType[type]!.add(notification);
-        
+
         // Update counts
         if (!(notification['read'] ?? true)) {
           _notificationCounts[type] = (_notificationCounts[type] ?? 0) + 1;
@@ -99,34 +94,46 @@ class NotificationIsolateWorker {
         debugPrint('❌ Error processing notification in isolate: $e');
       }
     }
-    
+
     // Sort by created date (newest first)
     _notifications.sort((a, b) {
-      final dateA = a['createdAt'] is String ? DateTime.parse(a['createdAt']).millisecondsSinceEpoch : a['createdAt'] ?? 0;
-      final dateB = b['createdAt'] is String ? DateTime.parse(b['createdAt']).millisecondsSinceEpoch : b['createdAt'] ?? 0;
+      final dateA = a['createdAt'] is String
+          ? DateTime.parse(a['createdAt']).millisecondsSinceEpoch
+          : a['createdAt'] ?? 0;
+      final dateB = b['createdAt'] is String
+          ? DateTime.parse(b['createdAt']).millisecondsSinceEpoch
+          : b['createdAt'] ?? 0;
       return dateB.compareTo(dateA);
     });
-    
-    _sendPort.send(NotificationIsolateMessage(
-      type: 'notifications_processed',
-      data: {
-        'processed': processed,
-        'counts': _notificationCounts,
-        'timestamp': now,
-      },
-    ));
+
+    _sendPort.send(
+      NotificationIsolateMessage(
+        type: 'notifications_processed',
+        data: {
+          'processed': processed,
+          'counts': _notificationCounts,
+          'timestamp': now,
+        },
+      ),
+    );
   }
 
   void _parseNotificationsJson(String jsonString) {
     try {
       final parsed = jsonDecode(jsonString);
-      final notificationsData = List<Map<String, dynamic>>.from(parsed['notifications'] ?? []);
-      final processed = notificationsData.map(_parseSingleNotification).toList();
-      
-      _sendPort.send(NotificationIsolateMessage(
-        type: 'notifications_parsed',
-        data: processed,
-      ));
+      final notificationsData = List<Map<String, dynamic>>.from(
+        parsed['notifications'] ?? [],
+      );
+      final processed = notificationsData
+          .map(_parseSingleNotification)
+          .toList();
+
+      _sendPort.send(
+        NotificationIsolateMessage(
+          type: 'notifications_parsed',
+          data: processed,
+        ),
+      );
     } catch (e) {
       debugPrint('❌ Error parsing notifications JSON in isolate: $e');
     }
@@ -154,16 +161,23 @@ class NotificationIsolateWorker {
           'id': data['id'] ?? data['_id'] ?? '',
           'title': data['title'] ?? data['subject'] ?? 'Notification',
           'message': data['message'] ?? data['body'] ?? data['content'] ?? '',
-          'type': data['type']?.toString() ?? data['notificationType']?.toString() ?? 'unknown',
+          'type':
+              data['type']?.toString() ??
+              data['notificationType']?.toString() ??
+              'unknown',
           'read': data['read'] ?? data['status'] == 'read' ?? false,
-          'createdAt': data['createdAt'] is String 
-              ? data['createdAt'] 
-              : (data['createdAt'] is DateTime 
-                  ? (data['createdAt'] as DateTime).toIso8601String()
-                  : DateTime.now().toIso8601String()),
+          'createdAt': data['createdAt'] is String
+              ? data['createdAt']
+              : (data['createdAt'] is DateTime
+                    ? (data['createdAt'] as DateTime).toIso8601String()
+                    : DateTime.now().toIso8601String()),
           'metadata': data['metadata'] ?? data['data'] ?? {},
           'senderId': data['senderId'] ?? data['fromUserId'] ?? data['userId'],
-          'senderName': data['senderName'] ?? data['userName'] ?? data['fromUserName'] ?? 'Unknown',
+          'senderName':
+              data['senderName'] ??
+              data['userName'] ??
+              data['fromUserName'] ??
+              'Unknown',
           'actionUrl': data['actionUrl'] ?? data['url'] ?? data['link'],
           'priority': data['priority'] ?? data['importance'] ?? 'normal',
           '_processedAt': DateTime.now().millisecondsSinceEpoch,
@@ -179,39 +193,43 @@ class NotificationIsolateWorker {
   void _searchNotifications(Map<String, dynamic> data) {
     final query = (data['query'] as String?)?.toLowerCase() ?? '';
     final typeFilter = data['type'] as String?;
-    
+
     if (query.isEmpty && typeFilter == null) {
-      _sendPort.send(NotificationIsolateMessage(
-        type: 'search_results',
-        data: {
-          'query': query,
-          'results': _notifications,
-          'count': _notifications.length,
-        },
-      ));
+      _sendPort.send(
+        NotificationIsolateMessage(
+          type: 'search_results',
+          data: {
+            'query': query,
+            'results': _notifications,
+            'count': _notifications.length,
+          },
+        ),
+      );
       return;
     }
-    
+
     // Check cache first
     final cacheKey = '${query}_${typeFilter}';
     if (_searchCache.containsKey(cacheKey)) {
-      _sendPort.send(NotificationIsolateMessage(
-        type: 'search_results',
-        data: {
-          'query': query,
-          'results': _searchCache[cacheKey],
-          'count': _searchCache[cacheKey]!.length,
-          'cached': true,
-        },
-      ));
+      _sendPort.send(
+        NotificationIsolateMessage(
+          type: 'search_results',
+          data: {
+            'query': query,
+            'results': _searchCache[cacheKey],
+            'count': _searchCache[cacheKey]!.length,
+            'cached': true,
+          },
+        ),
+      );
       return;
     }
-    
+
     final List<Map<String, dynamic>> results = [];
-    
+
     for (final notification in _notifications) {
       bool matches = true;
-      
+
       // Type filter
       if (typeFilter != null) {
         final notificationType = notification['type']?.toString() ?? '';
@@ -219,25 +237,26 @@ class NotificationIsolateWorker {
           matches = false;
         }
       }
-      
+
       // Search query
       if (query.isNotEmpty && matches) {
         final title = (notification['title'] as String? ?? '').toLowerCase();
-        final message = (notification['message'] as String? ?? '').toLowerCase();
-        
+        final message = (notification['message'] as String? ?? '')
+            .toLowerCase();
+
         if (!title.contains(query) && !message.contains(query)) {
           matches = false;
         }
       }
-      
+
       if (matches) {
         results.add(notification);
       }
     }
-    
+
     // Cache results
     _searchCache[cacheKey] = results;
-    
+
     // Limit cache size
     if (_searchCache.length > 20) {
       final keys = _searchCache.keys.toList();
@@ -245,102 +264,105 @@ class NotificationIsolateWorker {
         _searchCache.remove(keys[i]);
       }
     }
-    
-    _sendPort.send(NotificationIsolateMessage(
-      type: 'search_results',
-      data: {
-        'query': query,
-        'results': results,
-        'count': results.length,
-      },
-    ));
+
+    _sendPort.send(
+      NotificationIsolateMessage(
+        type: 'search_results',
+        data: {'query': query, 'results': results, 'count': results.length},
+      ),
+    );
   }
 
   void _filterByType(Map<String, dynamic> data) {
     final type = data['type'] as String? ?? '';
     final includeRead = data['includeRead'] as bool? ?? true;
-    
+
     final filtered = _notifications.where((notification) {
       final notificationType = notification['type']?.toString() ?? '';
       final isRead = notification['read'] as bool? ?? false;
-      
+
       bool matchesType = type.isEmpty || notificationType.contains(type);
       bool matchesRead = includeRead || !isRead;
-      
+
       return matchesType && matchesRead;
     }).toList();
-    
-    _sendPort.send(NotificationIsolateMessage(
-      type: 'filtered_results',
-      data: {
-        'type': type,
-        'results': filtered,
-        'count': filtered.length,
-      },
-    ));
+
+    _sendPort.send(
+      NotificationIsolateMessage(
+        type: 'filtered_results',
+        data: {'type': type, 'results': filtered, 'count': filtered.length},
+      ),
+    );
   }
 
   void _calculateCounts(Map<String, dynamic> data) {
-    final List<Map<String, dynamic>> notifications = List.from(data['notifications'] ?? []);
-    
+    final List<Map<String, dynamic>> notifications = List.from(
+      data['notifications'] ?? [],
+    );
+
     int unreadCount = 0;
     int totalCount = notifications.length;
     final typeCounts = <String, int>{};
     final priorityCounts = <String, int>{};
-    
+
     for (final notification in notifications) {
       final isRead = notification['read'] as bool? ?? false;
       if (!isRead) {
         unreadCount++;
-        
+
         final type = notification['type']?.toString() ?? 'unknown';
         typeCounts[type] = (typeCounts[type] ?? 0) + 1;
-        
+
         final priority = notification['priority']?.toString() ?? 'normal';
         priorityCounts[priority] = (priorityCounts[priority] ?? 0) + 1;
       }
     }
-    
-    _sendPort.send(NotificationIsolateMessage(
-      type: 'counts_calculated',
-      data: {
-        'unreadCount': unreadCount,
-        'totalCount': totalCount,
-        'readCount': totalCount - unreadCount,
-        'typeCounts': typeCounts,
-        'priorityCounts': priorityCounts,
-      },
-    ));
+
+    _sendPort.send(
+      NotificationIsolateMessage(
+        type: 'counts_calculated',
+        data: {
+          'unreadCount': unreadCount,
+          'totalCount': totalCount,
+          'readCount': totalCount - unreadCount,
+          'typeCounts': typeCounts,
+          'priorityCounts': priorityCounts,
+        },
+      ),
+    );
   }
 
   void _updateNotification(Map<String, dynamic> data) {
-    final notificationId = data['id'] as String? ?? data['notificationId'] as String?;
+    final notificationId =
+        data['id'] as String? ?? data['notificationId'] as String?;
     final updates = data['updates'] as Map<String, dynamic>? ?? {};
-    
+
     if (notificationId == null) return;
-    
+
     // Update in main list
     final index = _notifications.indexWhere((n) => n['id'] == notificationId);
     if (index != -1) {
       _notifications[index] = {..._notifications[index], ...updates};
-      
+
       // Update type index if type changed
       final oldType = _notifications[index]['type']?.toString() ?? 'unknown';
       final newType = updates['type']?.toString() ?? oldType;
-      
+
       if (oldType != newType) {
         // Remove from old type list
-        _notificationsByType[oldType]?.removeWhere((n) => n['id'] == notificationId);
+        _notificationsByType[oldType]?.removeWhere(
+          (n) => n['id'] == notificationId,
+        );
         // Add to new type list
         _notificationsByType.putIfAbsent(newType, () => []);
         _notificationsByType[newType]!.add(_notifications[index]);
       }
-      
+
       // Update counts if read status changed
       if (updates.containsKey('read')) {
         final isRead = updates['read'] as bool? ?? false;
         final type = newType;
-        
+
         if (isRead) {
           _notificationCounts[type] = (_notificationCounts[type] ?? 1) - 1;
           if (_notificationCounts[type]! <= 0) {
@@ -350,14 +372,16 @@ class NotificationIsolateWorker {
           _notificationCounts[type] = (_notificationCounts[type] ?? 0) + 1;
         }
       }
-      
+
       // Clear search cache since data changed
       _searchCache.clear();
-      
-      _sendPort.send(NotificationIsolateMessage(
-        type: 'notification_updated',
-        data: _notifications[index],
-      ));
+
+      _sendPort.send(
+        NotificationIsolateMessage(
+          type: 'notification_updated',
+          data: _notifications[index],
+        ),
+      );
     }
   }
 
@@ -366,34 +390,38 @@ class NotificationIsolateWorker {
     final limit = (params['limit'] as int?) ?? 20;
     final unreadOnly = params['unreadOnly'] as bool? ?? false;
     final type = params['type'] as String?;
-    
+
     List<Map<String, dynamic>> source = _notifications;
-    
+
     if (unreadOnly) {
       source = source.where((n) => !(n['read'] as bool? ?? true)).toList();
     }
-    
+
     if (type != null && type.isNotEmpty) {
-      source = source.where((n) => (n['type'] as String? ?? '').contains(type)).toList();
+      source = source
+          .where((n) => (n['type'] as String? ?? '').contains(type))
+          .toList();
     }
-    
+
     final start = (page - 1) * limit;
     final end = start + limit;
     final paginated = source.sublist(
       start.clamp(0, source.length),
       end.clamp(0, source.length),
     );
-    
-    _sendPort.send(NotificationIsolateMessage(
-      type: 'notifications_retrieved',
-      data: {
-        'notifications': paginated,
-        'page': page,
-        'limit': limit,
-        'total': source.length,
-        'hasMore': end < source.length,
-      },
-    ));
+
+    _sendPort.send(
+      NotificationIsolateMessage(
+        type: 'notifications_retrieved',
+        data: {
+          'notifications': paginated,
+          'page': page,
+          'limit': limit,
+          'total': source.length,
+          'hasMore': end < source.length,
+        },
+      ),
+    );
   }
 
   void _shutdown() {
@@ -408,7 +436,7 @@ class NotificationIsolateWorker {
 class NotificationWebSocketHandler with ChangeNotifier {
   final BaseWebSocketService socketService;
   final TokenManager tokenManager = TokenManager.instance;
-  
+
   // Isolate Management
   Isolate? _isolate;
   ReceivePort? _isolateReceivePort;
@@ -416,19 +444,19 @@ class NotificationWebSocketHandler with ChangeNotifier {
   bool _isolateInitialized = false;
   final Map<String, Completer<dynamic>> _isolateCompleters = {};
   int _isolateRequestId = 0;
-  
+
   // UI State (lightweight)
   final List<NotificationModel> _notifications = [];
   NotificationModel? _lastNotification;
-  int _unreadCount = 0;
+  ValueNotifier<int> _unreadCount = ValueNotifier(0);
   int _totalCount = 0;
   bool _loading = false;
   String? _error;
   String? _currentUserId;
-  
+
   // Pending event handlers
   final List<MapEntry<String, Function(dynamic)>> _pendingHandlers = [];
-  
+
   // Token monitoring
   Timer? _tokenCheckTimer;
   String? _currentToken;
@@ -441,33 +469,32 @@ class NotificationWebSocketHandler with ChangeNotifier {
   final Duration _batchDelay = const Duration(milliseconds: 100);
   final int _batchSize = 30;
 
-  NotificationWebSocketHandler({
-    required this.socketService,
-  }) {
+  NotificationWebSocketHandler({required this.socketService}) {
     _initialize();
   }
 
   // Getters
-  List<NotificationModel> get notifications => List.unmodifiable(_notifications);
+  List<NotificationModel> get notifications =>
+      List.unmodifiable(_notifications);
   NotificationModel? get lastNotification => _lastNotification;
-  int get unreadCount => _unreadCount;
+  ValueNotifier<int>  get unreadCount => _unreadCount;
   int get totalCount => _totalCount;
   bool get loading => _loading;
   String? get error => _error;
   String? get currentUserId => _currentUserId;
-  
+
   bool get isConnected => socketService.isConnected;
   bool get isConnecting => socketService.isConnecting;
   String? get connectionError => socketService.connectionError;
-  
-  int get readCount => _totalCount - _unreadCount;
+
+  int get readCount => _totalCount - _unreadCount.value;
 
   // Isolate Initialization
   Future<void> _initializeIsolate() async {
     if (_isolateInitialized) return;
 
     _isolateReceivePort = ReceivePort();
-    
+
     try {
       _isolate = await Isolate.spawn(
         _isolateEntryPoint,
@@ -568,22 +595,27 @@ class NotificationWebSocketHandler with ChangeNotifier {
     final completer = Completer<dynamic>();
     final requestId = _isolateRequestId++;
     final completerKey = '${message.type}_$requestId';
-    
+
     _isolateCompleters[completerKey] = completer;
 
     // Setup timeout
     Timer(timeout, () {
-      if (_isolateCompleters.containsKey(completerKey) && !completer.isCompleted) {
-        completer.completeError(TimeoutException('Notification isolate response timeout'));
+      if (_isolateCompleters.containsKey(completerKey) &&
+          !completer.isCompleted) {
+        completer.completeError(
+          TimeoutException('Notification isolate response timeout'),
+        );
         _isolateCompleters.remove(completerKey);
       }
     });
 
-    _isolateSendPort!.send(NotificationIsolateMessage(
-      type: message.type,
-      data: message.data,
-      replyPort: _isolateReceivePort!.sendPort,
-    ));
+    _isolateSendPort!.send(
+      NotificationIsolateMessage(
+        type: message.type,
+        data: message.data,
+        replyPort: _isolateReceivePort!.sendPort,
+      ),
+    );
 
     return completer.future;
   }
@@ -614,7 +646,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
       }
 
       processed = end;
-      
+
       if (processed < total) {
         Future.microtask(() => processChunk());
       } else {
@@ -635,8 +667,10 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
   void _handleSearchResults(Map<String, dynamic> data) {
     final results = List<Map<String, dynamic>>.from(data['results'] ?? []);
-    final searchResults = results.map((n) => NotificationModel.fromJson(n)).toList();
-    
+    final searchResults = results
+        .map((n) => NotificationModel.fromJson(n))
+        .toList();
+
     _emitEvent('search_results', {
       'query': data['query'],
       'results': searchResults,
@@ -647,8 +681,10 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
   void _handleFilteredResults(Map<String, dynamic> data) {
     final results = List<Map<String, dynamic>>.from(data['results'] ?? []);
-    final filteredResults = results.map((n) => NotificationModel.fromJson(n)).toList();
-    
+    final filteredResults = results
+        .map((n) => NotificationModel.fromJson(n))
+        .toList();
+
     _emitEvent('filtered_results', {
       'type': data['type'],
       'results': filteredResults,
@@ -656,10 +692,12 @@ class NotificationWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void _updateSingleNotificationFromIsolate(Map<String, dynamic> notificationData) {
+  void _updateSingleNotificationFromIsolate(
+    Map<String, dynamic> notificationData,
+  ) {
     try {
       final notification = NotificationModel.fromJson(notificationData);
-      
+
       final index = _notifications.indexWhere((n) => n.id == notification.id);
       if (index != -1) {
         _notifications[index] = notification;
@@ -674,8 +712,10 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
   void _addNotificationToUI(NotificationModel notification) {
     // Check if notification already exists
-    final existingIndex = _notifications.indexWhere((n) => n.id == notification.id);
-    
+    final existingIndex = _notifications.indexWhere(
+      (n) => n.id == notification.id,
+    );
+
     if (existingIndex != -1) {
       // Update existing notification
       _notifications[existingIndex] = notification;
@@ -684,7 +724,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
       _notifications.insert(0, notification);
       _lastNotification = notification;
     }
-    
+
     // Play sound/vibrate for new unread notifications
     if (!notification.read) {
       _playNotificationSound();
@@ -695,11 +735,11 @@ class NotificationWebSocketHandler with ChangeNotifier {
   // Batch Processing
   void _queueNotificationForBatch(dynamic data) {
     _notificationBatch.add(data);
-    
+
     if (_batchTimer == null || !_batchTimer!.isActive) {
       _batchTimer = Timer(_batchDelay, _processNotificationBatch);
     }
-    
+
     if (_notificationBatch.length >= _batchSize) {
       _batchTimer?.cancel();
       _processNotificationBatch();
@@ -708,33 +748,35 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
   void _processNotificationBatch() {
     if (_notificationBatch.isEmpty) return;
-    
+
     final batch = List.from(_notificationBatch);
     _notificationBatch.clear();
-    
-    _sendToIsolate(NotificationIsolateMessage(
-      type: 'process_notification_batch',
-      data: batch,
-    ));
+
+    _sendToIsolate(
+      NotificationIsolateMessage(
+        type: 'process_notification_batch',
+        data: batch,
+      ),
+    );
   }
 
   // Main Initialization
   Future<void> _initialize() async {
     await _initializeIsolate();
-    
+
     // Setup connection event handlers
     socketService.onConnected(_handleConnected);
     socketService.onDisconnected(_handleDisconnected);
     socketService.onError(_handleError);
     socketService.onConnecting(_handleConnecting);
     socketService.onReconnectAttempt(_handleReconnectAttempt);
-    
+
     // Setup notification-specific event handlers
     _setupNotificationHandlers();
-    
+
     // Start token monitoring
     _startTokenMonitoring();
-    
+
     // Check initial token and connect if available
     await _checkAndConnect();
   }
@@ -742,10 +784,10 @@ class NotificationWebSocketHandler with ChangeNotifier {
   // Connection Event Handlers
   void _handleConnected() {
     debugPrint('🎉 Notification socket connected');
-    
+
     // Register all pending event handlers
     _registerPendingHandlers();
-    
+
     _loadInitialData();
   }
 
@@ -776,18 +818,18 @@ class NotificationWebSocketHandler with ChangeNotifier {
     for (final handlerEntry in _pendingHandlers) {
       final event = handlerEntry.key;
       final handler = handlerEntry.value;
-      
+
       socketService.socket?.on(event, handler);
       debugPrint('✅ Registered event listener for: $event');
     }
-    
+
     _pendingHandlers.clear();
   }
 
   // Event Management
   void on(String event, Function(dynamic) handler) {
     debugPrint('📝 Registering event listener for: $event');
-    
+
     if (socketService.socket != null && socketService.isConnected) {
       socketService.socket!.on(event, handler);
       debugPrint('✅ Immediately registered event listener for: $event');
@@ -806,7 +848,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
       debugPrint('⚠️ Cannot emit $event: Socket not connected');
       return;
     }
-    
+
     try {
       socketService.socket?.emit(event, data);
       debugPrint('📤 Emitted event: $event');
@@ -830,11 +872,13 @@ class NotificationWebSocketHandler with ChangeNotifier {
     on('notifications_list', (data) async {
       try {
         // Send to isolate for parsing
-        await _sendToIsolate(NotificationIsolateMessage(
-          type: 'parse_notifications_json',
-          data: jsonEncode(data),
-        ));
-        
+        await _sendToIsolate(
+          NotificationIsolateMessage(
+            type: 'parse_notifications_json',
+            data: jsonEncode(data),
+          ),
+        );
+
         _loading = false;
         _emitEvent('notifications_list_processed', data);
       } catch (e) {
@@ -861,10 +905,9 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
     on('counts_updated', (data) {
       // Send to isolate for calculation
-      _sendToIsolate(NotificationIsolateMessage(
-        type: 'calculate_counts',
-        data: data,
-      ));
+      _sendToIsolate(
+        NotificationIsolateMessage(type: 'calculate_counts', data: data),
+      );
     });
 
     on('last_system_message', (data) {
@@ -880,10 +923,9 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
     on('notification_updated', (data) {
       // Send to isolate for processing
-      _sendToIsolate(NotificationIsolateMessage(
-        type: 'update_notification',
-        data: data,
-      ));
+      _sendToIsolate(
+        NotificationIsolateMessage(type: 'update_notification', data: data),
+      );
     });
 
     on('ping', (_) {
@@ -897,7 +939,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
     if (index != -1) {
       _notifications[index] = _notifications[index].copyWith(read: true);
       _calculateCounts();
-      
+
       debugPrint('✅ Marked notification $notificationId as read');
       _notifyListeners();
     }
@@ -908,7 +950,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
       _notifications[i] = _notifications[i].copyWith(read: true);
     }
     _calculateCounts();
-    
+
     debugPrint('✅ All notifications marked as read');
     _notifyListeners();
   }
@@ -916,17 +958,17 @@ class NotificationWebSocketHandler with ChangeNotifier {
   void _handleNotificationDeleted(String notificationId) {
     final initialLength = _notifications.length;
     _notifications.removeWhere((n) => n.id == notificationId);
-    
+
     if (_notifications.length != initialLength) {
       _calculateCounts();
-      
+
       debugPrint('🗑️ Deleted notification $notificationId');
       _notifyListeners();
     }
   }
 
   void _calculateCounts() {
-    _unreadCount = _notifications.where((n) => !n.read).length;
+    _unreadCount.value = _notifications.where((n) => !n.read).length;
     _totalCount = _notifications.length;
   }
 
@@ -934,21 +976,21 @@ class NotificationWebSocketHandler with ChangeNotifier {
   void _loadInitialData() {
     _loading = true;
     _notifyListeners();
-    
-    emit('get_notifications', {
-      'page': 1,
-      'limit': 20,
-      'unreadOnly': false,
-    });
-    
+
+    emit('get_notifications', {'page': 1, 'limit': 20, 'unreadOnly': false});
+
     emit('get_counts');
     emit('get_last_system_message');
   }
 
-  void refreshNotifications({int page = 1, int limit = 20, bool unreadOnly = false}) {
+  void refreshNotifications({
+    int page = 1,
+    int limit = 20,
+    bool unreadOnly = false,
+  }) {
     _loading = true;
     _notifyListeners();
-    
+
     emit('get_notifications', {
       'page': page,
       'limit': limit,
@@ -982,45 +1024,55 @@ class NotificationWebSocketHandler with ChangeNotifier {
   // Search and filtering using isolate
   Future<List<NotificationModel>> searchNotifications(String query) async {
     try {
-      final results = await _sendToIsolate(
-        NotificationIsolateMessage(
-          type: 'search_notifications',
-          data: {'query': query},
-        ),
-        waitForResponse: true,
-      ) as Map<String, dynamic>;
-      
-      final resultsData = List<Map<String, dynamic>>.from(results['results'] ?? []);
+      final results =
+          await _sendToIsolate(
+                NotificationIsolateMessage(
+                  type: 'search_notifications',
+                  data: {'query': query},
+                ),
+                waitForResponse: true,
+              )
+              as Map<String, dynamic>;
+
+      final resultsData = List<Map<String, dynamic>>.from(
+        results['results'] ?? [],
+      );
       return resultsData.map((n) => NotificationModel.fromJson(n)).toList();
     } catch (e) {
       debugPrint('❌ Error searching notifications: $e');
       // Fallback to local search
       if (query.isEmpty) return _notifications;
-      
+
       final lowerQuery = query.toLowerCase();
       return _notifications.where((notification) {
         return notification.title.toLowerCase().contains(lowerQuery) ||
-               (notification.message?.toLowerCase().contains(lowerQuery) ?? false);
+            (notification.message?.toLowerCase().contains(lowerQuery) ?? false);
       }).toList();
     }
   }
 
   Future<List<NotificationModel>> getNotificationsByType(String type) async {
     try {
-      final results = await _sendToIsolate(
-        NotificationIsolateMessage(
-          type: 'filter_by_type',
-          data: {'type': type, 'includeRead': true},
-        ),
-        waitForResponse: true,
-      ) as Map<String, dynamic>;
-      
-      final resultsData = List<Map<String, dynamic>>.from(results['results'] ?? []);
+      final results =
+          await _sendToIsolate(
+                NotificationIsolateMessage(
+                  type: 'filter_by_type',
+                  data: {'type': type, 'includeRead': true},
+                ),
+                waitForResponse: true,
+              )
+              as Map<String, dynamic>;
+
+      final resultsData = List<Map<String, dynamic>>.from(
+        results['results'] ?? [],
+      );
       return resultsData.map((n) => NotificationModel.fromJson(n)).toList();
     } catch (e) {
       debugPrint('❌ Error filtering by type: $e');
       // Fallback
-      return _notifications.where((n) => n.type.toString().contains(type)).toList();
+      return _notifications
+          .where((n) => n.type.toString().contains(type))
+          .toList();
     }
   }
 
@@ -1053,13 +1105,13 @@ class NotificationWebSocketHandler with ChangeNotifier {
   // Token Monitoring Methods
   void _startTokenMonitoring() {
     if (_tokenMonitoringStarted) return;
-    
+
     _tokenMonitoringStarted = true;
-    
+
     _tokenCheckTimer = Timer.periodic(_tokenCheckInterval, (_) async {
       await _checkTokenAndReconnect();
     });
-    
+
     debugPrint('🔐 Started token monitoring for notifications');
   }
 
@@ -1067,7 +1119,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
     _tokenCheckTimer?.cancel();
     _tokenCheckTimer = null;
     _tokenMonitoringStarted = false;
-    
+
     debugPrint('🔐 Stopped token monitoring for notifications');
   }
 
@@ -1075,12 +1127,12 @@ class NotificationWebSocketHandler with ChangeNotifier {
     try {
       final token = await tokenManager.getToken();
       final userId = await _getUserIdFromTokenManager();
-      
+
       if (token != _currentToken || userId != _currentUserId) {
         debugPrint('🔄 Token/user ID changed, reconnecting...');
         await _handleTokenChange(token, userId);
       }
-      
+
       if (token != null) {
         final isExpired = await tokenManager.isTokenExpired();
         if (isExpired) {
@@ -1093,7 +1145,6 @@ class NotificationWebSocketHandler with ChangeNotifier {
         disconnect();
         _clearNotificationData();
       }
-      
     } catch (e) {
       debugPrint('❌ Error checking token: $e');
     }
@@ -1103,7 +1154,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
     try {
       final token = await tokenManager.getToken();
       final userId = await _getUserIdFromTokenManager();
-      
+
       if (token != null && userId != null) {
         await _handleTokenChange(token, userId);
       } else {
@@ -1119,17 +1170,17 @@ class NotificationWebSocketHandler with ChangeNotifier {
   Future<void> _handleTokenChange(String? newToken, String? newUserId) async {
     final oldToken = _currentToken;
     final oldUserId = _currentUserId;
-    
+
     _currentToken = newToken;
     _currentUserId = newUserId;
-    
+
     if (newToken == null || newUserId == null) {
       debugPrint('🔒 No valid token or user ID, disconnecting...');
       disconnect();
       _clearNotificationData();
       return;
     }
-    
+
     if (oldToken == null && oldUserId == null) {
       debugPrint('🔑 First time connection with valid token');
       await connect();
@@ -1154,7 +1205,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
   void _clearNotificationData() {
     _notifications.clear();
     _lastNotification = null;
-    _unreadCount = 0;
+    _unreadCount.value = 0;
     _totalCount = 0;
     _notifyListeners();
   }
@@ -1163,12 +1214,12 @@ class NotificationWebSocketHandler with ChangeNotifier {
   Future<void> connect() async {
     final token = await tokenManager.getToken();
     final userId = await _getUserIdFromTokenManager();
-    
+
     if (token == null || userId == null) {
       debugPrint('⚠️ Cannot connect: No token or user ID available');
       return;
     }
-    
+
     debugPrint('🔌 Connecting to notification socket...');
     await socketService.connect();
   }
@@ -1192,7 +1243,7 @@ class NotificationWebSocketHandler with ChangeNotifier {
 
   void clearNotifications() {
     _notifications.clear();
-    _unreadCount = 0;
+    _unreadCount.value = 0;
     _totalCount = 0;
     _lastNotification = null;
     _notifyListeners();
@@ -1212,12 +1263,12 @@ class NotificationWebSocketHandler with ChangeNotifier {
       _isolate?.kill(priority: Isolate.immediate);
       _isolateReceivePort?.close();
     }
-    
+
     _stopTokenMonitoring();
     _pendingHandlers.clear();
     _batchTimer?.cancel();
     _isolateCompleters.clear();
-    
+
     super.dispose();
   }
 }

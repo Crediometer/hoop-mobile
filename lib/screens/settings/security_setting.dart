@@ -1,11 +1,12 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
 import 'package:hoop/components/buttons/back_button.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/components/inputs/input.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/states/auth_state.dart';
+import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
 
 class SecuritySettingsScreen extends StatefulWidget {
@@ -17,9 +18,7 @@ class SecuritySettingsScreen extends StatefulWidget {
 
 class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   // Password visibility states
-  bool _showCurrentPassword = false;
-  bool _showNewPassword = false;
-  bool _showConfirmPassword = false;
+
   bool _isChangingPassword = false;
   bool _isUpdating2FA = false;
   bool _isUpdatingLoginNotifications = false;
@@ -57,7 +56,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
   final TextEditingController _newPasswordController = TextEditingController();
   final TextEditingController _confirmPasswordController =
       TextEditingController();
-  
+
   final TextEditingController _currentPINController = TextEditingController();
   final TextEditingController _newPINController = TextEditingController();
   final TextEditingController _confirmPINController = TextEditingController();
@@ -344,7 +343,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
 
         Navigator.of(context).pop(); // Close the dialog
         _resetPINForm();
-        
+
         setState(() {
           _pinEnabled = true;
         });
@@ -426,7 +425,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
 
     try {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      
+
       if (enabled) {
         _showSetupPINBottomSheet();
       }
@@ -444,48 +443,49 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     }
   }
 
-  Future<void> _handleBiometricLoginToggle(bool enabled) async {
+  Future<void> _handleBiometricLoginToggle(String email, bool enabled) async {
     setState(() => _isUpdatingBiometricLogin = true);
 
     try {
-      if (enabled) {
-        final canCheckBiometrics = await _localAuth.canCheckBiometrics;
-        
-        if (!canCheckBiometrics) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Biometrics not available on this device"),
-              backgroundColor: Colors.red,
-            ),
-          );
-          setState(() => _biometricLoginEnabled = false);
-          return;
-        }
+      final canCheckBiometrics = await _localAuth.canCheckBiometrics;
 
-        // Authenticate with biometrics before enabling
-        final authenticated = await _localAuth.authenticate(
-          localizedReason: 'Authenticate to enable biometric login',
-          biometricOnly: true,
-          sensitiveTransaction: true,
+      if (!canCheckBiometrics) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Biometrics not available on this device"),
+            backgroundColor: Colors.red,
+          ),
         );
+        setState(() => _biometricLoginEnabled = false);
+        return;
+      }
 
-        if (!authenticated) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Authentication failed"),
-              backgroundColor: Colors.red,
-            ),
-          );
-          setState(() => _biometricLoginEnabled = false);
-          return;
-        }
+      // Authenticate with biometrics before enabling
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Authenticate to enable biometric login',
+        biometricOnly: true,
+        sensitiveTransaction: true,
+      );
+
+      if (!authenticated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Authentication failed"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _biometricLoginEnabled = false);
+        return;
       }
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final updateData = {'biometricLoginEnabled': enabled};
-      final result = await authProvider.updateProfile(updateData);
+
+      final result = await authProvider.enableBiometric(enableLogin: enabled);
+
+      authProvider.saveBiometricCredentials(email, enabled);
 
       if (result.success) {
+        // if (result.success) {
         setState(() => _biometricLoginEnabled = enabled);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -499,7 +499,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              result.message ?? "Failed to update biometric login",
+              result.error ??
+                  result.message ??
+                  "Failed to update biometric login",
             ),
             backgroundColor: Colors.red,
           ),
@@ -524,54 +526,56 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
     setState(() => _isUpdatingBiometricTransaction = true);
 
     try {
-      if (enabled) {
-        // Check if PIN is enabled (prerequisite)
-        if (_pinEnabled != true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Please enable PIN first to use biometric transactions"),
-              backgroundColor: Colors.red,
+      // Check if PIN is enabled (prerequisite)
+      if (_pinEnabled != true) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              "Please enable PIN first to use biometric transactions",
             ),
-          );
-          setState(() => _biometricTransactionEnabled = false);
-          return;
-        }
-
-        final canCheckBiometrics = await _localAuth.canCheckBiometrics;
-        
-        if (!canCheckBiometrics) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Biometrics not available on this device"),
-              backgroundColor: Colors.red,
-            ),
-          );
-          setState(() => _biometricTransactionEnabled = false);
-          return;
-        }
-
-        // Authenticate with biometrics before enabling
-        final authenticated = await _localAuth.authenticate(
-          localizedReason: 'Authenticate to enable biometric transactions',
-          biometricOnly: true,
-          sensitiveTransaction: true,
+            backgroundColor: Colors.red,
+          ),
         );
+        setState(() => _biometricTransactionEnabled = false);
+        return;
+      }
 
-        if (!authenticated) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("Authentication failed"),
-              backgroundColor: Colors.red,
-            ),
-          );
-          setState(() => _biometricTransactionEnabled = false);
-          return;
-        }
+      final canCheckBiometrics = await _localAuth.canCheckBiometrics;
+
+      if (!canCheckBiometrics) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Biometrics not available on this device"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _biometricTransactionEnabled = false);
+        return;
+      }
+
+      // Authenticate with biometrics before enabling
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: 'Authenticate to enable biometric transactions',
+        biometricOnly: true,
+        sensitiveTransaction: true,
+      );
+
+      if (!authenticated) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Authentication failed"),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => _biometricTransactionEnabled = false);
+        return;
       }
 
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final updateData = {'biometricTransactionEnabled': enabled};
-      final result = await authProvider.updateProfile(updateData);
+
+      final result = await authProvider.enableBiometric(
+        enableTransactions: enabled,
+      );
 
       if (result.success) {
         setState(() => _biometricTransactionEnabled = enabled);
@@ -595,7 +599,6 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
         setState(() => _biometricTransactionEnabled = !enabled);
       }
     } catch (error) {
-      print("Biometric transaction toggle error: $error");
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text("An unexpected error occurred"),
@@ -915,17 +918,23 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               const SizedBox(height: 8),
                               _buildRequirement(
                                 '4-6 digits only',
-                                RegExp(r'^[0-9]{4,6}$').hasMatch(_pinForm['newPIN'] ?? ''),
+                                RegExp(
+                                  r'^[0-9]{4,6}$',
+                                ).hasMatch(_pinForm['newPIN'] ?? ''),
                                 isDark: isDark,
                               ),
                               _buildRequirement(
                                 'No repeating patterns',
-                                !RegExp(r'(\d)\1{2,}').hasMatch(_pinForm['newPIN'] ?? ''),
+                                !RegExp(
+                                  r'(\d)\1{2,}',
+                                ).hasMatch(_pinForm['newPIN'] ?? ''),
                                 isDark: isDark,
                               ),
                               _buildRequirement(
                                 'Not sequential (e.g., 1234)',
-                                !RegExp(r'0123|1234|2345|3456|4567|5678|6789|7890').hasMatch(_pinForm['newPIN'] ?? ''),
+                                !RegExp(
+                                  r'0123|1234|2345|3456|4567|5678|6789|7890',
+                                ).hasMatch(_pinForm['newPIN'] ?? ''),
                                 isDark: isDark,
                               ),
                             ],
@@ -1260,7 +1269,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               const SizedBox(height: 8),
                               _buildRequirement(
                                 '4-6 digits only',
-                                RegExp(r'^[0-9]{4,6}$').hasMatch(_pinForm['newPIN'] ?? ''),
+                                RegExp(
+                                  r'^[0-9]{4,6}$',
+                                ).hasMatch(_pinForm['newPIN'] ?? ''),
                                 isDark: isDark,
                               ),
                               _buildRequirement(
@@ -1270,12 +1281,16 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               ),
                               _buildRequirement(
                                 'No repeating patterns',
-                                !RegExp(r'(\d)\1{2,}').hasMatch(_pinForm['newPIN'] ?? ''),
+                                !RegExp(
+                                  r'(\d)\1{2,}',
+                                ).hasMatch(_pinForm['newPIN'] ?? ''),
                                 isDark: isDark,
                               ),
                               _buildRequirement(
                                 'Not sequential',
-                                !RegExp(r'0123|1234|2345|3456|4567|5678|6789|7890').hasMatch(_pinForm['newPIN'] ?? ''),
+                                !RegExp(
+                                  r'0123|1234|2345|3456|4567|5678|6789|7890',
+                                ).hasMatch(_pinForm['newPIN'] ?? ''),
                                 isDark: isDark,
                               ),
                             ],
@@ -1350,9 +1365,6 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
       _currentPasswordController.clear();
       _newPasswordController.clear();
       _confirmPasswordController.clear();
-      _showCurrentPassword = false;
-      _showNewPassword = false;
-      _showConfirmPassword = false;
     });
   }
 
@@ -1517,24 +1529,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            HoopInput(
+                            HoopPasswordInput(
                               controller: _currentPasswordController,
                               hintText: 'Enter current password',
-                              obscureText: !_showCurrentPassword,
+
                               errorText: _formErrors['currentPassword'],
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _showCurrentPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                ),
-                                onPressed: () => setState(() {
-                                  _showCurrentPassword = !_showCurrentPassword;
-                                }),
-                              ),
+
                               onChanged: (value) =>
                                   _handleInputChange('currentPassword', value),
                             ),
@@ -1556,24 +1556,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            HoopInput(
+                            HoopPasswordInput(
                               controller: _newPasswordController,
                               hintText: 'Enter new password',
-                              obscureText: !_showNewPassword,
+
                               errorText: _formErrors['newPassword'],
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _showNewPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                ),
-                                onPressed: () => setState(() {
-                                  _showNewPassword = !_showNewPassword;
-                                }),
-                              ),
+
                               onChanged: (value) =>
                                   _handleInputChange('newPassword', value),
                             ),
@@ -1595,24 +1583,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                               ),
                             ),
                             const SizedBox(height: 8),
-                            HoopInput(
+                            HoopPasswordInput(
                               controller: _confirmPasswordController,
                               hintText: 'Confirm new password',
-                              obscureText: !_showConfirmPassword,
+
                               errorText: _formErrors['confirmPassword'],
-                              suffixIcon: IconButton(
-                                icon: Icon(
-                                  _showConfirmPassword
-                                      ? Icons.visibility
-                                      : Icons.visibility_off,
-                                  color: isDark
-                                      ? Colors.white70
-                                      : Colors.black54,
-                                ),
-                                onPressed: () => setState(() {
-                                  _showConfirmPassword = !_showConfirmPassword;
-                                }),
-                              ),
+
                               onChanged: (value) =>
                                   _handleInputChange('confirmPassword', value),
                             ),
@@ -1777,8 +1753,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
             color: satisfied
                 ? const Color(0xFF10B981)
                 : isDark
-                    ? Colors.white30
-                    : Colors.grey[400],
+                ? Colors.white30
+                : Colors.grey[400],
           ),
           const SizedBox(width: 8),
           Text(
@@ -1788,12 +1764,12 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
               color: satisfied
                   ? const Color(0xFF10B981)
                   : isDark
-                      ? Colors.white60
-                      : Colors.grey[600],
+                  ? Colors.white60
+                  : Colors.grey[600],
             ),
           ),
         ],
-      )
+      ),
     );
   }
 
@@ -1829,8 +1805,8 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                     color: enabled
                         ? HoopTheme.successGreen.withOpacity(0.1)
                         : isDark
-                            ? Colors.grey[700]
-                            : Colors.grey[100],
+                        ? Colors.grey[700]
+                        : Colors.grey[100],
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Icon(
@@ -2246,7 +2222,9 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                                     vertical: 8,
                                   ),
                                 ),
-                                child: Text(_pinEnabled == true ? 'Change' : 'Setup'),
+                                child: Text(
+                                  _pinEnabled == true ? 'Change' : 'Setup',
+                                ),
                               ),
                             ],
                           ),
@@ -2336,7 +2314,7 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                             color: HoopTheme.primaryBlue,
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
-                        ),
+                          ),
                         ),
                         const SizedBox(height: 12),
                         Container(
@@ -2366,7 +2344,11 @@ class _SecuritySettingsScreenState extends State<SecuritySettingsScreen> {
                                 icon: Icons.fingerprint,
                                 enabled: _biometricLoginEnabled ?? false,
                                 isUpdating: _isUpdatingBiometricLogin,
-                                onToggle: _handleBiometricLoginToggle,
+                                onToggle: (enabled) =>
+                                    _handleBiometricLoginToggle(
+                                      user?.email ?? '',
+                                      enabled,
+                                    ),
                                 status: "recommended",
                                 isDark: isDark,
                                 textPrimary: textPrimary,

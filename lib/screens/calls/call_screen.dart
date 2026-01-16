@@ -584,44 +584,7 @@ class _CallScreenState extends State<CallScreen> {
       ),
       child: Column(
         children: [
-          // Quick actions row
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // Speaker toggle
-              _buildControlButton(
-                icon: _isSpeakerEnabled ? Icons.volume_up : Icons.volume_down,
-                label: 'Speaker',
-                isActive: _isSpeakerEnabled,
-                onPressed: _toggleSpeaker,
-              ),
-
-              // Bluetooth toggle
-              _buildControlButton(
-                icon: Icons.bluetooth,
-                label: 'Bluetooth',
-                isActive: _isBluetoothEnabled,
-                onPressed: _toggleBluetooth,
-              ),
-
-              // Record toggle
-              _buildControlButton(
-                icon: _isRecording ? Icons.stop : Icons.fiber_manual_record,
-                label: 'Record',
-                isActive: _isRecording,
-                activeColor: Colors.red,
-                onPressed: _toggleRecording,
-              ),
-
-              // More options
-              _buildControlButton(
-                icon: Icons.more_horiz,
-                label: 'More',
-                onPressed: _showMoreOptions,
-              ),
-            ],
-          ),
-
+       
           SizedBox(height: 20),
 
           // Main controls row
@@ -668,56 +631,15 @@ class _CallScreenState extends State<CallScreen> {
 
               // Add participant
               _buildMainControlButton(
-                icon: Icons.person_add,
-                label: 'Add',
+                icon: Icons.more_horiz,
+                label: 'More',
                 backgroundColor: Colors.white24,
-                onPressed: _addParticipant,
+                onPressed: _showMoreOptions,
               ),
             ],
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildControlButton({
-    required IconData icon,
-    required String label,
-    required VoidCallback onPressed,
-    bool isActive = false,
-    Color activeColor = Colors.blue,
-  }) {
-    return Column(
-      children: [
-        Container(
-          width: 50,
-          height: 50,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: isActive ? activeColor.withOpacity(0.2) : Colors.white10,
-            border: Border.all(
-              color: isActive ? activeColor : Colors.transparent,
-              width: 2,
-            ),
-          ),
-          child: IconButton(
-            icon: Icon(
-              icon,
-              size: 24,
-              color: isActive ? activeColor : Colors.white,
-            ),
-            onPressed: onPressed,
-          ),
-        ),
-        SizedBox(height: 8),
-        Text(
-          label,
-          style: TextStyle(
-            color: isActive ? activeColor : Colors.white70,
-            fontSize: 12,
-          ),
-        ),
-      ],
     );
   }
 
@@ -755,42 +677,7 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  // Control methods
-  void _toggleSpeaker() {
-    setState(() {
-      _isSpeakerEnabled = !_isSpeakerEnabled;
-      // TODO: Implement speaker toggle functionality
-    });
-  }
 
-  void _toggleBluetooth() {
-    setState(() {
-      _isBluetoothEnabled = !_isBluetoothEnabled;
-      // TODO: Implement Bluetooth audio routing
-    });
-  }
-
-  void _toggleRecording() {
-    setState(() {
-      _isRecording = !_isRecording;
-      // TODO: Implement call recording
-      if (_isRecording) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Call recording started'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Call recording stopped'),
-            backgroundColor: Colors.blue,
-          ),
-        );
-      }
-    });
-  }
 
   void _flipCamera() {
     // TODO: Implement camera flipping
@@ -799,33 +686,6 @@ class _CallScreenState extends State<CallScreen> {
     );
   }
 
-  void _addParticipant() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add Participant'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              decoration: InputDecoration(
-                hintText: 'Enter user ID',
-                border: OutlineInputBorder(),
-              ),
-            ),
-            SizedBox(height: 20),
-            ElevatedButton(
-              onPressed: () {
-                // TODO: Implement adding participant by ID
-                Navigator.pop(context);
-              },
-              child: Text('Add'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   void _showMoreOptions() {
     showModalBottomSheet(

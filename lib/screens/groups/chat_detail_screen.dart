@@ -1,12 +1,17 @@
 import 'dart:io';
+import 'dart:math';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/podos/calls/call_models.dart';
+import 'package:hoop/dtos/podos/chats/messages.dart';
 import 'package:hoop/screens/calls/call_screen.dart';
-import 'package:hoop/states/group_state.dart';
+import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
-import 'package:provider/provider.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:smart_overlay_menu/smart_overlay_menu.dart';
 
 class ChatDetailScreen extends StatefulWidget {
@@ -21,6 +26,7 @@ class ChatDetailScreen extends StatefulWidget {
 class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final TextEditingController _messageController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final _random = new Random();
   bool _showSend = false;
   Message? _replyingTo;
   Message? _editingMessage;
@@ -31,13 +37,20 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   final ScrollController _scrollController = ScrollController();
   final _reactionKeys = <String, GlobalKey>{};
 
-  String? get userId => "1";
+  String? userId;
 
   @override
   void initState() {
     super.initState();
     _focusNode.addListener(_updateSendVisibility);
     _messageController.addListener(_updateSendVisibility);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // Code to execute after the frame is rendered
+      final authProvider = context.read<AuthProvider>();
+      userId = authProvider.user?.id.toString();
+      if (mounted) setState(() {});
+    });
   }
 
   void _updateSendVisibility() {
@@ -59,7 +72,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     super.dispose();
   }
 
-  void _sendMessage() {
+  void _sendMessage(ChatWebSocketHandler chatHandler) {
     if (_messageController.text.trim().isEmpty && _attachedFiles.isEmpty)
       return;
 
@@ -69,6 +82,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _cancelReply();
     } else {
       // Send new message
+      final tempId =
+          'temp-${DateTime.now().millisecondsSinceEpoch}-${_random.nextInt(1 << 32).toRadixString(36)}';
+      chatHandler.sendTextMessage(
+        widget.group['id'],
+        _messageController.text.trim(),
+        tempId,
+      );
     }
 
     _messageController.clear();
@@ -212,7 +232,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     final textPrimary = isDark ? Colors.white : Colors.black;
     final textSecondary = isDark ? Colors.grey[400] : Colors.grey[600];
     final handler = context.watch<ChatWebSocketHandler>();
-    final messages = _getMessagesForGroup(handler);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.white,
@@ -281,20 +300,101 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         ),
         actions: [
           IconButton(
-            icon: Icon(Icons.videocam_outlined, color: textPrimary, size: 24),
+            icon: Icon(Iconsax.call, color: textPrimary, size: 24),
             onPressed: () async {
-              final callData = await handler.startWebRTCCall(
-                context,
-                type: 'video',
-                groupId: int.parse(widget.group['id'].toString()),
-                groupName: widget.group["name"],
-              );
+              // final callData = await handler.startWebRTCCall(
+              //   context,
+              //   type: 'video',
+              //   groupId: int.parse(widget.group['id'].toString()),
+              //   groupName: widget.group["name"],
+              // );
 
               Navigator.push(
                 context,
                 MaterialPageRoute(
                   builder: (context) => CallScreen(
-                    callData: callData,
+                    callData: CallData.fromJson({
+                      "callId": "call-1767820600177",
+                      "groupId": 4,
+                      "groupName": "Engineering Team",
+                      "initiator": 1,
+                      "initiatorId": "1",
+                      "initiatorName": "Jon Doe",
+                      "type": "audio",
+                      "status": "ringing",
+                      "participants": [
+                        {
+                          "id": 1,
+                          "userName": "Jon Doe",
+                          "avatar": "https://example.com/avatar1.png",
+                          "role": "caller",
+                          "isAudioMuted": false,
+                          "isVideoMuted": false,
+                          "socketId": 101,
+                        },
+                        {
+                          "id": 2,
+                          "userName": "Jane Smith",
+                          "avatar": "https://example.com/avatar2.png",
+                          "role": "callee",
+                          "isAudioMuted": true,
+                          "isVideoMuted": false,
+                          "socketId": 102,
+                        },
+                      ],
+                      "timestamp": "2026-01-07T21:16:41.057Z",
+                    }),
+                    webrtcManager: handler.webrtcManager,
+                  ),
+                ),
+              );
+            },
+          ),
+          IconButton(
+            icon: Icon(Iconsax.video, color: textPrimary, size: 24),
+            onPressed: () async {
+              // final callData = await handler.startWebRTCCall(
+              //   context,
+              //   type: 'video',
+              //   groupId: int.parse(widget.group['id'].toString()),
+              //   groupName: widget.group["name"],
+              // );
+
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CallScreen(
+                    callData: CallData.fromJson({
+                      "callId": "call-1767820600177",
+                      "groupId": 4,
+                      "groupName": "Engineering Team",
+                      "initiator": 1,
+                      "initiatorId": "1",
+                      "initiatorName": "Jon Doe",
+                      "type": "video",
+                      "status": "ringing",
+                      "participants": [
+                        {
+                          "id": 1,
+                          "userName": "Jon Doe",
+                          "avatar": "https://example.com/avatar1.png",
+                          "role": "caller",
+                          "isAudioMuted": false,
+                          "isVideoMuted": false,
+                          "socketId": 101,
+                        },
+                        {
+                          "id": 2,
+                          "userName": "Jane Smith",
+                          "avatar": "https://example.com/avatar2.png",
+                          "role": "callee",
+                          "isAudioMuted": true,
+                          "isVideoMuted": false,
+                          "socketId": 102,
+                        },
+                      ],
+                      "timestamp": "2026-01-07T21:16:41.057Z",
+                    }),
                     webrtcManager: handler.webrtcManager,
                   ),
                 ),
@@ -369,92 +469,102 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
               color: isDark ? Colors.white10 : Colors.grey[200],
             ),
             Expanded(
-              child: ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                reverse: true,
-                itemCount: messages.length + 1,
-                itemBuilder: (context, index) {
-                  if (index == 0) {
-                    return const Column(
-                      children: [
-                        Center(
-                          child: Padding(
-                            padding: EdgeInsets.symmetric(vertical: 8),
+              child: ValueListenableBuilder<List<MessageGroup>>(
+                valueListenable: handler.messages,
+                builder: (context, value, child) {
+                  final messages = _getMessagesForGroup(value);
+                  return ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 16,
+                    ),
+                    // reverse: true,
+                    itemCount: messages.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return const Column(
+                          children: [
+                            Center(
+                              child: Padding(
+                                padding: EdgeInsets.symmetric(vertical: 8),
+                                child: Text(
+                                  "Today",
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+
+                      final message = messages[index - 1];
+
+                      if (message.messageType?.toLowerCase() == 'system') {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withOpacity(0.05)
+                                  : Colors.grey[200]?.withOpacity(0.5),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
                             child: Text(
-                              "Today",
+                              message.content,
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
+                                color: textSecondary,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
                           ),
-                        ),
-                      ],
-                    );
-                  }
+                        );
+                      }
 
-                  final message = messages[index - 1];
+                      final messageKey = _reactionKeys.putIfAbsent(
+                        message.id.toString(),
+                        () => GlobalKey(),
+                      );
 
-                  if (message.messageType?.toLowerCase() == 'system') {
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.05)
-                              : Colors.grey[200]?.withOpacity(0.5),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          message.content,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: textSecondary,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                      return Padding(
+                        key: messageKey,
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: SmartOverlayMenu(
+                          topWidgetAlignment: message.isFromUser(userId ?? '')
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          bottomWidgetAlignment:
+                              message.isFromUser(userId ?? '')
+                              ? Alignment.centerRight
+                              : Alignment.centerLeft,
+                          repositionAnimationDuration: Duration(
+                            microseconds: 1,
+                          ),
+                          repositionAnimationCurve: Curves.easeInOut,
+                          controller: smartOverlayMenuController,
+
+                          topWidget: _buildReactionOverlay(message),
+                          openWithTap: true,
+                          bottomWidget: _buildMessageMenu(message),
+                          child: _MessageBubble(
+                            message: message,
+                            userId: userId ?? '',
+                            isDark: isDark,
+                            textPrimary: textPrimary,
                           ),
                         ),
-                      ),
-                    );
-                  }
-
-                  final messageKey = _reactionKeys.putIfAbsent(
-                    message.id.toString(),
-                    () => GlobalKey(),
-                  );
-
-                  return Padding(
-                    key: messageKey,
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: SmartOverlayMenu(
-                      topWidgetAlignment: message.isFromUser(userId ?? '')
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      bottomWidgetAlignment: message.isFromUser(userId ?? '')
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      repositionAnimationDuration: Duration(microseconds: 5),
-                      repositionAnimationCurve: Curves.linear,
-                      controller: smartOverlayMenuController,
-                      topWidget: _buildReactionOverlay(message),
-                      openWithTap: true,
-                      bottomWidget: _buildMessageMenu(message),
-                      child: _MessageBubble(
-                        message: message,
-                        userId: userId ?? '',
-                        isDark: isDark,
-                        textPrimary: textPrimary,
-                      ),
-                    ),
+                      );
+                    },
                   );
                 },
               ),
@@ -588,7 +698,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                   ),
                                   border: InputBorder.none,
                                 ),
-                                onSubmitted: (_) => _sendMessage(),
+                                onSubmitted: (_) => _sendMessage(handler),
                               ),
                             ),
                           ),
@@ -596,7 +706,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                             Container(
                               margin: const EdgeInsets.all(4),
                               child: InkWell(
-                                onTap: _sendMessage,
+                                onTap: () => _sendMessage(handler),
                                 borderRadius: BorderRadius.circular(20),
                                 child: Container(
                                   width: 40,
@@ -777,9 +887,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
   }
 
-  List<Message> _getMessagesForGroup(ChatWebSocketHandler handler) {
+  List<Message> _getMessagesForGroup(List<MessageGroup> messages) {
     try {
-      return handler.messages.value
+      return messages
           .firstWhere(
             (msg) => msg.groupId.toString() == widget.group['id'].toString(),
           )
@@ -1474,7 +1584,6 @@ class _FullEmojiBottomSheetState extends State<_FullEmojiBottomSheet> {
       ),
       child: Column(
         children: [
-          // Header with message preview
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(

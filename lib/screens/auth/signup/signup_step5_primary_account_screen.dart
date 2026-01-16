@@ -101,15 +101,31 @@ class _SetupPrimaryAccountScreenState extends State<SetupPrimaryAccountScreen> {
                     "Select your bank",
                     style: TextStyle(color: hintColor),
                   ),
-                  items: const [
-                    DropdownMenuItem(
-                      value: "SBI",
-                      child: Text("State Bank of India"),
-                    ),
-                    DropdownMenuItem(value: "HDFC", child: Text("HDFC Bank")),
-                    DropdownMenuItem(value: "ICICI", child: Text("ICICI Bank")),
-                    DropdownMenuItem(value: "AXIS", child: Text("Axis Bank")),
-                  ],
+                  items:
+                      [
+                            "Access Bank",
+                            "First Bank",
+                            "GTBank",
+                            "UBA",
+                            "Zenith Bank",
+                            "Fidelity Bank",
+                            "FCMB",
+                            "Sterling Bank",
+                            "Union Bank",
+                            "Wema Bank",
+                            "Polaris Bank",
+                            "Stanbic IBTC",
+                            "Heritage Bank",
+                            "Keystone Bank",
+                          ]
+                          .map(
+                            (toElement) => DropdownMenuItem(
+                              value: toElement,
+                              child: Text(toElement),
+                            ),
+                          )
+                          .toList(),
+
                   onChanged: (value) {
                     setState(() => selectedBank = value);
                   },
@@ -447,13 +463,14 @@ class _VerifyPrimaryAccountScreenState
                         child: HoopButton(
                           onPressed: isAgreed
                               ? () async {
-                                  await OnboardingService.markOnboardingComplete();
-                                  // Mark setup complete and return true to previous screen
-                                  final prefs =
-                                      await SharedPreferences.getInstance();
-                                  await prefs.setBool('needsSetup', false);
-                                  if (!mounted) return;
-                                  Navigator.pop(context, true);
+                                  try {
+                                    await OnboardingService.markOnboardingComplete();
+
+                                    Navigator.pop(context, true);
+                                  } on Exception catch (e) {
+                                    debugPrint("Stakkkkk -==== "+e.toString());
+                                    // TODO
+                                  }
                                 }
                               : null,
                           buttonText: "I have sent ₦100.00",

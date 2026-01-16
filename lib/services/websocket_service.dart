@@ -321,7 +321,7 @@ class BaseWebSocketService with ChangeNotifier {
     try {
       _socket!.emit(event, data);
     } catch (e) {
-      debugPrint('❌ Error emitting event $event: $e');
+      debugPrint('❌ op Error emitting event $event: $e');
     }
   }
 

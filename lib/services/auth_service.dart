@@ -19,7 +19,6 @@ class AuthHttpService extends BaseHttpService {
 
   // ==================== AUTHENTICATION METHODS ====================
 
-
   Future<ApiResponse<AuthResponse>> login({
     required String email,
     required String password,
@@ -111,6 +110,17 @@ class AuthHttpService extends BaseHttpService {
     String? deviceFingerprint,
   }) async {
     try {
+      print(
+        """ {
+          'email': email,
+          'otp': otp,
+          'requestId': requestId,
+          'sessionId': sessionId,
+          'deviceId': deviceId,
+          if (deviceName != null) 'deviceName': deviceName,
+          if (deviceFingerprint != null) 'deviceFingerprint': deviceFingerprint,
+        }?? ${{'email': email, 'otp': otp, 'requestId': requestId, 'sessionId': sessionId, 'deviceId': deviceId, if (deviceName != null) 'deviceName': deviceName, if (deviceFingerprint != null) 'deviceFingerprint': deviceFingerprint}}""",
+      );
       final response = await postTyped<AuthResponse>(
         'auth/verify-new-device',
         body: {
@@ -141,25 +151,17 @@ class AuthHttpService extends BaseHttpService {
   }
 
   Future<ApiResponse<dynamic>> enableBiometric({
-    required String email,
-    required String deviceId,
-    required String pin,
-    bool enableLogin = false,
-    bool enableTransactions = false,
-    String? otp,
-    String? requestId,
+    required String biometricToken,
+    bool? enableLogin = false,
+    bool? enableTransactions = false,
   }) async {
     try {
       return await postTyped<dynamic>(
         'auth/enable-biometric',
         body: {
-          'email': email,
-          'deviceId': deviceId,
-          'pin': pin,
-          'enableLogin': enableLogin,
+          'biometricToken': biometricToken,
           'enableTransactions': enableTransactions,
-          if (otp != null) 'otp': otp,
-          if (requestId != null) 'requestId': requestId,
+          'enableLogin': enableLogin,
         },
         fromJson: (json) => json,
       );
