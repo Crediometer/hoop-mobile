@@ -40,7 +40,7 @@ on:
         default: 'both'
 
 env:
-  FLUTTER_VERSION: "3.19.0"
+  FLUTTER_VERSION: "3.35.1"
 
 jobs:
   # ========== SETUP & VALIDATION ==========
