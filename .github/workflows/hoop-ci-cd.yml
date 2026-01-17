@@ -316,13 +316,7 @@ jobs:
       - name: "🎯 Select entry point"
         run: |
           ENV="${{ needs.setup.outputs.environment }}"
-          if [[ "$ENV" == "development" ]]; then
-            ENTRY_POINT="lib/main_dev.dart"
-          elif [[ "$ENV" == "staging" ]]; then
-            ENTRY_POINT="lib/main_staging.dart"
-          else
-            ENTRY_POINT="lib/main_prod.dart"
-          fi
+          ENTRY_POINT="lib/main.dart"
           echo "ENTRY_POINT=$ENTRY_POINT" >> $GITHUB_ENV
           echo "Using entry point: $ENTRY_POINT"
       
