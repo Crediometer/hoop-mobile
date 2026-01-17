@@ -216,7 +216,6 @@ class GroupCommunityProvider extends ChangeNotifier {
   Future<ApiResponse<GroupDetails>> getGroup(String id) async {
     try {
       final response = await _groupService.getGroup(id);
-      print("response???? ${response.data}");
       if (response.success && response.data != null) {
         _currentGroup = response.data;
         notifyListeners();

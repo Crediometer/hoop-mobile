@@ -10,6 +10,7 @@ import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/screens/groups/chat_detail_screen.dart';
 import 'package:hoop/screens/groups/create_group.dart';
 import 'package:hoop/states/OnboardingService.dart';
+import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
@@ -30,6 +31,18 @@ class _GroupsTabState extends State<GroupsTab> {
   bool _showSearch = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? userId;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      userId = authProvider.user?.id.toString();
+      _loadGroupCounts();
+    });
+  }
 
   // Group counts from backend
   Map<String, int> _groupCounts = {
@@ -38,14 +51,6 @@ class _GroupsTabState extends State<GroupsTab> {
     'pending': 0,
     'rejected': 0,
   };
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadGroupCounts();
-    });
-  }
 
   @override
   void dispose() {
@@ -228,6 +233,7 @@ class _GroupsTabState extends State<GroupsTab> {
       body: SafeArea(
         child: Consumer<ChatWebSocketHandler>(
           builder: (context, handler, child) {
+            print("${handler.messages.value.length} dfgdfds");
             return Column(
               children: [
                 // HEADER
@@ -453,6 +459,7 @@ class _GroupsTabState extends State<GroupsTab> {
               group: group,
               isDark: isDark,
               textPrimary: textPrimary,
+              userId: userId,
               textSecondary: textSecondary,
               message: (mgs != null && mgs.messages.isNotEmpty)
                   ? mgs.messages.last
@@ -755,14 +762,19 @@ class _GroupsTabState extends State<GroupsTab> {
               builder: (context, value, child) {
                 if (value) return SizedBox.shrink();
 
-                return Text(
-                  "Connecting...",
-                  style: TextStyle(
-                    color: const Color(0xFF080953),
-                    fontSize: 14,
-                    fontWeight: FontWeight.normal,
-                    fontFamily: 'Inter',
-                  ),
+                return Row(
+                  children: [
+                    CupertinoActivityIndicator(),
+                    Text(
+                      "Connecting...",
+                      style: TextStyle(
+                        color: const Color(0xFF080953),
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
@@ -793,7 +805,11 @@ class _GroupsTabState extends State<GroupsTab> {
                   ),
                   child: IconButton(
                     onPressed: () {},
-                    icon: Icon(Iconsax.message_tick, color: textPrimary, size: 22),
+                    icon: Icon(
+                      Iconsax.message_tick,
+                      color: textPrimary,
+                      size: 22,
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 44,
@@ -954,6 +970,7 @@ class _GroupsTabState extends State<GroupsTab> {
 class _GroupCardWithPreview extends StatefulWidget {
   final Group group;
   final bool isDark;
+  final String? userId;
   final Color textPrimary;
   final Color? textSecondary;
   final Message? message;
@@ -964,6 +981,7 @@ class _GroupCardWithPreview extends StatefulWidget {
     required this.isDark,
     required this.textPrimary,
     required this.textSecondary,
+    required this.userId,
     required this.message,
     required this.allMessages,
   });
@@ -1070,8 +1088,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
   Widget _buildPreviewContent() {
     // Get the current user ID from your authentication state
-    final currentUserId = '1'; // Replace with actual user ID
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Find messages for this group
     MessageGroup? groupMessages;
     try {
@@ -1123,12 +1139,10 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                 GestureDetector(
                   onTap: () {
                     _previewController.close();
-                    Navigator.push(
+                    Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ChatDetailScreen(group: _groupToMap(widget.group)),
-                      ),
+                      '/chat/detail',
+                      arguments: _groupToMap(widget.group),
                     );
                   },
                   child: Container(
@@ -1219,7 +1233,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
           // Messages preview
           Container(
-            constraints: const BoxConstraints(maxHeight: 250),
+            constraints: const BoxConstraints(maxHeight: 350),
             child: messages.isEmpty
                 ? Container(
                     height: 120,
@@ -1238,12 +1252,13 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                       horizontal: 12,
                       vertical: 8,
                     ),
+                    reverse: true,
                     shrinkWrap: true,
                     physics: const ClampingScrollPhysics(),
-                    itemCount: min(messages.length, 3),
+                    itemCount: min(messages.length, 7),
                     itemBuilder: (context, index) {
                       final message = messages[index];
-                      final isOwn = message.isFromUser(currentUserId);
+                      final isOwn = message.isFromUser(widget.userId ?? '');
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 6),
@@ -1287,97 +1302,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                     },
                   ),
           ),
-
-          // Open chat button
-          // Row(
-          //   children: [
-          //     IconButton(
-          //       onPressed: () => Navigator.of(context).pop(),
-          //       icon: Icon(
-          //         Icons.call_outlined,
-          //         color: Theme.of(context).colorScheme.onBackground,
-          //       ),
-          //       style: IconButton.styleFrom(
-          //         backgroundColor: HoopTheme.getCategoryBackgroundColor(
-          //           'back_button',
-          //           isDark,
-          //         ),
-          //         shape: RoundedRectangleBorder(
-          //           borderRadius: BorderRadius.circular(12),
-          //         ),
-          //       ),
-          //     ),
-          //     IconButton(
-          //       onPressed: () => Navigator.of(context).pop(),
-          //       icon: Icon(
-          //         Icons.video_call_outlined,
-          //         color: Theme.of(context).colorScheme.onBackground,
-          //       ),
-          //       style: IconButton.styleFrom(
-          //         backgroundColor: HoopTheme.getCategoryBackgroundColor(
-          //           'back_button',
-          //           isDark,
-          //         ),
-          //         shape: RoundedRectangleBorder(
-          //           borderRadius: BorderRadius.circular(12),
-          //         ),
-          //       ),
-          //     ),
-          //     Expanded(
-          //       child: Container(
-          //         padding: const EdgeInsets.all(12),
-          //         child: GestureDetector(
-          //           onTap: () {
-          //             _previewController.close();
-          //             Navigator.push(
-          //               context,
-          //               MaterialPageRoute(
-          //                 builder: (context) => ChatDetailScreen(
-          //                   group: _groupToMap(widget.group),
-          //                 ),
-          //               ),
-          //             );
-          //           },
-          //           child: Container(
-          //             width: double.infinity,
-          //             padding: const EdgeInsets.symmetric(vertical: 10),
-          //             decoration: BoxDecoration(
-          //               color: HoopTheme.primaryBlue,
-          //               borderRadius: BorderRadius.circular(8),
-          //             ),
-          //             child: Center(
-          //               child: Text(
-          //                 'Open Chat',
-          //                 style: const TextStyle(
-          //                   color: Colors.white,
-          //                   fontSize: 14,
-          //                   fontWeight: FontWeight.w600,
-          //                 ),
-          //               ),
-          //             ),
-          //           ),
-          //         ),
-          //       ),
-          //     ),
-
-          //     IconButton(
-          //       onPressed: () => Navigator.of(context).pop(),
-          //       icon: Icon(
-          //         Icons.done_all_outlined,
-          //         color: Theme.of(context).colorScheme.onBackground,
-          //       ),
-          //       style: IconButton.styleFrom(
-          //         backgroundColor: HoopTheme.getCategoryBackgroundColor(
-          //           'back_button',
-          //           isDark,
-          //         ),
-          //         shape: RoundedRectangleBorder(
-          //           borderRadius: BorderRadius.circular(12),
-          //         ),
-          //       ),
-          //     ),
-          //   ],
-          // ),
         ],
       ),
     );
@@ -1401,7 +1325,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
       bottomWidgetAlignment: Alignment.centerLeft,
       repositionAnimationCurve: Curves.easeInOut,
-      bottomWidget: _buildMessageMenu(widget.group),
+      bottomWidget: _buildMessageMenu(handler, widget.group),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -1555,7 +1479,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
     );
   }
 
-  Widget _buildMessageMenu(Group group) {
+  Widget _buildMessageMenu(ChatWebSocketHandler handler, Group group) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
@@ -1578,26 +1502,59 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
           _buildMenuTile(
             icon: CupertinoIcons.reply,
             label: 'Open Chat',
-            onTap: () {},
+            onTap: () {
+              _previewController.close();
+              Navigator.pushNamed(
+                context,
+                '/chat/detail',
+                arguments: _groupToMap(group),
+              );
+            },
           ),
           _buildMenuTile(
             icon: Iconsax.message_tick,
             label: 'Read All Messages',
-            onTap: () {},
+            onTap: () {
+              _previewController.close();
+              handler.markAllGroupMessagesAsRead(group.id);
+            },
           ),
           _buildMenuTile(
             icon: Iconsax.call,
             label: 'Audio Call Group',
-            onTap: () {},
+            onTap: () async {
+              _previewController.close();
+              final callData = await handler.startWebRTCCall(
+                context,
+                type: 'video',
+                groupId: group.id.toInt(),
+                groupName: group.name,
+              );
+            },
           ),
           _buildMenuTile(
             icon: Iconsax.video,
             label: 'Video Call Group',
-            onTap: () {
-              // _showFullEmojiPickerForMessage(message);
+            onTap: () async {
+              _previewController.close();
+              final callData = await handler.startWebRTCCall(
+                context,
+                type: 'video',
+                groupId: group.id.toInt(),
+                groupName: group.name,
+              );
             },
           ),
+          const SizedBox(height: 4),
 
+          _buildMenuTile(
+            icon: Iconsax.profile_delete,
+            label: 'Leave Group',
+            isDestructive: true,
+            onTap: () async {
+              _previewController.close();
+            },
+          ),
           const SizedBox(height: 8),
         ],
       ),

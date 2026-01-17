@@ -1,11 +1,10 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hoop/dtos/podos/calls/call_models.dart';
-import 'package:hoop/services/audio/SynthNotificationAudio.dart';
 import 'package:hoop/services/callkit_integration.dart';
 import 'package:hoop/states/webrtc_manager.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
-import 'dart:async';
 
 class OneSignalService extends ChangeNotifier {
   // Singleton instance
@@ -471,9 +470,7 @@ class OneSignalService extends ChangeNotifier {
 
     // Foreground notification listener
     OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      print(
-        'FOREGROUND NOTIFICATION: ${event.notification.additionalData}',
-      );
+      print('FOREGROUND NOTIFICATION: ${event.notification.additionalData}');
 
       // Update counts
       _notificationCount++;
@@ -481,47 +478,16 @@ class OneSignalService extends ChangeNotifier {
       _notificationCountController.add(_notificationCount);
       _unreadCountController.add(_unreadCount);
 
-      if (event.notification.rawPayload != null) {
+      if (event.notification.rawPayload?['type'] == 'call') {
         // destiny...
-        _webrtcManager.setIncomingCall(CallData.fromJson({
-            "callId": "call-1767820600177",
-            "groupId": 4,
-            "groupName": "Engineering Team",
-            "initiator": 1,
-            "initiatorId": "1",
-            "initiatorName": "Jon Doe",
-            "type": "video",
-            "status": "ringing",
-            "participants": [
-              {
-                "id": 1,
-                "userName": "Jon Doe",
-                "avatar": "https://example.com/avatar1.png",
-                "role": "caller",
-                "isAudioMuted": false,
-                "isVideoMuted": false,
-                "socketId": 101
-              },
-              {
-                "id": 2,
-                "userName": "Jane Smith",
-                "avatar": "https://example.com/avatar2.png",
-                "role": "callee",
-                "isAudioMuted": true,
-                "isVideoMuted": false,
-                "socketId": 102
-              }
-            ],
-            "timestamp": "2026-01-07T21:16:41.057Z"
-          }
-        ));
+        _webrtcManager.setIncomingCall(
+          CallData.fromJson(event.notification.rawPayload!),
+        );
       } else {
         // Call custom handler if provided
         _onForegroundNotification?.call(event);
       }
       //
-
-
 
       // Update debug label
       _debugLabelString =
@@ -531,6 +497,45 @@ class OneSignalService extends ChangeNotifier {
 
     // In-app message listeners
     _setupInAppMessageHandlers();
+  }
+
+  // In OneSignalService class
+
+  Future<void> subscribeToGroupTags(List<num> groupIds) async {
+    try {
+      final tags = <String, String>{};
+
+      for (final groupId in groupIds) {
+        // Format: group_8 -> true
+        tags['group_$groupId'] = 'true';
+      }
+
+      await OneSignal.User.addTags(tags);
+
+      // Update local cache
+      _notificationTags.addAll(tags);
+
+      print('✅ Subscribed to group tags: ${tags.keys.join(', ')}');
+      notifyListeners();
+    } catch (error) {
+      print('❌ Error subscribing to group tags: $error');
+    }
+  }
+
+  Future<void> unsubscribeFromGroupTags(List<num> groupIds) async {
+    try {
+      for (final groupId in groupIds) {
+        await OneSignal.User.removeTag('group_$groupId');
+        _notificationTags.remove('group_$groupId');
+      }
+
+      print(
+        '✅ Unsubscribed from group tags: ${groupIds.map((id) => 'group_$id').join(', ')}',
+      );
+      notifyListeners();
+    } catch (error) {
+      print('❌ Error unsubscribing from group tags: $error');
+    }
   }
 
   void _setupInAppMessageHandlers() {
