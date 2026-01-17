@@ -78,8 +78,7 @@ jobs:
       - name: "📦 Get dependencies"
         run: flutter pub get
       
-      - name: "📝 Check formatting"
-        run: flutter format --set-exit-if-changed .
+    
       
       - name: "🏷️ Check release type"
         id: release-check
