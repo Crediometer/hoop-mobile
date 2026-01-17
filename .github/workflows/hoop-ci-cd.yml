@@ -8,7 +8,6 @@ env:
   FLUTTER_VERSION: "3.19.0"
 
 jobs:
-
   android:
     runs-on: macos-latest
     environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
@@ -48,30 +47,31 @@ jobs:
             flutter build appbundle -t lib/main_prod.dart
           fi
 
-      # Deploy
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: 3.2
-          bundler-cache: true
+      # Setup Fastlane for Android
+      - name: Setup Fastlane
+        run: |
+          gem install bundler
+          cd android && bundle install
 
-      - name: Deploy Android
+      # Deploy to Play Store
+      - name: Deploy Android to Internal Testing
         env:
           PLAY_STORE_JSON: ${{ secrets.PLAY_STORE_JSON }}
         run: |
           echo "$PLAY_STORE_JSON" > android/play.json
-
+          cd android
+          
           if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            bundle exec fastlane android internal
+            bundle exec fastlane internal
           elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
-            bundle exec fastlane android beta
+            bundle exec fastlane beta
           else
-            bundle exec fastlane android prod
+            bundle exec fastlane release
           fi
-
 
   ios:
     runs-on: macos-latest
-    needs: android
+    needs: android  # Optional: remove if you want parallel builds
     environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
 
     steps:
@@ -84,26 +84,67 @@ jobs:
       - run: flutter pub get
       - run: flutter pub run cider bump build --build $GITHUB_RUN_NUMBER
 
+      # Setup iOS certificates
+      - name: Install Apple certificates
+        env:
+          IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
+          IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+          IOS_PROVISIONING_BASE64: ${{ secrets.IOS_PROVISIONING_BASE64 }}
+        run: |
+          # Create keychain
+          security create-keychain -p "" build.keychain
+          security default-keychain -s build.keychain
+          security unlock-keychain -p "" build.keychain
+          security set-keychain-settings -t 3600 -u build.keychain
+          
+          # Import certificate
+          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security import certificate.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          
+          # Import provisioning profile
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROVISIONING_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          
+          # Set keychain settings
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+
+      # Build iOS with codesign
       - name: Build iOS
         run: |
+          cd ios
+          pod install
+          cd ..
+          
           if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            flutter build ios -t lib/main_dev.dart --no-codesign
+            flutter build ipa -t lib/main_dev.dart --export-options-plist=ios/export_options.plist
           elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
-            flutter build ios -t lib/main_staging.dart --no-codesign
+            flutter build ipa -t lib/main_staging.dart --export-options-plist=ios/export_options.plist
           else
-            flutter build ios -t lib/main_prod.dart --no-codesign
+            flutter build ipa -t lib/main_prod.dart --export-options-plist=ios/export_options.plist
           fi
 
-      - name: Deploy iOS
+      # Setup Fastlane for iOS
+      - name: Setup Fastlane
+        run: |
+          gem install bundler
+          cd ios && bundle install
+
+      # Deploy to TestFlight
+      - name: Deploy iOS to TestFlight
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
           APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
         run: |
+          cd ios
+          
           if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            bundle exec fastlane ios testflight_internal
+            # Internal TestFlight (developer/internal testing)
+            bundle exec fastlane beta internal_testing:true
           elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
-            bundle exec fastlane ios testflight_external
+            # External TestFlight
+            bundle exec fastlane beta
           else
-            bundle exec fastlane ios release
+            # Release to App Store
+            bundle exec fastlane release
           fi
