@@ -1,0 +1,35 @@
+default_platform(:ios)
+
+platform :ios do
+  desc "Push a new beta build to TestFlight (Internal)"
+  lane :beta do |options|
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store",
+      output_directory: "../build/ios/ipa"
+    )
+    
+    upload_to_testflight(
+      skip_waiting_for_build_processing: true,
+      groups: options[:internal_testing] ? ["Internal Testers"] : ["External Testers"]
+    )
+  end
+
+  desc "Push a new release to App Store"
+  lane :release do
+    build_app(
+      workspace: "Runner.xcworkspace",
+      scheme: "Runner",
+      export_method: "app-store",
+      output_directory: "../build/ios/ipa"
+    )
+    
+    upload_to_app_store(
+      skip_binary_upload: false,
+      skip_screenshots: true,
+      skip_metadata: true,
+      force: true
+    )
+  end
+end
