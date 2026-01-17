@@ -38,7 +38,7 @@ dependencies:
   google_mlkit_face_detection:
   flutter_callkit_incoming: ^3.0.0
   qr_flutter: 
-  cider: ^0.10.1
+  cider: ^0.2.9
   crypto: ^3.0.0
   flutter_svg:
   flutter_local_notifications: ^16.1.0
