@@ -1,30 +1,33 @@
 default_platform(:android)
 
 platform :android do
-  desc "Submit a new Internal Build to Play Store"
+  desc "Deploy to Internal Testing"
   lane :internal do
     upload_to_play_store(
       track: 'internal',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
-      json_key: 'play.json'
+      json_key: 'play.json',
+      release_status: 'completed'
     )
   end
 
-  desc "Submit a new Beta to Play Store"
+  desc "Deploy to Beta Testing"
   lane :beta do
     upload_to_play_store(
       track: 'beta',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
-      json_key: 'play.json'
+      json_key: 'play.json',
+      release_status: 'completed'
     )
   end
 
-  desc "Submit a new Release to Play Store"
+  desc "Deploy to Production"
   lane :release do
     upload_to_play_store(
       track: 'production',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
-      json_key: 'play.json'
+      json_key: 'play.json',
+      release_status: 'completed'
     )
   end
 end

@@ -1,33 +1,197 @@
-name: Flutter CI/CD
+name: 🚀 Flutter CI/CD Pipeline
 
 on:
+  # 1. Run tests and builds on push to any branch
   push:
     branches: [dev, staging, main]
+    tags:
+      - 'v*'  # Trigger on version tags like v1.0.0, v2.0.0
+  
+  # 2. Manual deployment with version input
+  workflow_dispatch:
+    inputs:
+      version:
+        description: '🏷️ Version to release (format: X.Y.Z)'
+        required: true
+        type: string
+        default: '1.0.0'
+      build_number:
+        description: '🔢 Build number'
+        required: false
+        type: string
+        default: '1'
+      environment:
+        description: '🌍 Deploy to environment'
+        required: true
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+        default: 'staging'
+      platforms:
+        description: '📱 Platforms to build'
+        required: true
+        type: choice
+        options:
+          - android
+          - ios
+          - both
+        default: 'both'
 
 env:
-  FLUTTER_VERSION: "3.35.1"
+  FLUTTER_VERSION: "3.19.0"
 
 jobs:
-  android:
-    runs-on: macos-latest
-    environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
-
+  # ========== SETUP & VALIDATION ==========
+  setup:
+    name: "🔍 Setup & Validate"
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+      build_number: ${{ steps.build-number.outputs.value }}
+      environment: ${{ steps.environment.outputs.value }}
+      is_release: ${{ steps.release-check.outputs.is_release }}
+      is_tag: ${{ steps.release-check.outputs.is_tag }}
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
+      - name: "📥 Checkout code"
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Get all history for tags
+      
+      - name: "📦 Setup Flutter"
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+      
+      - name: "🔄 Restore pub cache"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            /opt/hostedtoolcache/flutter/.pub-cache
+          key: pub-cache-${{ hashFiles('pubspec.lock') }}
+      
+      - name: "📦 Get dependencies"
+        run: flutter pub get
+      
+      - name: "✅ Run tests"
+        run: flutter test
+      
+      - name: "🔍 Analyze code"
+        run: flutter analyze
+      
+      - name: "📝 Check formatting"
+        run: flutter format --set-exit-if-changed .
+      
+      - name: "🏷️ Check release type"
+        id: release-check
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "is_release=true" >> $GITHUB_OUTPUT
+            echo "is_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_release=false" >> $GITHUB_OUTPUT
+            echo "is_tag=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: "📌 Determine version"
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # Manual release - use input
+            echo "value=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # Tag release - extract from tag
+            TAG_VERSION=${GITHUB_REF#refs/tags/v}
+            echo "value=$TAG_VERSION" >> $GITHUB_OUTPUT
+          else
+            # Regular build - use from pubspec.yaml
+            PUBSPEC_VERSION=$(grep 'version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
+            echo "value=$PUBSPEC_VERSION" >> $GITHUB_OUTPUT
+          fi
+          echo "Version: ${{ steps.version.outputs.value }}"
+      
+      - name: "🔢 Determine build number"
+        id: build-number
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.build_number }}" ]]; then
+            echo "value=${{ github.event.inputs.build_number }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            # For tags, use timestamp (YYYYMMDDHHMM)
+            echo "value=$(date +%Y%m%d%H%M)" >> $GITHUB_OUTPUT
+          else
+            # Regular build - use run number
+            echo "value=${{ github.run_number }}" >> $GITHUB_OUTPUT
+          fi
+          echo "Build number: ${{ steps.build-number.outputs.value }}"
+      
+      - name: "🌍 Determine environment"
+        id: environment
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "value=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "value=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "value=production" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "staging" ]]; then
+            echo "value=staging" >> $GITHUB_OUTPUT
+          else
+            echo "value=development" >> $GITHUB_OUTPUT
+          fi
+          echo "Environment: ${{ steps.environment.outputs.value }}"
+      
+      - name: "📝 Update pubspec.yaml with version"
+        if: steps.release-check.outputs.is_release == 'true'
+        run: |
+          FULL_VERSION="${{ steps.version.outputs.value }}+${{ steps.build-number.outputs.value }}"
+          sed -i "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
+          echo "✅ Updated pubspec.yaml to version: $FULL_VERSION"
+          
+          # Show the change
+          echo "📄 Updated pubspec.yaml:"
+          grep 'version:' pubspec.yaml
 
-      - run: flutter pub get
-      - run: flutter pub run cider bump build --build $GITHUB_RUN_NUMBER
-
+  # ========== ANDROID BUILD ==========
+  android:
+    name: "🤖 Android"
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.is_release == 'true' && (github.event.inputs.platforms == 'android' || github.event.inputs.platforms == 'both')
+    environment: ${{ needs.setup.outputs.environment }}
+    
+    steps:
+      - name: "📥 Checkout code"
+        uses: actions/checkout@v4
+      
+      - name: "📦 Setup Flutter"
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+      
+      - name: "📦 Get dependencies"
+        run: flutter pub get
+      
+      - name: "📝 Apply version"
+        run: |
+          FULL_VERSION="${{ needs.setup.outputs.version }}+${{ needs.setup.outputs.build_number }}"
+          sed -i "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
+          echo "Building version: $FULL_VERSION"
+      
       # Android signing
-      - name: Decode keystore
+      - name: "🔐 Setup Android signing"
         run: |
           echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload.jks
-
-      - name: Create key.properties
+          echo "✅ Keystore created"
+      
+      - name: "🔑 Create key.properties"
         run: |
           cat <<EOF > android/key.properties
           storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -35,57 +199,99 @@ jobs:
           keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
           storeFile=upload.jks
           EOF
-
-      # Build per env
-      - name: Build Android
+          echo "✅ key.properties created"
+      
+      # Determine which main.dart to use
+      - name: "🎯 Select entry point"
         run: |
-          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            flutter build appbundle -t lib/main_dev.dart
-          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
-            flutter build appbundle -t lib/main_staging.dart
+          ENV="${{ needs.setup.outputs.environment }}"
+          if [[ "$ENV" == "development" ]]; then
+            ENTRY_POINT="lib/main_dev.dart"
+          elif [[ "$ENV" == "staging" ]]; then
+            ENTRY_POINT="lib/main_staging.dart"
           else
-            flutter build appbundle -t lib/main_prod.dart
+            ENTRY_POINT="lib/main_prod.dart"
           fi
-
-      # Setup Fastlane for Android
-      - name: Setup Fastlane
+          echo "ENTRY_POINT=$ENTRY_POINT" >> $GITHUB_ENV
+          echo "Using entry point: $ENTRY_POINT"
+      
+      # Build Android
+      - name: "🏗️ Build Android App Bundle"
         run: |
+          flutter build appbundle --release -t $ENTRY_POINT
+          echo "✅ AAB built successfully"
+          ls -la build/app/outputs/bundle/release/
+      
+      # Setup Fastlane for Android
+      - name: "⚡ Setup Fastlane"
+        run: |
+          cd android
           gem install bundler
-          cd android && bundle install
-
+          bundle install
+      
       # Deploy to Play Store
-      - name: Deploy Android to Internal Testing
+      - name: "🚀 Deploy to Play Store"
+        if: needs.setup.outputs.environment != 'development'
         env:
           PLAY_STORE_JSON: ${{ secrets.PLAY_STORE_JSON }}
         run: |
+          # Save Google Play JSON key
           echo "$PLAY_STORE_JSON" > android/play.json
+          
           cd android
           
-          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            bundle exec fastlane internal
-          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
+          ENV="${{ needs.setup.outputs.environment }}"
+          if [[ "$ENV" == "staging" ]]; then
+            echo "📱 Deploying to Play Store Beta track..."
             bundle exec fastlane beta
-          else
+          elif [[ "$ENV" == "production" ]]; then
+            echo "📱 Deploying to Play Store Production..."
             bundle exec fastlane release
+          else
+            echo "📱 Deploying to Play Store Internal track..."
+            bundle exec fastlane internal
           fi
+      
+      - name: "📤 Upload artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-aab
+          path: build/app/outputs/bundle/release/*.aab
+          retention-days: 30
 
+  # ========== iOS BUILD ==========
   ios:
+    name: "🍎 iOS"
     runs-on: macos-latest
-    needs: android  # Optional: remove if you want parallel builds
-    environment: ${{ github.ref_name == 'main' && 'production' || github.ref_name }}
-
+    needs: setup
+    if: needs.setup.outputs.is_release == 'true' && (github.event.inputs.platforms == 'ios' || github.event.inputs.platforms == 'both')
+    environment: ${{ needs.setup.outputs.environment }}
+    
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: subosito/flutter-action@v2
+      - name: "📥 Checkout code"
+        uses: actions/checkout@v4
+      
+      - name: "📦 Setup Flutter"
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
-
-      - run: flutter pub get
-      - run: flutter pub run cider bump build --build $GITHUB_RUN_NUMBER
-
-      # Setup iOS certificates
-      - name: Install Apple certificates
+          cache: true
+      
+      - name: "📦 Get dependencies"
+        run: |
+          flutter pub get
+          cd ios
+          pod install
+          cd ..
+      
+      - name: "📝 Apply version"
+        run: |
+          FULL_VERSION="${{ needs.setup.outputs.version }}+${{ needs.setup.outputs.build_number }}"
+          sed -i "" "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
+          echo "Building version: $FULL_VERSION"
+      
+      # iOS certificates and profiles
+      - name: "🔐 Setup iOS code signing"
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
@@ -105,32 +311,47 @@ jobs:
           mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
           echo "$IOS_PROVISIONING_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
           
-          # Set keychain settings
+          # Configure keychain
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
-
-      # Build iOS with codesign
-      - name: Build iOS
+          
+          # List installed certificates
+          security find-identity -v -p codesigning
+          
+          echo "✅ iOS code signing setup complete"
+      
+      # Determine which main.dart to use
+      - name: "🎯 Select entry point"
+        run: |
+          ENV="${{ needs.setup.outputs.environment }}"
+          if [[ "$ENV" == "development" ]]; then
+            ENTRY_POINT="lib/main_dev.dart"
+          elif [[ "$ENV" == "staging" ]]; then
+            ENTRY_POINT="lib/main_staging.dart"
+          else
+            ENTRY_POINT="lib/main_prod.dart"
+          fi
+          echo "ENTRY_POINT=$ENTRY_POINT" >> $GITHUB_ENV
+          echo "Using entry point: $ENTRY_POINT"
+      
+      # Build iOS
+      - name: "🏗️ Build iOS IPA"
+        run: |
+          # Build IPA
+          flutter build ipa --release -t $ENTRY_POINT
+          
+          echo "✅ IPA built successfully"
+          ls -la build/ios/ipa/
+      
+      # Setup Fastlane for iOS
+      - name: "⚡ Setup Fastlane"
         run: |
           cd ios
-          pod install
-          cd ..
-          
-          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            flutter build ipa -t lib/main_dev.dart --export-options-plist=ios/export_options.plist
-          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
-            flutter build ipa -t lib/main_staging.dart --export-options-plist=ios/export_options.plist
-          else
-            flutter build ipa -t lib/main_prod.dart --export-options-plist=ios/export_options.plist
-          fi
-
-      # Setup Fastlane for iOS
-      - name: Setup Fastlane
-        run: |
           gem install bundler
-          cd ios && bundle install
-
-      # Deploy to TestFlight
-      - name: Deploy iOS to TestFlight
+          bundle install
+      
+      # Deploy to TestFlight/App Store
+      - name: "🚀 Deploy to TestFlight/App Store"
+        if: needs.setup.outputs.environment != 'development'
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
@@ -138,13 +359,55 @@ jobs:
         run: |
           cd ios
           
-          if [[ "${GITHUB_REF_NAME}" == "dev" ]]; then
-            # Internal TestFlight (developer/internal testing)
-            bundle exec fastlane beta internal_testing:true
-          elif [[ "${GITHUB_REF_NAME}" == "staging" ]]; then
-            # External TestFlight
+          ENV="${{ needs.setup.outputs.environment }}"
+          if [[ "$ENV" == "staging" ]]; then
+            echo "📱 Deploying to TestFlight (External)..."
             bundle exec fastlane beta
-          else
-            # Release to App Store
+          elif [[ "$ENV" == "production" ]]; then
+            echo "📱 Deploying to App Store..."
             bundle exec fastlane release
+          else
+            echo "📱 Deploying to TestFlight (Internal)..."
+            bundle exec fastlane internal
           fi
+      
+      - name: "📤 Upload artifacts"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-ipa
+          path: build/ios/ipa/*.ipa
+          retention-days: 30
+
+  # ========== NOTIFICATION ==========
+  notify:
+    name: "📢 Notification"
+    runs-on: ubuntu-latest
+    needs: [setup, android, ios]
+    if: always()
+    
+    steps:
+      - name: "📊 Build status"
+        run: |
+          echo "=== CI/CD Pipeline Summary ==="
+          echo "Trigger: ${{ github.event_name }}"
+          echo "Ref: ${{ github.ref }}"
+          echo "Version: ${{ needs.setup.outputs.version }}+${{ needs.setup.outputs.build_number }}"
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo ""
+          echo "Job Status:"
+          echo "- Setup: ${{ needs.setup.result }}"
+          echo "- Android: ${{ needs.android.result }}"
+          echo "- iOS: ${{ needs.ios.result }}"
+          echo ""
+          echo "Artifacts created in GitHub Actions"
+      
+      - name: "📱 Send Slack notification"
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          author_name: 'Flutter CI/CD'
+          fields: |
+            repo,commit,author,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
