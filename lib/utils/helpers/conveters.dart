@@ -59,3 +59,14 @@
 //     rethrow;
 //   }
 // }
+
+
+
+
+import 'dart:convert';
+import 'dart:typed_data';
+
+String? uint8ListToBase64(Uint8List? imageBytes) {
+  if (imageBytes == null) return null;
+  return base64Encode(imageBytes);
+}

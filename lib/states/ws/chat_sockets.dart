@@ -1,496 +1,649 @@
 // lib/providers/chat_websocket_handler.dart
 import 'dart:async';
 import 'dart:convert';
-import 'package:flutter/foundation.dart';
+import 'dart:io';
+import 'dart:isolate';
+import 'dart:math';
+import 'dart:typed_data';
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:hoop/dtos/podos/calls/call_models.dart';
+import 'package:hoop/dtos/podos/chats/messages.dart';
+import 'package:hoop/dtos/podos/tokens/token_manager.dart';
 import 'package:hoop/main.dart';
 import 'package:hoop/screens/calls/call_screen.dart';
+import 'package:hoop/services/audio/SynthNotificationAudio.dart';
 import 'package:hoop/services/callkit_integration.dart';
+import 'package:hoop/services/websocket_service.dart';
+import 'package:hoop/states/onesignal_state.dart';
 import 'package:hoop/states/webrtc_manager.dart';
 import 'package:vibration/vibration.dart';
 
-// DTOs and Models
-import 'package:hoop/dtos/podos/tokens/token_manager.dart';
-import 'package:hoop/services/websocket_service.dart';
+class ChatIsolateWorker {
+  final SendPort _sendPort;
+  final Map<num, List<Message>> _messages = {};
+  final Map<num, List<TypingUser>> _typingData = {};
+  final Map<num, Set<String>> _unreadMessages = {};
+  final Map<num, Set<num>> _onlineUsersByGroup = {};
+  final Set<num> _onlineUsers = {};
 
-// Chat Models
-class ChatModel {
-  final String id;
-  final String title;
-  final String? message;
-  final String? type;
-  final bool read;
-  final DateTime createdAt;
-  final String? senderName;
-  final Map<String, dynamic>? metadata;
+  ChatIsolateWorker(this._sendPort);
 
-  ChatModel({
-    required this.id,
-    required this.title,
-    this.message,
-    this.type,
-    required this.read,
-    required this.createdAt,
-    this.senderName,
-    this.metadata,
-  });
-
-  factory ChatModel.fromJson(Map<String, dynamic> json) {
-    return ChatModel(
-      id: json['id'] ?? json['_id'] ?? '',
-      title: json['title'] ?? json['senderName'] ?? 'Unknown',
-      message: json['message'] ?? json['content'],
-      type: json['type'] ?? json['messageType'],
-      read: json['read'] ?? json['status'] == 'read' ?? false,
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : DateTime.now(),
-      senderName: json['senderName'],
-      metadata: json['metadata'],
-    );
+  void handleMessage(IsolateMessage message) {
+    switch (message.type) {
+      case 'process_message_batch':
+        _processMessageBatch(message.data);
+        break;
+      case 'process_typing_data':
+        _processTypingData(message.data);
+        break;
+      case 'process_presence_data':
+        _processPresenceData(message.data);
+        break;
+      case 'parse_messages_json':
+        _parseMessagesJson(message.data);
+        break;
+      case 'process_call_data':
+        _processCallData(message.data);
+        break;
+      case 'get_messages':
+        _getMessages(message.data);
+        break;
+      case 'mark_messages_read':
+        _markMessagesRead(message.data);
+        break;
+      case 'add_reaction':
+        _addReaction(message.data);
+        break;
+      case 'update_message':
+        _updateMessage(message.data);
+        break;
+      case 'shutdown':
+        _shutdown();
+        break;
+      case 'messages_list':
+        _processMessagesList(message.data);
+        break;
+      case 'initialize':
+        _initialize();
+        break;
+    }
   }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      '_id': id, // Include both id and _id for compatibility
-      'title': title,
-      if (message != null) 'message': message,
-      if (message != null) 'content': message,
-      if (type != null) 'type': type,
-      if (type != null) 'messageType': type,
-      'read': read,
-      'status': read ? 'read' : 'unread',
-      'createdAt': createdAt.toIso8601String(),
-      if (senderName != null) 'senderName': senderName,
-      if (metadata != null) 'metadata': metadata,
-    };
-  }
-}
-
-class Message {
-  final String id;
-  final num group; // String or int
-  final String? tempId;
-  final dynamic sender; // String or int
-  final String content;
-  final String? message;
-  final DateTime? createdAt;
-  final String? senderName;
-  final String type; // 'text', 'image', 'file', 'system', 'call'
-  final String? messageType;
-  final String? status; // 'sent', 'delivered', 'read', 'edited', 'deleted'
-  final List<dynamic>? attachments;
-  final List<dynamic>? reactions;
-  final List<dynamic>? readBy;
-  final Map<String, dynamic>? pollData;
-  final String? paymentStatus;
-  final Map<String, dynamic>? systemInfo;
-  final Map<String, dynamic>? callData;
-  final bool? edited;
-  final DateTime? editedAt;
-  final bool? deleted;
-  final DateTime? deletedAt;
-  final String? deletedBy;
-
-  Message({
-    required this.id,
-    required this.group,
-    this.tempId,
-    required this.sender,
-    required this.content,
-    this.message,
-    this.createdAt,
-    this.senderName,
-    required this.type,
-    this.messageType,
-    this.status,
-    this.attachments,
-    this.reactions,
-    this.readBy,
-    this.pollData,
-    this.paymentStatus,
-    this.systemInfo,
-    this.callData,
-    this.edited,
-    this.editedAt,
-    this.deleted,
-    this.deletedAt,
-    this.deletedBy,
-  });
-
-  factory Message.fromJson(Map<String, dynamic> json) {
-    return Message(
-      id: json['id'] ?? json['_id'] ?? '',
-      group: json['groupId'] ?? json['group'],
-      tempId: json['tempId'],
-      sender: json['sender'] ?? json['userId'],
-      content: json['content'] ?? json['message'] ?? '',
-      message: json['message'],
-      createdAt: json['createdAt'] != null
-          ? DateTime.parse(json['createdAt'])
-          : DateTime.now(),
-      senderName: json['senderName'] ?? json['userName'],
-      type: _mapMessageType(json['type'] ?? json['messageType']),
-      messageType: json['messageType'],
-      status: json['status'],
-      attachments: json['attachments'],
-      reactions: json['reactions'],
-      readBy: json['readBy'],
-      pollData: json['pollData'],
-      paymentStatus: json['paymentStatus'],
-      systemInfo: json['systemInfo'],
-      callData: json['callData'],
-      edited: json['edited'],
-      editedAt: json['editedAt'] != null
-          ? DateTime.parse(json['editedAt'])
-          : null,
-      deleted: json['deleted'],
-      deletedAt: json['deletedAt'] != null
-          ? DateTime.parse(json['deletedAt'])
-          : null,
-      deletedBy: json['deletedBy'],
-    );
+  void _initialize() {
+    debugPrint('🔄 ChatIsolateWorker initialized');
   }
 
-  static String _mapMessageType(String? backendType) {
-    const typeMap = {
-      'TEXT': 'text',
-      'IMAGE': 'image',
-      'FILE': 'file',
-      'SYSTEM': 'system',
-      'CONTRIBUTION': 'contribution',
-      'AUDIO': 'audio',
-      'VIDEO': 'video',
-      'POLL': 'poll',
-      'CALL': 'call',
-    };
-    return typeMap[backendType] ?? 'text';
+  void _processMessagesList(dynamic data) {
+    try {
+      if (data is! List<dynamic>) {
+        debugPrint('❌ Expected List in isolate but got: ${data.runtimeType}');
+        _sendPort.send(
+          IsolateMessage(type: 'messages_list_processed', data: []),
+        );
+        return;
+      }
+
+      debugPrint(
+        '📝 messages_list data is a List of ${data.length} items in isolate',
+      );
+
+      final allMessages = <Map<String, dynamic>>[];
+
+      if (data.isEmpty) {
+        debugPrint('⚠️ Empty messages_list received in isolate');
+        _sendPort.send(
+          IsolateMessage(type: 'messages_list_processed', data: []),
+        );
+        return;
+      }
+
+      final firstItem = data[0];
+
+      // Strategy 1: List of groups with messages format: [{group: X, messages: [...]}]
+      if (firstItem is Map &&
+          (firstItem.containsKey('group') ||
+              firstItem.containsKey('groupId'))) {
+        debugPrint('📝 Processing as list of groups with messages');
+        _processGroupsFormat(data, allMessages);
+      }
+      // Strategy 2: Direct list of message objects
+      else if (firstItem is Map && firstItem.containsKey('id')) {
+        debugPrint('📝 Processing as list of message objects');
+        _processMessagesFormat(data, allMessages);
+      }
+      // Strategy 3: Complex nested format (server format)
+      else if (firstItem is Map && firstItem.containsKey('groups')) {
+        debugPrint('📝 Processing as server groups format');
+        _processServerGroupsFormat(data, allMessages);
+      }
+      // Strategy 4: Try generic parsing
+      else {
+        debugPrint('📝 Trying generic parsing for unknown format');
+        _processGenericFormat(data, allMessages);
+      }
+
+      debugPrint('📝 Processed ${allMessages.length} messages in isolate');
+
+      // Sort all groups by timestamp
+      _messages.forEach((groupId, messages) {
+        messages.sort(
+          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+            b.createdAt ?? DateTime.now(),
+          ),
+        );
+      });
+
+      _sendPort.send(
+        IsolateMessage(type: 'messages_list_processed', data: allMessages),
+      );
+    } catch (e) {
+      debugPrint('❌ Error processing messages_list in isolate: $e');
+      debugPrint('Stack trace: ${e.toString()}');
+      // Send empty list to prevent UI freeze
+      _sendPort.send(IsolateMessage(type: 'messages_list_processed', data: []));
+    }
   }
 
-  // Helper to convert from frontend type to backend type
-  static String? _reverseMapMessageType(String? frontendType) {
-    const reverseMap = {
-      'text': 'TEXT',
-      'image': 'IMAGE',
-      'file': 'FILE',
-      'system': 'SYSTEM',
-      'contribution': 'CONTRIBUTION',
-      'audio': 'AUDIO',
-      'video': 'VIDEO',
-      'poll': 'POLL',
-      'call': 'CALL',
-    };
-    return reverseMap[frontendType];
-  }
+  void _processGroupsFormat(
+    List<dynamic> data,
+    List<Map<String, dynamic>> allMessages,
+  ) {
+    for (final groupData in data) {
+      try {
+        final groupMap = Map<String, dynamic>.from(groupData);
+        final groupId = groupMap['group'] ?? groupMap['groupId'];
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      '_id': id, // Include both for compatibility
-      'groupId': group,
-      'group': group,
-      if (tempId != null) 'tempId': tempId,
-      'sender': sender,
-      'userId': sender, // Include both sender and userId for compatibility
-      'content': content,
-      'message': content, // Include both content and message
-      'createdAt':
-          createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
-      if (senderName != null) 'senderName': senderName,
-      if (senderName != null)
-        'userName': senderName, // Include both for compatibility
-      'type': type,
-      'messageType':
-          _reverseMapMessageType(type) ??
-          type.toUpperCase(), // Convert to backend format
-      if (status != null) 'status': status,
-      if (attachments != null && attachments!.isNotEmpty)
-        'attachments': attachments,
-      if (reactions != null && reactions!.isNotEmpty) 'reactions': reactions,
-      if (readBy != null && readBy!.isNotEmpty) 'readBy': readBy,
-      if (pollData != null) 'pollData': pollData,
-      if (paymentStatus != null) 'paymentStatus': paymentStatus,
-      if (systemInfo != null) 'systemInfo': systemInfo,
-      if (callData != null) 'callData': callData,
-      if (edited != null) 'edited': edited,
-      if (editedAt != null) 'editedAt': editedAt!.toIso8601String(),
-      if (deleted != null) 'deleted': deleted,
-      if (deletedAt != null) 'deletedAt': deletedAt!.toIso8601String(),
-      if (deletedBy != null) 'deletedBy': deletedBy,
-    };
-  }
+        // FIXED: Better handling of messages extraction
+        dynamic messagesRaw = groupMap['messages'];
+        List<dynamic> messagesData = [];
 
-  // Helper method to create a copy with updated fields
-  Message copyWith({
-    String? id,
-    dynamic group,
-    String? tempId,
-    dynamic sender,
-    String? content,
-    String? message,
-    DateTime? createdAt,
-    String? senderName,
-    String? type,
-    String? messageType,
-    String? status,
-    List<dynamic>? attachments,
-    List<dynamic>? reactions,
-    List<dynamic>? readBy,
-    Map<String, dynamic>? pollData,
-    String? paymentStatus,
-    Map<String, dynamic>? systemInfo,
-    Map<String, dynamic>? callData,
-    bool? edited,
-    DateTime? editedAt,
-    bool? deleted,
-    DateTime? deletedAt,
-    String? deletedBy,
-  }) {
-    return Message(
-      id: id ?? this.id,
-      group: group ?? this.group,
-      tempId: tempId ?? this.tempId,
-      sender: sender ?? this.sender,
-      content: content ?? this.content,
-      message: message ?? this.message,
-      createdAt: createdAt ?? this.createdAt,
-      senderName: senderName ?? this.senderName,
-      type: type ?? this.type,
-      messageType: messageType ?? this.messageType,
-      status: status ?? this.status,
-      attachments: attachments ?? this.attachments,
-      reactions: reactions ?? this.reactions,
-      readBy: readBy ?? this.readBy,
-      pollData: pollData ?? this.pollData,
-      paymentStatus: paymentStatus ?? this.paymentStatus,
-      systemInfo: systemInfo ?? this.systemInfo,
-      callData: callData ?? this.callData,
-      edited: edited ?? this.edited,
-      editedAt: editedAt ?? this.editedAt,
-      deleted: deleted ?? this.deleted,
-      deletedAt: deletedAt ?? this.deletedAt,
-      deletedBy: deletedBy ?? this.deletedBy,
-    );
-  }
-
-  // Helper to check if message is from current user
-  bool isFromUser(String userId) {
-    return sender.toString() == userId;
-  }
-
-  // Helper to check if message is read by specific user
-  bool isReadByUser(String userId) {
-    if (readBy == null) return false;
-    for (final read in readBy!) {
-      if (read is Map) {
-        if (read['userId']?.toString() == userId ||
-            read['user']?.toString() == userId) {
-          return true;
+        if (messagesRaw is List) {
+          messagesData = messagesRaw;
+        } else if (messagesRaw != null) {
+          debugPrint(
+            '⚠️ messagesRaw is not List: ${messagesRaw.runtimeType}, value: $messagesRaw',
+          );
+          // Try to convert if it's a String that might be JSON
+          if (messagesRaw is String) {
+            try {
+              final parsed = jsonDecode(messagesRaw);
+              if (parsed is List) {
+                messagesData = parsed;
+              }
+            } catch (e) {
+              debugPrint('❌ Failed to parse messages as JSON: $e');
+            }
+          }
         }
-      } else if (read.toString() == userId) {
-        return true;
+
+        if (groupId == null) {
+          debugPrint('⚠️ Skipping group with null ID');
+          continue;
+        }
+
+        debugPrint(
+          '📝 Processing group $groupId with ${messagesData.length} messages',
+        );
+
+        _messages.putIfAbsent(groupId, () => []);
+
+        for (final messageData in messagesData) {
+          try {
+            final messageMap = Map<String, dynamic>.from(messageData);
+            // Ensure message has groupId
+            if (!messageMap.containsKey('group') &&
+                !messageMap.containsKey('groupId')) {
+              messageMap['group'] = groupId;
+            }
+
+            final message = Message.fromJson(messageMap);
+            final exists = _messages[groupId]!.any((m) => m.id == message.id);
+
+            if (!exists) {
+              _messages[groupId]!.add(message);
+              allMessages.add(message.toJson());
+
+              // Track unread messages
+              _trackUnreadMessage(message);
+            } else {
+              debugPrint(
+                '⚠️ Message ${message.id} already exists in group $groupId',
+              );
+            }
+          } catch (e) {
+            debugPrint('❌ Error processing message in group $groupId: $e');
+            debugPrint('Problematic message data: $messageData');
+          }
+        }
+      } catch (e) {
+        debugPrint('❌ Error processing group data: $e');
       }
     }
-    return false;
   }
 
-  // Helper to add a user to readBy list
-  Message markAsReadByUser(String userId, String userName) {
-    final List<dynamic> updatedReadBy = List.from(readBy ?? []);
+  void _processMessagesFormat(
+    List<dynamic> data,
+    List<Map<String, dynamic>> allMessages,
+  ) {
+    for (final messageData in data) {
+      try {
+        final message = Message.fromJson(messageData);
+        final groupId = message.group;
 
-    // Check if user already marked as read
-    final alreadyRead = updatedReadBy.any((read) {
-      if (read is Map) {
-        return read['userId']?.toString() == userId ||
-            read['user']?.toString() == userId;
+        if (groupId == null) {
+          debugPrint('⚠️ Skipping message with null group ID: ${message.id}');
+          continue;
+        }
+
+        _messages.putIfAbsent(groupId, () => []);
+
+        final exists = _messages[groupId]!.any((m) => m.id == message.id);
+        if (!exists) {
+          _messages[groupId]!.add(message);
+          allMessages.add(message.toJson());
+
+          // Track unread messages
+          _trackUnreadMessage(message);
+        }
+      } catch (e) {
+        debugPrint('❌ Error processing message object: $e');
+        debugPrint('Problematic message data: $messageData');
       }
-      return read.toString() == userId;
-    });
-
-    if (!alreadyRead) {
-      updatedReadBy.add({
-        'userId': int.tryParse(userId) ?? userId,
-        'user': int.tryParse(userId) ?? userId,
-        'userName': userName,
-        'readAt': DateTime.now().toIso8601String(),
-      });
     }
-
-    return copyWith(status: 'read', readBy: updatedReadBy);
   }
 
-  // Helper to add a reaction
-  Message addReaction(String emoji, String userId, String userName) {
-    final List<dynamic> updatedReactions = List.from(reactions ?? []);
-    final reactionIndex = updatedReactions.indexWhere(
-      (r) => r is Map && r['emoji'] == emoji,
-    );
+  void _processServerGroupsFormat(
+    List<dynamic> data,
+    List<Map<String, dynamic>> allMessages,
+  ) {
+    for (final item in data) {
+      try {
+        final itemMap = Map<String, dynamic>.from(item);
+        final groups = itemMap['groups'] as Map<String, dynamic>? ?? {};
 
-    if (reactionIndex != -1) {
-      final reaction = Map<String, dynamic>.from(
-        updatedReactions[reactionIndex],
-      );
-      final users = List<Map<String, dynamic>>.from(reaction['users'] ?? []);
+        groups.forEach((groupIdStr, groupData) {
+          try {
+            final groupId = num.tryParse(groupIdStr) ?? 0;
+            if (groupId == 0) {
+              debugPrint('⚠️ Invalid group ID: $groupIdStr');
+              return;
+            }
 
-      final alreadyReacted = users.any(
-        (u) => u['userId']?.toString() == userId,
-      );
-      if (!alreadyReacted) {
-        users.add({
-          'userId': int.tryParse(userId) ?? userId,
-          'userName': userName,
-          'reactedAt': DateTime.now().toIso8601String(),
+            if (groupData is! List) {
+              debugPrint(
+                '⚠️ groupData is not a List for group $groupId, type: ${groupData.runtimeType}',
+              );
+              return;
+            }
+
+            debugPrint(
+              '📝 Processing server group $groupId with ${groupData.length} messages',
+            );
+
+            _messages.putIfAbsent(groupId, () => []);
+
+            for (final messageData in groupData) {
+              try {
+                final messageMap = Map<String, dynamic>.from(messageData);
+                // Ensure message has groupId
+                if (!messageMap.containsKey('group') &&
+                    !messageMap.containsKey('groupId')) {
+                  messageMap['group'] = groupId;
+                }
+
+                final message = Message.fromJson(messageMap);
+                final exists = _messages[groupId]!.any(
+                  (m) => m.id == message.id,
+                );
+
+                if (!exists) {
+                  _messages[groupId]!.add(message);
+                  allMessages.add(message.toJson());
+
+                  // Track unread messages
+                  _trackUnreadMessage(message);
+                }
+              } catch (e) {
+                debugPrint(
+                  '❌ Error processing message in server group $groupId: $e',
+                );
+              }
+            }
+          } catch (e) {
+            debugPrint('❌ Error processing server group $groupIdStr: $e');
+          }
         });
-        reaction['users'] = users;
-        reaction['count'] = users.length;
-        updatedReactions[reactionIndex] = reaction;
+      } catch (e) {
+        debugPrint('❌ Error processing server format item: $e');
       }
-    } else {
-      updatedReactions.add({
-        'emoji': emoji,
-        'users': [
-          {
-            'userId': int.tryParse(userId) ?? userId,
-            'userName': userName,
-            'reactedAt': DateTime.now().toIso8601String(),
+    }
+  }
+
+  void _processGenericFormat(
+    List<dynamic> data,
+    List<Map<String, dynamic>> allMessages,
+  ) {
+    debugPrint('🔍 First item in generic format: ${data[0]}');
+    debugPrint('🔍 First item type: ${data[0].runtimeType}');
+
+    if (data[0] is Map) {
+      final firstMap = Map<String, dynamic>.from(data[0]);
+      debugPrint('🔍 First item keys: ${firstMap.keys}');
+    }
+
+    for (final item in data) {
+      if (item is Map) {
+        try {
+          final itemMap = Map<String, dynamic>.from(item);
+
+          // Check if this looks like a message
+          if (itemMap.containsKey('id') &&
+              (itemMap.containsKey('content') ||
+                  itemMap.containsKey('message'))) {
+            // Try to extract groupId
+            num? groupId;
+            if (itemMap.containsKey('group')) {
+              groupId = itemMap['group'] is num
+                  ? itemMap['group']
+                  : num.tryParse(itemMap['group'].toString());
+            } else if (itemMap.containsKey('groupId')) {
+              groupId = itemMap['groupId'] is num
+                  ? itemMap['groupId']
+                  : num.tryParse(itemMap['groupId'].toString());
+            }
+
+            if (groupId == null) {
+              debugPrint('⚠️ Skipping message without group ID');
+              continue;
+            }
+
+            final message = Message.fromJson(itemMap);
+            _messages.putIfAbsent(groupId, () => []);
+
+            final exists = _messages[groupId]!.any((m) => m.id == message.id);
+            if (!exists) {
+              _messages[groupId]!.add(message);
+              allMessages.add(message.toJson());
+
+              // Track unread messages
+              _trackUnreadMessage(message);
+            }
+          }
+        } catch (e) {
+          debugPrint('❌ Error in generic parsing: $e');
+          continue;
+        }
+      }
+    }
+  }
+
+  void _trackUnreadMessage(Message message) {
+    // Note: We don't have userId in isolate, so we can't determine if message is unread
+    // This will be handled in the main thread
+    debugPrint('📝 Tracked message ${message.id} in group ${message.group}');
+  }
+
+  void _processMessageBatch(List<dynamic> messages) {
+    final processed = <Map<String, dynamic>>[];
+
+    for (final messageData in messages) {
+      try {
+        final message = Message.fromJson(messageData);
+        final groupId = message.group;
+
+        _messages.putIfAbsent(groupId, () => []);
+        final exists = _messages[groupId]!.any((m) => m.id == message.id);
+        if (!exists) {
+          _messages[groupId]!.add(message);
+          _messages[groupId]!.sort(
+            (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+              b.createdAt ?? DateTime.now(),
+            ),
+          );
+        }
+
+        processed.add(message.toJson());
+      } catch (e) {
+        debugPrint('❌ Error processing message in isolate: $e');
+      }
+    }
+
+    _sendPort.send(IsolateMessage(type: 'messages_processed', data: processed));
+  }
+
+  void _processTypingData(Map<String, dynamic> data) {
+    try {
+      final indicator = TypingIndicator.fromJson(data);
+      _typingData[indicator.groupId] = indicator.typingUsers;
+
+      _sendPort.send(
+        IsolateMessage(
+          type: 'typing_processed',
+          data: {
+            'groupId': indicator.groupId,
+            'typingUsers': indicator.typingUsers
+                .map(
+                  (u) => {
+                    'userId': u.userId,
+                    'userName': u.userName,
+                    'startedAt': u.startedAt?.toIso8601String(),
+                  },
+                )
+                .toList(),
           },
-        ],
-        'count': 1,
-      });
-    }
-
-    return copyWith(reactions: updatedReactions);
-  }
-
-  // Helper to remove a reaction
-  Message removeReaction(String emoji, String userId) {
-    final List<dynamic> updatedReactions = List.from(reactions ?? []);
-    final reactionIndex = updatedReactions.indexWhere(
-      (r) => r is Map && r['emoji'] == emoji,
-    );
-
-    if (reactionIndex != -1) {
-      final reaction = Map<String, dynamic>.from(
-        updatedReactions[reactionIndex],
+        ),
       );
-      final users = List<Map<String, dynamic>>.from(reaction['users'] ?? []);
-
-      users.removeWhere((u) => u['userId']?.toString() == userId);
-
-      if (users.isEmpty) {
-        updatedReactions.removeAt(reactionIndex);
-      } else {
-        reaction['users'] = users;
-        reaction['count'] = users.length;
-        updatedReactions[reactionIndex] = reaction;
-      }
+    } catch (e) {
+      debugPrint('❌ Error processing typing data in isolate: $e');
     }
-
-    return copyWith(reactions: updatedReactions);
   }
-}
 
-class SendMessageParams {
-  final int groupId;
-  final String message;
-  final String messageType;
-  final String? tempId;
-  final List<Map<String, dynamic>>? attachments;
-  final Map<String, dynamic>? replyTo;
-  final Map<String, dynamic>? metadata;
+  void _processPresenceData(Map<String, dynamic> data) {
+    try {
+      final groupId = data['groupId'];
+      final users =
+          (data['users'] as List<dynamic>?)
+              ?.map((u) {
+                if (u is num) return u;
+                if (u is String) return num.tryParse(u) ?? 0;
+                if (u is int) return u as num;
+                return 0;
+              })
+              .where((id) => id > 0)
+              .toSet() ??
+          <num>{};
 
-  SendMessageParams({
-    required this.groupId,
-    required this.message,
-    required this.messageType,
-    this.tempId,
-    this.attachments,
-    this.replyTo,
-    this.metadata,
-  });
+      if (groupId != null) {
+        _onlineUsersByGroup[groupId] = users;
+      }
 
-  Map<String, dynamic> toJson() {
-    return {
-      'groupId': groupId,
-      'message': message,
-      'messageType': messageType,
-      'tempId': tempId,
-      'attachments': attachments,
-      'metadata': metadata,
-      if (replyTo != null && replyTo!['messageId'] != null)
-        'replyTo': replyTo!['messageId'],
-    };
+      _onlineUsers.clear();
+      _onlineUsers.addAll(users);
+
+      _sendPort.send(
+        IsolateMessage(
+          type: 'presence_processed',
+          data: {
+            'groupId': groupId,
+            'users': users.toList(),
+            'count': users.length,
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error processing presence data in isolate: $e');
+    }
   }
-}
 
-class TypingUser {
-  final String userId;
-  final String userName;
-  final DateTime? startedAt;
+  void _parseMessagesJson(String jsonString) {
+    try {
+      final parsed = jsonDecode(jsonString);
+      final messages = List<Map<String, dynamic>>.from(
+        parsed['messages'] ?? [],
+      );
+      final processed = messages
+          .map((m) => Message.fromJson(m).toJson())
+          .toList();
 
-  TypingUser({required this.userId, required this.userName, this.startedAt});
-
-  factory TypingUser.fromJson(Map<String, dynamic> json) {
-    return TypingUser(
-      userId: json['userId'].toString(),
-      userName: json['userName'] ?? '',
-      startedAt: json['startedAt'] != null
-          ? DateTime.parse(json['startedAt'])
-          : null,
-    );
+      _sendPort.send(IsolateMessage(type: 'messages_parsed', data: processed));
+    } catch (e) {
+      debugPrint('❌ Error parsing messages JSON in isolate: $e');
+    }
   }
-}
 
-class TypingIndicator {
-  final num groupId;
-  final List<TypingUser> typingUsers;
+  void _processCallData(Map<String, dynamic> data) {
+    try {
+      final callData = CallData.fromJson(data);
 
-  TypingIndicator({required this.groupId, required this.typingUsers});
-
-  factory TypingIndicator.fromJson(Map<String, dynamic> json) {
-    return TypingIndicator(
-      groupId: json['groupId'],
-      typingUsers:
-          (json['typingUsers'] as List?)
-              ?.map((u) => TypingUser.fromJson(u))
-              .toList() ??
-          [],
-    );
+      _sendPort.send(
+        IsolateMessage(type: 'call_processed', data: callData.toJson()),
+      );
+    } catch (e) {
+      debugPrint('❌ Error processing call data in isolate: $e');
+    }
   }
-}
 
-class MessagesResponse {
-  final List<MessageGroup> groups;
+  void _getMessages(Map<String, dynamic> params) {
+    try {
+      final groupId = params['groupId'];
+      final page = params['page'] ?? 1;
+      final limit = params['limit'] ?? 50;
 
-  MessagesResponse({required this.groups});
+      final messages = _messages[groupId] ?? [];
+      final start = (page - 1) * limit;
+      final end = start + limit;
 
-  factory MessagesResponse.fromJson(List<dynamic> json) {
-    return MessagesResponse(
-      groups:
-          (json as List?)?.map((g) => MessageGroup.fromJson(g)).toList() ?? [],
-    );
+      final safeStart = start.clamp(0, messages.length);
+      final safeEnd = end.clamp(0, messages.length);
+
+      final paginated = messages.sublist(safeStart, safeEnd);
+
+      _sendPort.send(
+        IsolateMessage(
+          type: 'messages_retrieved',
+          data: {
+            'groupId': groupId,
+            'messages': paginated.map((m) => m.toJson()).toList(),
+            'page': page,
+            'total': messages.length,
+            'hasNext': end < messages.length,
+          },
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error in _getMessages: $e');
+      _sendPort.send(
+        IsolateMessage(
+          type: 'messages_retrieved',
+          data: {
+            'groupId': null,
+            'messages': [],
+            'page': 1,
+            'total': 0,
+            'hasNext': false,
+          },
+        ),
+      );
+    }
   }
-}
 
-class MessageGroup {
-  final num groupId; // String or int
-  final List<Message> messages;
+  void _markMessagesRead(Map<String, dynamic> data) {
+    try {
+      final groupId = data['groupId'];
+      final messageIds = List<String>.from(data['messageIds'] ?? []);
+      final userId = data['userId'];
+      final userName = data['userName'];
 
-  MessageGroup({required this.groupId, required this.messages});
+      if (groupId != null && userId != null) {
+        final messages = _messages[groupId] ?? [];
 
-  factory MessageGroup.fromJson(Map<String, dynamic> json) {
-    return MessageGroup(
-      groupId: json['groupId'] ?? json['group'],
-      messages:
-          (json['messages'] as List?)
-              ?.map((m) => Message.fromJson(m))
-              .toList() ??
-          [],
-    );
+        for (final message in messages) {
+          if (messageIds.contains(message.id)) {
+            final index = messages.indexOf(message);
+            if (index != -1) {
+              messages[index] = message.markAsReadByUser(userId, userName);
+            }
+          }
+        }
+
+        _unreadMessages[groupId]?.removeAll(messageIds);
+        if (_unreadMessages[groupId]?.isEmpty ?? false) {
+          _unreadMessages.remove(groupId);
+        }
+      }
+
+      _sendPort.send(
+        IsolateMessage(
+          type: 'messages_marked_read',
+          data: {'groupId': groupId, 'messageIds': messageIds},
+        ),
+      );
+    } catch (e) {
+      debugPrint('❌ Error in _markMessagesRead: $e');
+    }
+  }
+
+  void _addReaction(Map<String, dynamic> data) {
+    try {
+      final groupId = data['groupId'];
+      final messageId = data['messageId'];
+      final emoji = data['emoji'];
+      final userId = data['userId'];
+      final userName = data['userName'];
+
+      if (groupId != null &&
+          messageId != null &&
+          emoji != null &&
+          userId != null) {
+        final messages = _messages[groupId] ?? [];
+        final messageIndex = messages.indexWhere((m) => m.id == messageId);
+
+        if (messageIndex != -1) {
+          final message = messages[messageIndex];
+          final updatedMessage = message.addReaction(emoji, userId, userName);
+          messages[messageIndex] = updatedMessage;
+
+          _sendPort.send(
+            IsolateMessage(
+              type: 'reaction_added',
+              data: updatedMessage.toJson(),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ Error in _addReaction: $e');
+    }
+  }
+
+  void _updateMessage(Map<String, dynamic> data) {
+    try {
+      final message = Message.fromJson(data);
+      final groupId = message.group;
+
+      final messages = _messages[groupId] ?? [];
+      final messageIndex = messages.indexWhere((m) => m.id == message.id);
+
+      if (messageIndex != -1) {
+        messages[messageIndex] = message;
+
+        _sendPort.send(
+          IsolateMessage(type: 'message_updated', data: message.toJson()),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ Error in _updateMessage: $e');
+    }
+  }
+
+  void _shutdown() {
+    _messages.clear();
+    _typingData.clear();
+    _unreadMessages.clear();
+    _onlineUsers.clear();
+    _onlineUsersByGroup.clear();
+    debugPrint('🔄 ChatIsolateWorker shutdown complete');
   }
 }
 
@@ -500,398 +653,1896 @@ class ChatWebSocketHandler with ChangeNotifier {
   );
   final TokenManager tokenManager = TokenManager.instance;
 
-  // State
-  final List<MessageGroup> _messages = [];
+  static ChatWebSocketHandler? _instance;
 
-  late CallKitIntegration _callKitIntegration;
+  factory ChatWebSocketHandler() {
+    return _instance ??= ChatWebSocketHandler._internal();
+  }
+
+  ChatWebSocketHandler._internal();
+  final OneSignalService oneSignalService = OneSignalService.instance;
+
+  // Isolate Management
+  Isolate? _isolate;
+  ReceivePort? _isolateReceivePort;
+  SendPort? _isolateSendPort;
+  bool _isolateInitialized = false;
+  final Map<String, Completer<dynamic>> _isolateCompleters = {};
+  int _isolateRequestId = 0;
+
+  // UI State
+  final ValueNotifier<List<MessageGroup>> _messages = ValueNotifier([]);
+  final ValueNotifier<Map<num, List<TypingUser>>> _typingDataUI = ValueNotifier(
+    {},
+  );
+  final ValueNotifier<Map<num, Set<String>>> _unreadMessagesUI = ValueNotifier(
+    {},
+  );
+  final ValueNotifier<Set<num>> _onlineUsersUI = ValueNotifier({});
+  final ValueNotifier<Map<num, Set<num>>> _onlineUsersByGroupUI = ValueNotifier(
+    {},
+  );
+  final ValueNotifier<String?> _lastReadMessageId = ValueNotifier(null);
+  final ValueNotifier<bool> _isTyping = ValueNotifier(false);
+  final ValueNotifier<Map<String, Set<String>>> _typingUsersByGroup =
+      ValueNotifier({});
+  final ValueNotifier<bool> _isConnected = ValueNotifier(false);
+  final ValueNotifier<String> _connectionStatus = ValueNotifier('disconnected');
+  final ValueNotifier<CallData?> _incomingCall = ValueNotifier(null);
+  final ValueNotifier<CallData?> _activeCall = ValueNotifier(null);
+  final ValueNotifier<bool> _isAudioMuted = ValueNotifier(false);
+  final ValueNotifier<bool> _isVideoMuted = ValueNotifier(false);
+  final ValueNotifier<bool> _isCallActive = ValueNotifier(false);
+
+  // Getters
+  ValueNotifier<List<MessageGroup>> get messages => _messages;
+  ValueNotifier<Map<num, List<TypingUser>>> get typingData => _typingDataUI;
+  ValueNotifier<Map<num, Set<String>>> get unreadMessages => _unreadMessagesUI;
+  ValueNotifier<Set<num>> get onlineUsers => _onlineUsersUI;
+  ValueNotifier<Map<num, Set<num>>> get onlineUsersByGroup =>
+      _onlineUsersByGroupUI;
+  ValueNotifier<String?> get lastReadMessageId => _lastReadMessageId;
+  ValueNotifier<bool> get isTyping => _isTyping;
+  ValueNotifier<Map<String, Set<String>>> get typingUsersByGroup =>
+      _typingUsersByGroup;
+  ValueNotifier<bool> get isConnected => _isConnected;
+  ValueNotifier<String> get connectionStatus => _connectionStatus;
+  ValueNotifier<CallData?> get incomingCall => _incomingCall;
+  ValueNotifier<CallData?> get activeCall => _activeCall;
+  ValueNotifier<bool> get isAudioMuted => _isAudioMuted;
+  ValueNotifier<bool> get isVideoMuted => _isVideoMuted;
+  ValueNotifier<bool> get isCallActive => _isCallActive;
+
+  // Helper getters
+  int get totalUnreadMessages {
+    int total = 0;
+    for (final set in _unreadMessagesUI.value.values) {
+      total += set.length;
+    }
+    return total;
+  }
+
+  bool get isAuthenticated => _isAuthenticated;
+
+  // Batch processing
+  final List<Map<String, dynamic>> _messageBatch = [];
+  Timer? _batchTimer;
+  final Duration _batchDelay = const Duration(milliseconds: 100);
+  final int _batchSize = 50;
+
+  late CallKitIntegration callKitIntegration;
   late WebRTCManager _webrtcManager;
   num? _currentGroupId;
   int _reconnectAttempts = 0;
-  final Map<num, List<TypingUser>> _typingData = {};
-  final Map<num, Set<String>> _unreadMessages = {};
-  String? _lastReadMessageId;
-  final Map<num, Set<num>> _onlineUsersByGroup = {};
-  final Set<num> _onlineUsers = {};
 
-  // Connection state
-  bool _isConnected = false;
   bool _isAuthenticated = false;
-  String _connectionStatus =
-      'disconnected'; // 'connected', 'connecting', 'disconnected', 'reconnecting'
-
-  // Typing state
-  bool _isTyping = false;
-  final Set<String> _typingUsers = {};
-  final Map<String, Set<String>> _typingUsersByGroup = {};
-
-  // Reconnection
-  Timer? _reconnectTimer;
-  final int _maxReconnectAttempts = 5;
-  final Duration _reconnectDelay = const Duration(seconds: 1);
-
-  // Event handlers
-  final Map<String, List<Function(dynamic)>> _eventHandlers = {};
-
-  // Pending messages queue
-  final List<Map<String, dynamic>> _messageQueue = [];
-  bool _isProcessingQueue = false;
-
-  // Audio/vibration
-  AudioSession? _audioSession;
   bool _isRinging = false;
-
-  // User info
   String? _userId;
   String? _userName;
-
-  // Token monitoring
   Timer? _tokenCheckTimer;
   String? _currentToken;
   bool _tokenMonitoringStarted = false;
   final Duration _tokenCheckInterval = const Duration(seconds: 2);
   WebRTCManager get webrtcManager => _webrtcManager;
 
-  ChatWebSocketHandler() {
-    _initialize();
+  // Initialization state
+  bool _isInitialized = false;
+  bool _isDisposed = false;
+  bool _isConnecting = false;
+
+  // Event handling
+  final Map<String, Set<Function(dynamic)>> _eventHandlers = {};
+  final List<Map<String, dynamic>> _messageQueue = [];
+  bool _isProcessingQueue = false;
+  final audio = SynthNotificationAudio();
+  AudioSession? _audioSession;
+  Timer? _reconnectTimer;
+  final int _maxReconnectAttempts = 5;
+  final Duration _reconnectDelay = const Duration(seconds: 1);
+
+  // Typing management
+  Timer? _typingTimeout;
+  Timer? _typingDebounceTimer;
+  final Map<String, DateTime> _lastTypingSent = {};
+
+  // Track registered handlers
+  final Set<String> _registeredSocketEvents = {};
+  bool _handlersRegisteredWithSocket = false;
+
+  // Prevent duplicate handler setup
+  bool _handlersSetup = false;
+  bool _isProcessingChatInitialized = false;
+  bool _hasRequestedInitialData = false;
+  Timer? _chatInitializedDebounceTimer;
+  Timer? _authDebounceTimer;
+  String? _lastChatInitializedData;
+
+  // Tracking for processed messages
+  final Set<String> _processedMessageIds = {};
+  final Set<String> _processingTempIds = {};
+  final Map<String, DateTime> _lastEventTime = {};
+  final Duration _eventDebounceTime = Duration(milliseconds: 100);
+  bool _isEmittingMessage = false;
+  bool _isProcessingNewMessage = false;
+
+  // Current user groups
+  final Set<num> _currentGroups = {};
+
+  // Initialization
+  Future<void> initialize() async {
+    if (_isInitialized || _isDisposed) return;
+
+    debugPrint('🚀 Initializing ChatWebSocketHandler...');
+
+    try {
+      await _initializeIsolate();
+
+      _userId = await _getUserIdFromTokenManager();
+      _userName = await _getUserName();
+
+      _eventHandlers.clear();
+      _registeredSocketEvents.clear();
+      _processedMessageIds.clear();
+      _processingTempIds.clear();
+      _lastEventTime.clear();
+
+      _handlersRegisteredWithSocket = false;
+      _handlersSetup = false;
+      _isProcessingChatInitialized = false;
+      _hasRequestedInitialData = false;
+      _lastChatInitializedData = null;
+      _isEmittingMessage = false;
+      _isProcessingNewMessage = false;
+
+      _setupConnectionHandlers();
+      _setupChatHandlers();
+
+      _startTokenMonitoring();
+      await _checkAndConnect();
+      await _initializeWebRTCManager();
+
+      _isInitialized = true;
+      debugPrint('✅ ChatWebSocketHandler initialized successfully');
+    } catch (e, stack) {
+      debugPrint('❌ Error initializing ChatWebSocketHandler: $e\n$stack');
+    }
   }
 
-  // Getters
-  List<MessageGroup> get messages => List.unmodifiable(_messages);
-  num? get currentGroupId => _currentGroupId;
-  int get reconnectAttempts => _reconnectAttempts;
-  Map<String, List<TypingUser>> get typingData => Map.unmodifiable(_typingData);
-  Map<num, Set<String>> get unreadMessages => Map.unmodifiable(_unreadMessages);
-  String? get lastReadMessageId => _lastReadMessageId;
-  Set<num> get onlineUsers => Set.unmodifiable(_onlineUsers);
-  Map<String, Set<String>> get onlineUsersByGroup =>
-      Map.unmodifiable(_onlineUsersByGroup);
-  final List<MapEntry<String, Function(dynamic)>> _pendingHandlers = [];
-  bool get isConnected => _isConnected;
-  bool get isAuthenticated => _isAuthenticated;
-  String get connectionStatus => _connectionStatus;
+  // Isolate Initialization
+  Future<void> _initializeIsolate() async {
+    if (_isolateInitialized) return;
 
-  int get totalUnreadMessages =>
-      _unreadMessages.values.fold(0, (sum, set) => sum + set.length);
+    _isolateReceivePort = ReceivePort();
 
-  bool get isTyping => _isTyping;
-  Set<String> get typingUsers => Set.unmodifiable(_typingUsers);
-  Map<String, Set<String>> get typingUsersByGroup =>
-      Map.unmodifiable(_typingUsersByGroup);
+    try {
+      _isolate = await Isolate.spawn(
+        _isolateEntryPoint,
+        _isolateReceivePort!.sendPort,
+        debugName: 'ChatWebSocketIsolate',
+        errorsAreFatal: true,
+      );
 
-  bool get isCallingEnabled => true; // Assuming WebRTC is available
+      _isolateReceivePort!.listen(_handleIsolateMessage);
+      _isolateInitialized = true;
+      debugPrint('✅ Chat isolate initialized');
+    } catch (e) {
+      debugPrint('❌ Failed to initialize chat isolate: $e');
+      _isolateReceivePort?.close();
+      _isolateInitialized = false;
+    }
+  }
 
-  Future<void> _initialize() async {
-    // Load user info
-    _userId = await _getUserIdFromTokenManager();
-    _userName = await _getUserName();
+  static void _isolateEntryPoint(SendPort sendPort) {
+    final receivePort = ReceivePort();
+    sendPort.send(receivePort.sendPort);
 
-    // Setup connection event handlers
+    final worker = ChatIsolateWorker(sendPort);
+
+    receivePort.listen((message) {
+      if (message is IsolateMessage) {
+        worker.handleMessage(message);
+      }
+    });
+  }
+
+  void _handleIsolateMessage(dynamic message) {
+    if (_isDisposed) return;
+
+    if (message is SendPort) {
+      _isolateSendPort = message;
+      _sendToIsolate(IsolateMessage(type: 'initialize'));
+      return;
+    }
+
+    if (message is IsolateMessage) {
+      switch (message.type) {
+        case 'messages_processed':
+          _updateMessagesFromIsolate(message.data);
+          break;
+        case 'messages_list_processed':
+          _handleMessagesListFromIsolate(message.data);
+          break;
+        case 'typing_processed':
+          _updateTypingFromIsolate(message.data);
+          break;
+        case 'presence_processed':
+          _updatePresenceFromIsolate(message.data);
+          break;
+        case 'messages_parsed':
+          _updateMessagesFromIsolate(message.data);
+          break;
+        case 'call_processed':
+          _handleCallFromIsolate(message.data);
+          break;
+        case 'messages_retrieved':
+          _handleMessagesRetrievedFromIsolate(message.data);
+          break;
+        case 'messages_marked_read':
+          _updateUnreadFromIsolate(message.data);
+          break;
+        case 'reaction_added':
+          _updateMessageFromIsolate(message.data);
+          break;
+        case 'message_updated':
+          _updateMessageFromIsolate(message.data);
+          break;
+      }
+
+      if (message.replyPort != null) {
+        final completerKey = '${message.type}_${message.replyPort!.hashCode}';
+        if (_isolateCompleters.containsKey(completerKey)) {
+          _isolateCompleters[completerKey]!.complete(message.data);
+          _isolateCompleters.remove(completerKey);
+        }
+      }
+    }
+  }
+
+  void _handleMessagesListFromIsolate(dynamic data) {
+    try {
+      debugPrint('📋 Handling messages_list from isolate: ${data.runtimeType}');
+
+      if (data is! List<dynamic>) {
+        debugPrint('❌ Expected List but got: ${data.runtimeType}');
+        return;
+      }
+
+      final messagesData = List<Map<String, dynamic>>.from(data);
+      debugPrint(
+        '📋 Processing ${messagesData.length} messages from messages_list',
+      );
+
+      // CRITICAL FIX: If no messages were processed in isolate, skip UI update
+      if (messagesData.isEmpty) {
+        debugPrint(
+          '⚠️ No messages to process from isolate, skipping UI update',
+        );
+        return;
+      }
+
+      final Map<num, List<Message>> groupedMessages = {};
+      final Map<num, Set<String>> newUnreadMessages = {};
+
+      // Process all messages
+      for (final messageData in messagesData) {
+        try {
+          final message = Message.fromJson(messageData);
+          final groupId = message.group;
+
+          groupedMessages.putIfAbsent(groupId, () => []);
+          groupedMessages[groupId]!.add(message);
+
+          // Track unread messages
+          if (message.sender.toString() != _userId &&
+              message.type != 'system' &&
+              message.messageType != 'SYSTEM' &&
+              !_isMessageReadByUser(message, _userId)) {
+            newUnreadMessages.putIfAbsent(groupId, () => <String>{});
+            newUnreadMessages[groupId]!.add(message.id);
+          }
+        } catch (e) {
+          debugPrint('❌ Error processing message in messages_list: $e');
+          debugPrint('Problematic message data: $messageData');
+        }
+      }
+
+      // Create MessageGroup objects
+      final List<MessageGroup> transformedMessages = [];
+      groupedMessages.forEach((groupId, messages) {
+        messages.sort(
+          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+            b.createdAt ?? DateTime.now(),
+          ),
+        );
+
+        transformedMessages.add(
+          MessageGroup(groupId: groupId, messages: messages),
+        );
+      });
+
+      // Update UI state - IMPORTANT: Assign new value to trigger listeners
+      _messages.value = transformedMessages;
+      _unreadMessagesUI.value = newUnreadMessages;
+
+      _emitEvent('messages_list', transformedMessages);
+      notifyListeners();
+
+      debugPrint(
+        '✅ Successfully processed ${transformedMessages.length} groups with total ${transformedMessages.fold(0, (sum, group) => sum + group.messages.length)} messages',
+      );
+    } catch (e) {
+      debugPrint('❌ Error handling messages_list from isolate: $e');
+      debugPrint('Data that caused error: $data');
+    }
+  }
+
+  // Update UI directly without isolate for immediate display
+  void _updateMessagesDirectly(List<MessageGroup> messageGroups) {
+    try {
+      if (_isDisposed || messageGroups.isEmpty) {
+        debugPrint('⚠️ Skipping direct UI update: empty or disposed');
+        return;
+      }
+
+      debugPrint('🔄 Updating UI directly with ${messageGroups.length} groups');
+
+      // Check if we actually have messages
+      int totalMessages = 0;
+      for (final group in messageGroups) {
+        totalMessages += group.messages.length;
+      }
+
+      if (totalMessages == 0) {
+        debugPrint('⚠️ No messages in groups, skipping UI update');
+        return;
+      }
+
+      debugPrint('📊 Total messages to display: $totalMessages');
+
+      // Create a map to merge with existing messages
+      final Map<num, List<Message>> newGroups = {};
+
+      for (final group in messageGroups) {
+        newGroups[group.groupId] = List<Message>.from(group.messages);
+      }
+
+      // Merge with existing messages
+      final List<MessageGroup> updatedGroups = [];
+
+      // First, update existing groups
+      for (final existingGroup in _messages.value) {
+        if (newGroups.containsKey(existingGroup.groupId)) {
+          // Merge messages
+          final existingMessages = List<Message>.from(existingGroup.messages);
+          final newMessages = newGroups[existingGroup.groupId]!;
+
+          // Add only new messages that don't exist
+          for (final newMessage in newMessages) {
+            if (!existingMessages.any((m) => m.id == newMessage.id)) {
+              existingMessages.add(newMessage);
+            }
+          }
+
+          // Sort by date
+          existingMessages.sort(
+            (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+              b.createdAt ?? DateTime.now(),
+            ),
+          );
+
+          updatedGroups.add(
+            MessageGroup(
+              groupId: existingGroup.groupId,
+              messages: existingMessages,
+            ),
+          );
+
+          newGroups.remove(existingGroup.groupId);
+        } else {
+          updatedGroups.add(existingGroup);
+        }
+      }
+
+      // Add new groups that didn't exist before
+      newGroups.forEach((groupId, messages) {
+        messages.sort(
+          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+            b.createdAt ?? DateTime.now(),
+          ),
+        );
+
+        updatedGroups.add(MessageGroup(groupId: groupId, messages: messages));
+      });
+
+      // Update UI
+      _messages.value = updatedGroups;
+      notifyListeners();
+
+      debugPrint(
+        '✅ Direct UI update completed with ${updatedGroups.length} groups, ${updatedGroups.fold(0, (sum, group) => sum + group.messages.length)} total messages',
+      );
+    } catch (e) {
+      debugPrint('❌ Error in direct UI update: $e');
+    }
+  }
+
+  // Helper method to process and update UI messages
+  void _processAndUpdateUIMessages(List<Map<String, dynamic>> messagesData) {
+    try {
+      final Map<num, List<Message>> groupedMessages = {};
+
+      for (final messageData in messagesData) {
+        try {
+          final message = Message.fromJson(messageData);
+          final groupId = message.group;
+
+          groupedMessages.putIfAbsent(groupId, () => []);
+          groupedMessages[groupId]!.add(message);
+        } catch (e) {
+          debugPrint('❌ Error creating message: $e');
+          debugPrint('Problematic message data: $messageData');
+        }
+      }
+
+      // Create MessageGroup objects
+      final List<MessageGroup> messageGroups = [];
+      groupedMessages.forEach((groupId, messages) {
+        messages.sort(
+          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+            b.createdAt ?? DateTime.now(),
+          ),
+        );
+
+        messageGroups.add(MessageGroup(groupId: groupId, messages: messages));
+      });
+
+      debugPrint(
+        '🔄 Created ${messageGroups.length} groups from ${messagesData.length} messages',
+      );
+
+      // Update UI
+      _updateMessagesDirectly(messageGroups);
+    } catch (e) {
+      debugPrint('❌ Error in _processAndUpdateUIMessages: $e');
+    }
+  }
+
+  Future<dynamic> _sendToIsolate(
+    IsolateMessage message, {
+    bool waitForResponse = false,
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    if (!_isolateInitialized || _isolateSendPort == null) {
+      await _initializeIsolate();
+      if (_isolateSendPort == null) {
+        throw Exception('Isolate not ready');
+      }
+    }
+
+    if (!waitForResponse) {
+      _isolateSendPort!.send(message);
+      return null;
+    }
+
+    final completer = Completer<dynamic>();
+    final requestId = _isolateRequestId++;
+    final completerKey = '${message.type}_$requestId';
+
+    _isolateCompleters[completerKey] = completer;
+
+    Timer(timeout, () {
+      if (_isolateCompleters.containsKey(completerKey) &&
+          !completer.isCompleted) {
+        completer.completeError(TimeoutException('Isolate response timeout'));
+        _isolateCompleters.remove(completerKey);
+      }
+    });
+
+    _isolateSendPort!.send(
+      IsolateMessage(
+        type: message.type,
+        data: message.data,
+        replyPort: _isolateReceivePort!.sendPort,
+      ),
+    );
+
+    return completer.future;
+  }
+
+  // Setup chat handlers - FIXED VERSION
+  void _setupChatHandlers() {
+    if (_handlersSetup) {
+      debugPrint('⚠️ Chat handlers already setup, skipping');
+      return;
+    }
+
+    debugPrint('🔄 Setting up chat handlers...');
+
+    final handlerMap = <String, Function(dynamic)>{
+      'chat_authenticated': (data) {
+        debugPrint('✅ chat_authenticated received: $data');
+        _isAuthenticated = true;
+        _emitEvent('chat_authenticated', data);
+      },
+
+      'chat_initialized': (data) {
+        debugPrint("✅ Chat initialized event received: $data");
+
+        if (_isAuthenticated && _hasRequestedInitialData) {
+          debugPrint('⚠️ Already initialized, skipping');
+          return;
+        }
+
+        if (_chatInitializedDebounceTimer != null) {
+          _chatInitializedDebounceTimer!.cancel();
+        }
+
+        _chatInitializedDebounceTimer = Timer(
+          const Duration(milliseconds: 500),
+          () {
+            if (_isDisposed) {
+              debugPrint('⚠️ Handler disposed, skipping chat_initialized');
+              return;
+            }
+
+            _isAuthenticated = true;
+            _handleGroupsFromChatInitialized(data);
+
+            if (!_hasRequestedInitialData) {
+              _hasRequestedInitialData = true;
+              debugPrint('📡 Requesting initial data...');
+
+              Future.delayed(const Duration(milliseconds: 300), () {
+                if (!_isDisposed && _isConnected.value) {
+                  getMessages();
+                  getOnlineUsers();
+                }
+              });
+            }
+
+            _emitEvent('chat_initialized', data);
+          },
+        );
+      },
+
+      // FIXED: messages_list handler with proper data structure handling
+      'messages_list': (data) {
+        debugPrint('📋 messages_list received: ${data.runtimeType}');
+
+        // Log the actual data structure for debugging
+        if (data is List && data.isNotEmpty) {
+          debugPrint(
+            '📋 messages_list data preview: ${data.toString().substring(0, min(200, data.toString().length))}...',
+          );
+          debugPrint('🔍 Full structure inspection:');
+          for (int i = 0; i < min(3, data.length); i++) {
+            debugPrint('🔍 Item $i type: ${data[i].runtimeType}');
+            if (data[i] is Map) {
+              final map = Map<String, dynamic>.from(data[i]);
+              debugPrint('🔍 Item $i keys: ${map.keys}');
+              if (map.containsKey('messages')) {
+                debugPrint('🔍 messages type: ${map['messages'].runtimeType}');
+                debugPrint(
+                  '🔍 messages length: ${map['messages'] is List ? (map['messages'] as List).length : 'N/A'}',
+                );
+              }
+            }
+          }
+        }
+
+        // Handle different data types
+        if (data is List<MessageGroup>) {
+          // This should be from our direct update, not from server
+          debugPrint(
+            '📋 Received MessageGroup list from local update, skipping isolate processing',
+          );
+          return;
+        } else if (data is List<dynamic>) {
+          debugPrint(
+            '📋 Sending List data to isolate with ${data.length} items',
+          );
+
+          if (data.isEmpty) {
+            debugPrint('⚠️ Empty messages_list received from server');
+            return;
+          }
+
+          // Check what format the data is in by examining the first item
+          final firstItem = data[0];
+
+          if (firstItem is Map<String, dynamic>) {
+            debugPrint('📋 First item keys: ${firstItem.keys}');
+
+            // Check for the actual server format based on your logs
+            if (firstItem.containsKey('groups')) {
+              debugPrint(
+                '📋 Detected server groups format with groups: ${firstItem['groups'].runtimeType}',
+              );
+
+              // Extract messages from the complex server format
+              final allMessages = <Map<String, dynamic>>[];
+              final groups = firstItem['groups'] as Map<String, dynamic>? ?? {};
+
+              debugPrint('📋 Processing ${groups.length} groups from server');
+
+              groups.forEach((groupIdStr, groupData) {
+                try {
+                  final groupId = num.tryParse(groupIdStr) ?? 0;
+                  if (groupId == 0) return;
+
+                  debugPrint(
+                    '📋 Processing group $groupId with data: ${groupData.runtimeType}',
+                  );
+
+                  if (groupData is List) {
+                    debugPrint(
+                      '📋 Group $groupId has ${groupData.length} messages',
+                    );
+
+                    for (final messageData in groupData) {
+                      try {
+                        final messageMap = Map<String, dynamic>.from(
+                          messageData,
+                        );
+                        // Ensure each message has the groupId
+                        messageMap['group'] = groupId;
+                        allMessages.add(messageMap);
+
+                        debugPrint(
+                          '📋 Added message for group $groupId: ${messageMap['id'] ?? 'unknown'}',
+                        );
+                      } catch (e) {
+                        debugPrint(
+                          '❌ Error processing message in group $groupId: $e',
+                        );
+                      }
+                    }
+                  } else {
+                    debugPrint(
+                      '⚠️ Group data is not a List: ${groupData.runtimeType}',
+                    );
+                  }
+                } catch (e) {
+                  debugPrint('❌ Error processing group $groupIdStr: $e');
+                }
+              });
+
+              debugPrint(
+                '📋 Extracted ${allMessages.length} messages from server format',
+              );
+
+              if (allMessages.isNotEmpty) {
+                // Send to isolate for processing
+                _sendToIsolate(
+                  IsolateMessage(type: 'messages_list', data: allMessages),
+                );
+
+                // Also update UI directly for immediate display
+                try {
+                  _processAndUpdateUIMessages(allMessages);
+                } catch (e) {
+                  debugPrint('❌ Error in direct UI update: $e');
+                }
+              } else {
+                debugPrint('⚠️ No messages extracted from server format');
+              }
+            } else if (firstItem.containsKey('group') ||
+                firstItem.containsKey('groupId')) {
+              debugPrint('📋 Detected list of groups format');
+
+              // Process as list of groups with messages
+              final allMessages = <Map<String, dynamic>>[];
+
+              for (final groupData in data) {
+                try {
+                  final groupMap = Map<String, dynamic>.from(groupData);
+                  final groupId = groupMap['group'] ?? groupMap['groupId'];
+
+                  // FIXED: Better handling of messages extraction
+                  dynamic messagesRaw = groupMap['messages'];
+                  List<dynamic> messagesData = [];
+
+                  if (messagesRaw is List) {
+                    messagesData = messagesRaw;
+                  } else if (messagesRaw != null) {
+                    debugPrint(
+                      '⚠️ messagesRaw is not List: ${messagesRaw.runtimeType}, value: $messagesRaw',
+                    );
+                    // Try to convert if it's a String that might be JSON
+                    if (messagesRaw is String) {
+                      try {
+                        final parsed = jsonDecode(messagesRaw);
+                        if (parsed is List) {
+                          messagesData = parsed;
+                        }
+                      } catch (e) {
+                        debugPrint('❌ Failed to parse messages as JSON: $e');
+                      }
+                    }
+                  }
+
+                  debugPrint(
+                    '📋 Processing group $groupId with ${messagesData.length} messages',
+                  );
+
+                  for (final messageData in messagesData) {
+                    try {
+                      final messageMap = Map<String, dynamic>.from(messageData);
+                      // Ensure each message has the groupId
+                      if (!messageMap.containsKey('group') &&
+                          !messageMap.containsKey('groupId')) {
+                        messageMap['group'] = groupId;
+                      }
+                      allMessages.add(messageMap);
+                    } catch (e) {
+                      debugPrint(
+                        '❌ Error processing message in group $groupId: $e',
+                      );
+                    }
+                  }
+                } catch (e) {
+                  debugPrint('❌ Error processing group: $e');
+                }
+              }
+
+              debugPrint(
+                '📋 Extracted ${allMessages.length} messages from groups format',
+              );
+
+              if (allMessages.isNotEmpty) {
+                _sendToIsolate(
+                  IsolateMessage(type: 'messages_list', data: allMessages),
+                );
+
+                try {
+                  _processAndUpdateUIMessages(allMessages);
+                } catch (e) {
+                  debugPrint('❌ Error in direct UI update: $e');
+                }
+              }
+            } else if (firstItem.containsKey('id')) {
+              debugPrint('📋 Detected list of messages format');
+              _sendToIsolate(IsolateMessage(type: 'messages_list', data: data));
+            } else {
+              debugPrint('❌ Unknown list format in messages_list');
+              debugPrint('Full first item: $firstItem');
+            }
+          } else {
+            debugPrint('❌ First item is not a Map: ${firstItem.runtimeType}');
+          }
+        } else if (data is Map<String, dynamic>) {
+          debugPrint('📋 Single Map format received');
+          // Handle single map format if needed
+        } else {
+          debugPrint(
+            '❌ Unexpected messages_list data type: ${data.runtimeType}',
+          );
+        }
+      },
+
+      'new_message': (data) {
+        if (_isProcessingNewMessage) {
+          debugPrint('⚠️ Already processing new_message, skipping');
+          return;
+        }
+
+        debugPrint('📨 new_message received: ${data['id']}');
+
+        final messageId = data['id']?.toString();
+        final tempId = data['tempId']?.toString();
+
+        if (messageId != null && _processedMessageIds.contains(messageId)) {
+          debugPrint('⚠️ Skipping already processed message: $messageId');
+          return;
+        }
+
+        if (tempId != null && _processingTempIds.contains(tempId)) {
+          debugPrint('⚠️ Skipping own message with tempId: $tempId');
+          return;
+        }
+
+        try {
+          _isProcessingNewMessage = true;
+
+          if (messageId != null) {
+            _processedMessageIds.add(messageId);
+            if (_processedMessageIds.length > 1000) {
+              final oldest = _processedMessageIds.take(500).toList();
+              _processedMessageIds.removeAll(oldest);
+            }
+          }
+
+          // Process message immediately for UI responsiveness
+          try {
+            final message = Message.fromJson(data);
+            _addMessageToGroupUI(message.group, message);
+          } catch (e) {
+            debugPrint('❌ Error processing new_message: $e');
+            debugPrint('Message data: $data');
+          }
+
+          // Also send to isolate for batch processing
+          _queueMessageForBatch(data);
+        } finally {
+          _isProcessingNewMessage = false;
+        }
+      },
+
+      'message_sent': (data) {
+        debugPrint('📤 message_sent: $data');
+
+        final tempId = data['tempId']?.toString();
+        final messageId = data['messageId']?.toString();
+
+        if (tempId != null) {
+          _processingTempIds.add(tempId);
+          Future.delayed(Duration(seconds: 5), () {
+            _processingTempIds.remove(tempId);
+          });
+        }
+
+        if (messageId != null) {
+          _processedMessageIds.add(messageId);
+        }
+
+        _emitEvent('message_sent', data);
+      },
+
+      'online_users': (data) {
+        debugPrint('👥 online_users: $data');
+        _handleOnlineUsers(data);
+      },
+
+      // Other handlers...
+      'chat_joined': (data) => _emitEvent('chat_joined', data),
+      'chat_left': (data) => _emitEvent('chat_left', data),
+      'group_joined': (data) => _emitEvent('group_joined', data),
+      'groups_refreshed': (data) => _emitEvent('groups_refreshed', data),
+      'reaction_added_success': (data) => _handleReactionReceived(data, true),
+      'reaction_removed_success': (data) =>
+          _handleReactionReceived(data, false),
+      'message_edited': (data) {
+        _sendToIsolate(IsolateMessage(type: 'update_message', data: data));
+        _updateSingleMessageUI(data);
+        _emitEvent('message_edited', data);
+      },
+      'message_deleted': (data) => _handleMessageDeletedInUI(data),
+      'message_read': (data) => _emitEvent('message_read', data),
+      'message_read_receipt': (data) => _handleMessageReadReceipt(data),
+      'messages_read': (data) => _handleMessagesRead(data),
+      'user_typing': (data) {
+        _sendToIsolate(IsolateMessage(type: 'process_typing_data', data: data));
+        _handleTypingStart(data);
+      },
+      'user_stopped_typing': (data) {
+        _sendToIsolate(IsolateMessage(type: 'process_typing_data', data: data));
+        _handleTypingStop(data);
+      },
+      'user_joined': (data) {
+        _emitEvent('user_joined', data);
+        _emitEvent('group_update', {
+          'type': 'user_joined',
+          'groupId': data['groupId'],
+          'data': data,
+          'timestamp': data['timestamp'],
+        });
+      },
+      'user_left': (data) {
+        _emitEvent('user_left', data);
+        _emitEvent('group_update', {
+          'type': 'user_left',
+          'groupId': data['groupId'],
+          'data': data,
+          'timestamp': data['timestamp'],
+        });
+      },
+      'user_online': (data) {
+        _handleUserOnline(data);
+        _emitEvent('user_online', data);
+      },
+      'user_offline': (data) {
+        _handleUserOffline(data);
+        _emitEvent('user_offline', data);
+      },
+      'call_started': (data) {
+        _sendToIsolate(IsolateMessage(type: 'process_call_data', data: data));
+        _handleCallStarted(data);
+      },
+      'call_answered': (data) {
+        audio.stop();
+        _emitEvent('call_answered', data);
+      },
+      'call_rejected': (data) {
+        audio.stop();
+        _emitEvent('call_rejected', data);
+      },
+      'call_ended': (data) {
+        audio.stop();
+        _emitEvent('call_ended', data);
+      },
+      'user_joined_call': (data) => _emitEvent('user_joined_call', data),
+      'user_left_call': (data) => _emitEvent('user_left_call', data),
+      'webrtc_offer': (data) => _emitEvent('webrtc_offer', data),
+      'webrtc_answer': (data) => _emitEvent('webrtc_answer', data),
+      'webrtc_ice_candidate': (data) =>
+          _emitEvent('webrtc_ice_candidate', data),
+      'error': (data) {
+        debugPrint('❌ Chat error: $data');
+        _emitEvent('error', data);
+      },
+      'ping': (_) {
+        debugPrint('🏓 ping received');
+        emit('pong', {'timestamp': DateTime.now().millisecondsSinceEpoch});
+      },
+    };
+
+    handlerMap.forEach((event, handler) {
+      _registerSocketHandler(event, handler);
+    });
+
+    _handlersSetup = true;
+    debugPrint('✅ Setup ${handlerMap.length} chat handlers');
+  }
+
+  void _setupConnectionHandlers() {
+    debugPrint('🔄 Setting up connection handlers...');
+
+    if (socketService.socket != null) {
+      socketService.socket!.clearListeners();
+    }
+
     socketService.onConnected(_handleConnected);
     socketService.onDisconnected(_handleDisconnected);
     socketService.onError(_handleError);
     socketService.onConnecting(_handleConnecting);
     socketService.onReconnectAttempt(_handleReconnectAttempt);
 
-    // Setup chat-specific event handlers
-    _setupChatHandlers();
-
-    // Start token monitoring
-    _startTokenMonitoring();
-
-    // Check initial token and connect if available
-    await _checkAndConnect();
-
-    // Initialize audio session
-    _initializeAudio();
-
-    _initializeWebRTCManager();
+    debugPrint('✅ Setup connection handlers');
   }
 
-  void _initializeWebRTCManager() async {
-    try {
-      final userId = await _getUserIdFromTokenManager();
-      final userName = await _getUserName();
+  void _registerSocketHandler(String event, Function(dynamic) handler) {
+    if (_isDisposed) return;
 
-      _webrtcManager = WebRTCManager();
-      _webrtcManager.initialize(this, 1, "Raji"); // todo: change this
-      _callKitIntegration = CallKitIntegration();
+    _eventHandlers.putIfAbsent(event, () => {});
+    final handlerSet = _eventHandlers[event]!;
 
-      _callKitIntegration.initialize(webrtcManager);
-      // Setup callbacks
-      _webrtcManager.onIncomingCall = (callData) {
-        //logger.i('📨 Incoming call received via WebRTC');
+    final handlerHash = identityHashCode(handler);
+    final alreadyRegistered = handlerSet.any(
+      (h) => identityHashCode(h) == handlerHash,
+    );
 
-        // Send notification via existing chat system
-        _playRingtone();
-        _callKitIntegration.handleIncomingCallFromWebRTC(callData);
-        // You can also show a notification or update UI
-        // This will be handled by your CallKit integration
-      };
+    if (!alreadyRegistered) {
+      handlerSet.add(handler);
+      debugPrint('✅ Stored handler for event: $event');
+    }
 
-      _webrtcManager.onCallStarted = (callData) {
-        //logger.i('📞 Call started via WebRTC');
-        // Update UI or show call screen
-      };
-
-      _webrtcManager.onCallEnded = (callData) {
-        //logger.i('📞 Call ended via WebRTC');
-        _stopRingtone();
-      };
-
-      //logger.i('✅ WebRTC Manager initialized');
-    } catch (e) {
-      //logger.e('❌ Error initializing WebRTC Manager: $e');
+    if (socketService.socket != null && socketService.socket!.connected) {
+      _registerHandlerWithSocket(event, handler);
     }
   }
 
-  // Add WebRTC signaling methods to your ChatWebSocketHandler
-  void sendWebRTCOffer(Map<String, dynamic> data) {
-    emit('webrtc_offer', data);
-  }
+  void _registerHandlerWithSocket(String event, Function(dynamic) handler) {
+    if (_isDisposed || socketService.socket == null) return;
 
-  void sendWebRTCAnswer(Map<String, dynamic> data) {
-    emit('webrtc_answer', data);
-  }
-
-  void sendWebRTCICECandidate(Map<String, dynamic> data) {
-    emit('webrtc_ice_candidate', data);
-  }
-
-  // Add call management methods to your existing ChatWebSocketHandler
-  Future<void> startWebRTCCall({
-    required String type,
-    required int groupId,
-    required String groupName,
-  }) async {
     try {
-      final callData = await _webrtcManager.startCall(
-        type: type == 'video' ? CallType.video : CallType.audio,
-        groupId: groupId,
-        groupName: groupName,
-      );
+      if (_registeredSocketEvents.contains(event)) {
+        return;
+      }
 
-      // Send chat message about call start (optional)
-      final messageData = {
-        'groupId': groupId,
-        'message': 'Started a ${type} call',
-        'messageType': 'CALL',
-        'metadata': {
-          'eventType': 'CALL_STARTED',
-          'callData': callData.toJson(),
-        },
-      };
-
-      emit('send_message', messageData);
-
-      //logger.i('✅ WebRTC call started');
+      debugPrint('🔗 Registering socket handler for: $event');
+      socketService.socket!.on(event, handler);
+      _registeredSocketEvents.add(event);
     } catch (e) {
-      //logger.e('❌ Error starting WebRTC call: $e');
-      rethrow;
+      debugPrint('❌ Error registering socket handler for $event: $e');
     }
   }
 
-  Future<void> joinWebRTCCall(CallData callData) async {
-    try {
-      await _webrtcManager.joinCall(callData);
-      //logger.i('✅ Joined WebRTC call');
-    } catch (e) {
-      //logger.e('❌ Error joining WebRTC call: $e');
-      rethrow;
+  void on(String event, Function(dynamic) handler) {
+    if (_isDisposed) return;
+
+    debugPrint("📝 Public on() called for event: $event");
+    _registerSocketHandler(event, handler);
+  }
+
+  void off(String event, Function(dynamic) handler) {
+    if (_eventHandlers.containsKey(event)) {
+      final handlerSet = _eventHandlers[event]!;
+      final handlerHash = identityHashCode(handler);
+      handlerSet.removeWhere((h) => identityHashCode(h) == handlerHash);
+
+      if (handlerSet.isEmpty) {
+        _eventHandlers.remove(event);
+        _registeredSocketEvents.remove(event);
+      }
     }
   }
 
-  void endWebRTCCall() {
-    _webrtcManager.endCall();
-    //logger.i('✅ Ended WebRTC call');
-  }
-
-  void rejectWebRTCCall() {
-    _webrtcManager.rejectCall();
-    //logger.i('✅ Rejected WebRTC call');
-  }
-
-  // Audio initialization
-  Future<void> _initializeAudio() async {
+  void _handleGroupsFromChatInitialized(dynamic data) {
     try {
-      _audioSession = await AudioSession.instance;
-      await _audioSession?.configure(const AudioSessionConfiguration.music());
+      final dataMap = _makeSerializable(data);
+      final groups = dataMap['groups'] as List<dynamic>?;
+
+      if (groups != null && groups.isNotEmpty) {
+        final groupIds = groups
+            .map((g) {
+              if (g is num) return g;
+              if (g is String) return num.tryParse(g) ?? 0;
+              return 0;
+            })
+            .where((id) => id > 0)
+            .toList();
+
+        debugPrint('📋 Extracted group IDs from chat_initialized: $groupIds');
+
+        if (groupIds.isNotEmpty) {
+          oneSignalService.subscribeToGroupTags(groupIds);
+          _updateUserGroups(groupIds);
+        }
+      }
     } catch (e) {
-      debugPrint('❌ Error initializing audio session: $e');
+      debugPrint('❌ Error handling groups from chat_initialized: $e');
     }
   }
 
-  // Token Monitoring Methods
-  void _startTokenMonitoring() {
-    if (_tokenMonitoringStarted) return;
+  void _updateUserGroups(List<num> groupIds) {
+    _currentGroups.clear();
+    _currentGroups.addAll(groupIds);
+  }
 
-    _tokenMonitoringStarted = true;
+  bool isUserInGroup(num groupId) {
+    return _currentGroups.contains(groupId);
+  }
 
-    _tokenCheckTimer = Timer.periodic(_tokenCheckInterval, (_) async {
-      await _checkTokenAndReconnect();
+  void _registerAllHandlersWithSocket() {
+    if (_isDisposed || socketService.socket == null) return;
+
+    debugPrint('🔗 Registering all handlers with socket...');
+
+    socketService.socket!.clearListeners();
+    _registeredSocketEvents.clear();
+
+    _eventHandlers.forEach((event, handlers) {
+      for (final handler in handlers) {
+        try {
+          socketService.socket!.on(event, handler);
+          _registeredSocketEvents.add(event);
+        } catch (e) {
+          debugPrint('❌ Error registering $event: $e');
+        }
+      }
     });
 
-    debugPrint('🔐 Started token monitoring for chat');
+    _handlersRegisteredWithSocket = true;
+    debugPrint('✅ Registered ${_eventHandlers.length} event types with socket');
   }
 
-  void _stopTokenMonitoring() {
-    _tokenCheckTimer?.cancel();
-    _tokenCheckTimer = null;
-    _tokenMonitoringStarted = false;
-    debugPrint('🔐 Stopped token monitoring for chat');
-  }
+  // Connection Management
+  Future<void> connect() async {
+    if (_isDisposed || _isConnecting) return;
 
-  Future<void> _checkTokenAndReconnect() async {
-    try {
-      final token = await tokenManager.getToken();
-      final userId = await _getUserIdFromTokenManager();
+    _isConnecting = true;
+    _cancelReconnect();
 
-      if (token != _currentToken || userId != _userId) {
-        debugPrint('🔄 Token/user ID changed, reconnecting...');
-        await _handleTokenChange(token, userId);
-      }
-
-      if (token != null) {
-        final isExpired = await tokenManager.isTokenExpired();
-        if (isExpired) {
-          debugPrint('⚠️ Token expired, disconnecting...');
-          disconnect();
-          _clearChatData();
-        }
-      } else if (_currentToken != null) {
-        debugPrint('⚠️ Token removed, disconnecting...');
-        disconnect();
-        _clearChatData();
-      }
-    } catch (e) {
-      debugPrint('❌ Error checking token: $e');
-    }
-  }
-
-  Future<void> _checkAndConnect() async {
-    try {
-      final token = await tokenManager.getToken();
-      final userId = await _getUserIdFromTokenManager();
-
-      if (token != null && userId != null) {
-        await _handleTokenChange(token, userId);
-      } else {
-        debugPrint('⚠️ No token or user ID available');
-        disconnect();
-        _clearChatData();
-      }
-    } catch (e) {
-      debugPrint('❌ Error checking initial token: $e');
-    }
-  }
-
-  Future<void> _handleTokenChange(String? newToken, String? newUserId) async {
-    final oldToken = _currentToken;
-    final oldUserId = _userId;
-
-    _currentToken = newToken;
-    _userId = newUserId;
-
-    if (newToken == null || newUserId == null) {
-      debugPrint('🔒 No valid token or user ID, disconnecting...');
-      disconnect();
-      _clearChatData();
+    final token = await tokenManager.getToken();
+    if (token == null) {
+      debugPrint('⚠️ Cannot connect: No token available');
+      _isConnecting = false;
       return;
     }
 
-    if (oldToken == null && oldUserId == null) {
-      debugPrint('🔑 First time connection with valid token');
-      await connect();
-    } else if (oldToken != newToken || oldUserId != newUserId) {
-      debugPrint('🔄 Token/user ID changed, reconnecting...');
-      disconnect();
-      await Future.delayed(const Duration(milliseconds: 500));
-      await connect();
-    }
-  }
+    debugPrint('🔌 Connecting to chat socket...');
 
-  Future<String?> _getUserIdFromTokenManager() async {
     try {
-      final userId = await tokenManager.getUserId();
-      return userId?.toString();
-    } catch (e) {
-      debugPrint('❌ Error getting user ID: $e');
-      return null;
+      await socketService.connect();
+    } finally {
+      _isConnecting = false;
     }
   }
 
-  Future<String?> _getUserName() async {
-    // Implement user name retrieval from storage
-    return 'User'; // Replace with actual implementation
-  }
-
-  void _clearChatData() {
-    _messages.clear();
-    _typingData.clear();
-    _unreadMessages.clear();
-    _onlineUsers.clear();
-    _onlineUsersByGroup.clear();
-    _notifyListeners();
-  }
-
-  // Connection Event Handlers
   void _handleConnected() {
+    if (_isDisposed) return;
+
     debugPrint('🎉 Chat socket connected');
-    _isConnected = true;
-    _connectionStatus = 'connected';
+    _isConnected.value = true;
+    _connectionStatus.value = 'connected';
     _reconnectAttempts = 0;
-    _registerPendingHandlers();
+
+    _isAuthenticated = false;
+    _hasRequestedInitialData = false;
+
+    _registerAllHandlersWithSocket();
+
     _processMessageQueue();
-    _notifyListeners();
+    notifyListeners();
     _emitEvent('connected');
   }
 
-  // Register pending event handlers when socket is connected
-  void _registerPendingHandlers() {
-    for (final handlerEntry in _pendingHandlers) {
-      final event = handlerEntry.key;
-      final handler = handlerEntry.value;
-
-      socketService.socket?.on(event, handler);
-      debugPrint('✅ Registered event listener for: $event');
-    }
-
-    // Clear pending handlers after registration
-    _pendingHandlers.clear();
-  }
-
   void _handleConnecting() {
+    if (_isDisposed) return;
+
     debugPrint('🔄 Connecting to chat socket...');
-    _connectionStatus = 'connecting';
-    _notifyListeners();
+    _connectionStatus.value = 'connecting';
+    notifyListeners();
   }
 
   void _handleDisconnected(String reason) {
-    debugPrint('🔌 Chat socket disconnected: $reason');
-    _isConnected = false;
-    _isAuthenticated = false;
-    _connectionStatus = 'disconnected';
-    _notifyListeners();
-    _emitEvent('disconnected', {'reason': reason});
+    if (_isDisposed) return;
 
+    debugPrint('🔌 Chat socket disconnected: $reason');
+    _isConnected.value = false;
+    _isAuthenticated = false;
+    _connectionStatus.value = 'disconnected';
+    _handlersRegisteredWithSocket = false;
+    _hasRequestedInitialData = false;
+    notifyListeners();
+    _emitEvent('disconnected', {'reason': reason});
     _scheduleReconnect();
   }
 
   void _handleError(dynamic error) {
+    if (_isDisposed) return;
+
     debugPrint('❌ Chat socket error: $error');
-    _connectionStatus = 'disconnected';
-    _notifyListeners();
+    _connectionStatus.value = 'disconnected';
+    notifyListeners();
     _emitEvent('error', {'error': error.toString()});
   }
 
   void _handleReconnectAttempt(int attempt) {
+    if (_isDisposed) return;
+
     debugPrint('🔄 Chat socket reconnect attempt: $attempt');
-    _connectionStatus = 'reconnecting';
+    _connectionStatus.value = 'reconnecting';
     _reconnectAttempts = attempt;
-    _notifyListeners();
+    notifyListeners();
     _emitEvent('reconnect_attempt', {'attempt': attempt});
   }
 
+  // Presence handlers
+  void _handleUserOnline(dynamic data) {
+    final userId = data['userId']?.toString();
+    if (userId != null) {
+      final currentUsers = _onlineUsersUI.value.toSet();
+      currentUsers.add(num.tryParse(userId) ?? 0);
+      _onlineUsersUI.value = currentUsers;
+    }
+
+    final groupId = data['groupId'];
+    if (groupId != null) {
+      final currentMap = Map<num, Set<num>>.from(_onlineUsersByGroupUI.value);
+      final groupSet = currentMap[groupId]?.toSet() ?? <num>{};
+      if (userId != null) {
+        groupSet.add(num.tryParse(userId) ?? 0);
+      }
+      currentMap[groupId] = groupSet;
+      _onlineUsersByGroupUI.value = currentMap;
+    }
+  }
+
+  void _handleUserOffline(dynamic data) {
+    final userId = data['userId']?.toString();
+    if (userId != null) {
+      final currentUsers = _onlineUsersUI.value.toSet();
+      currentUsers.remove(num.tryParse(userId) ?? 0);
+      _onlineUsersUI.value = currentUsers;
+    }
+
+    final groupId = data['groupId'];
+    if (groupId != null) {
+      final currentMap = Map<num, Set<num>>.from(_onlineUsersByGroupUI.value);
+      final groupSet = currentMap[groupId]?.toSet() ?? <num>{};
+      if (userId != null) {
+        groupSet.remove(num.tryParse(userId) ?? 0);
+      }
+      currentMap[groupId] = groupSet;
+      _onlineUsersByGroupUI.value = currentMap;
+    }
+  }
+
+  void _handleOnlineUsers(dynamic data) {
+    try {
+      debugPrint('👥 Handling online_users: $data');
+
+      if (data is Map<String, dynamic>) {
+        final groups = data['groups'] as Map<String, dynamic>? ?? {};
+        final count = data['count'] as int? ?? 0;
+
+        // Extract all online users from all groups
+        final allOnlineUsers = <num>{};
+        final groupUsersMap = <num, Set<num>>{};
+
+        groups.forEach((groupIdStr, usersData) {
+          final groupId = num.tryParse(groupIdStr) ?? 0;
+          if (groupId == 0) return;
+
+          if (usersData is List) {
+            final users = usersData
+                .map((u) {
+                  if (u is Map) {
+                    return u['user'] as num? ?? 0;
+                  } else if (u is num) {
+                    return u;
+                  } else if (u is String) {
+                    return num.tryParse(u) ?? 0;
+                  }
+                  return 0;
+                })
+                .where((id) => id > 0)
+                .toSet();
+
+            groupUsersMap[groupId] = users;
+            allOnlineUsers.addAll(users);
+          }
+        });
+
+        // Update UI
+        _onlineUsersUI.value = allOnlineUsers;
+        _onlineUsersByGroupUI.value = groupUsersMap;
+
+        debugPrint(
+          '✅ Updated online users: $allOnlineUsers across ${groupUsersMap.length} groups',
+        );
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('❌ Error handling online_users: $e');
+    }
+  }
+
+  // Typing handlers
+  void _handleTypingStart(dynamic data) {
+    final indicator = TypingIndicator.fromJson(data);
+    final currentUserId = _userId;
+
+    final isMeTyping = indicator.typingUsers.any(
+      (user) => user.userId.toString() == currentUserId,
+    );
+
+    if (isMeTyping) {
+      return;
+    }
+
+    final currentTypingData = Map<num, List<TypingUser>>.from(
+      _typingDataUI.value,
+    );
+    final currentTypingUsers = currentTypingData[indicator.groupId] ?? [];
+
+    final now = DateTime.now();
+    final validCurrentTypingUsers = currentTypingUsers
+        .where(
+          (user) =>
+              user.startedAt == null ||
+              now.difference(user.startedAt!).inSeconds < 10,
+        )
+        .toList();
+
+    final filteredTypingUsers = indicator.typingUsers
+        .where((user) => user.userId.toString() != currentUserId)
+        .toList();
+
+    final mergedTypingUsers = [...validCurrentTypingUsers];
+    for (final newUser in filteredTypingUsers) {
+      final existingIndex = mergedTypingUsers.indexWhere(
+        (u) => u.userId == newUser.userId,
+      );
+      if (existingIndex == -1) {
+        mergedTypingUsers.add(newUser);
+      } else {
+        mergedTypingUsers[existingIndex] = newUser;
+      }
+    }
+
+    final finalTypingUsers = mergedTypingUsers
+        .where(
+          (user) => indicator.typingUsers.any(
+            (newUser) => newUser.userId == user.userId,
+          ),
+        )
+        .toList();
+
+    currentTypingData[indicator.groupId] = finalTypingUsers;
+    _typingDataUI.value = currentTypingData;
+
+    notifyListeners();
+  }
+
+  void _handleTypingStop(dynamic data) {
+    final indicator = TypingIndicator.fromJson(data);
+    final currentTypingData = Map<num, List<TypingUser>>.from(
+      _typingDataUI.value,
+    );
+    currentTypingData[indicator.groupId] = indicator.typingUsers;
+
+    if (indicator.typingUsers.isEmpty) {
+      currentTypingData.remove(indicator.groupId);
+    }
+
+    _typingDataUI.value = currentTypingData;
+    notifyListeners();
+  }
+
+  // Message handlers
+  void _handleMessagesRead(dynamic data) {
+    final groupId = data['groupId'];
+    final messageIds = List<String>.from(data['messageIds'] ?? []);
+
+    if (groupId != null && messageIds.isNotEmpty) {
+      _messages.value = _messages.value.map((group) {
+        if (group.groupId.toString() == groupId.toString()) {
+          final updatedMessages = group.messages.map((msg) {
+            if (messageIds.contains(msg.id)) {
+              final readBy = List<dynamic>.from(msg.readBy ?? []);
+              final userId = data['userId']?.toString();
+              if (userId != null &&
+                  !readBy.any(
+                    (read) => read is Map
+                        ? read['user']?.toString() == userId ||
+                              read['userId']?.toString() == userId
+                        : read.toString() == userId,
+                  )) {
+                readBy.add(userId);
+              }
+
+              return msg.copyWith(status: 'read', readBy: readBy);
+            }
+            return msg;
+          }).toList();
+
+          return MessageGroup(
+            groupId: group.groupId,
+            messages: updatedMessages,
+          );
+        }
+        return group;
+      }).toList();
+
+      notifyListeners();
+    }
+  }
+
+  void _handleMessagesRetrievedFromIsolate(dynamic data) {
+    try {
+      final groupId = data['groupId'];
+      final messagesData = List<Map<String, dynamic>>.from(
+        data['messages'] ?? [],
+      );
+      final hasNext = data['hasNext'] ?? false;
+
+      if (groupId == null) {
+        debugPrint('⚠️ groupId is null in messages_retrieved');
+        return;
+      }
+
+      final messages = messagesData.map((m) => Message.fromJson(m)).toList();
+
+      final existingGroups = List<MessageGroup>.from(_messages.value);
+      final groupIndex = existingGroups.indexWhere((g) => g.groupId == groupId);
+
+      if (groupIndex != -1) {
+        final existingMessages = existingGroups[groupIndex].messages;
+        final updatedMessages = [...existingMessages, ...messages]
+          ..sort(
+            (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+              b.createdAt ?? DateTime.now(),
+            ),
+          );
+        existingGroups[groupIndex] = MessageGroup(
+          groupId: groupId,
+          messages: updatedMessages,
+        );
+      } else {
+        existingGroups.add(MessageGroup(groupId: groupId, messages: messages));
+      }
+
+      _messages.value = existingGroups;
+      notifyListeners();
+
+      _emitEvent('messages_retrieved', {
+        'groupId': groupId,
+        'messages': messages,
+        'hasNext': hasNext,
+      });
+    } catch (e) {
+      debugPrint('❌ Error handling messages retrieved: $e');
+    }
+  }
+
+  void _handleMessageReadReceipt(dynamic data) {
+    if (_isDisposed) return;
+
+    try {
+      final messageIds = List<String>.from(data['messageIds'] ?? []);
+      final groupId = data['groupId'];
+      final userId = data['userId']?.toString();
+
+      if (groupId != null && messageIds.isNotEmpty) {
+        _messages.value = _messages.value.map((group) {
+          if (group.groupId.toString() == groupId.toString()) {
+            final updatedMessages = group.messages.map((msg) {
+              if (messageIds.contains(msg.id)) {
+                final readBy = List<dynamic>.from(msg.readBy ?? []);
+                if (!readBy.any(
+                  (read) => read is Map
+                      ? read['user']?.toString() == userId ||
+                            read['userId']?.toString() == userId
+                      : read.toString() == userId,
+                )) {
+                  readBy.add(userId ?? _userId);
+                }
+
+                return msg.copyWith(status: 'read', readBy: readBy);
+              }
+              return msg;
+            }).toList();
+
+            return MessageGroup(
+              groupId: group.groupId,
+              messages: updatedMessages,
+            );
+          }
+          return group;
+        }).toList();
+
+        // Remove from unread messages
+        final currentUnread = Map<num, Set<String>>.from(
+          _unreadMessagesUI.value,
+        );
+        final groupUnread = currentUnread[groupId];
+        if (groupUnread != null) {
+          messageIds.forEach(groupUnread.remove);
+          if (groupUnread.isEmpty) {
+            currentUnread.remove(groupId);
+          } else {
+            currentUnread[groupId] = groupUnread;
+          }
+          _unreadMessagesUI.value = currentUnread;
+        }
+
+        notifyListeners();
+      }
+
+      _emitEvent('message_read_receipt', data);
+    } catch (e) {
+      debugPrint('❌ Error handling message_read_receipt: $e');
+    }
+  }
+
+  void _handleReactionReceived(dynamic data, bool isAdded) {
+    if (_isDisposed) return;
+
+    try {
+      final emoji = data['emoji'] ?? data['reaction']?['emoji'];
+      final userIdStr = (data['userId'] ?? data['reaction']?['userId'])
+          ?.toString();
+      final userName = data['userName'] ?? data['reaction']?['userName'];
+      final messageId = data['messageId'];
+      final groupId = data['groupId'];
+
+      if (emoji == null ||
+          userIdStr == null ||
+          messageId == null ||
+          groupId == null) {
+        return;
+      }
+
+      _messages.value = _messages.value.map((group) {
+        if (group.groupId.toString() == groupId.toString()) {
+          final updatedMessages = group.messages.map((msg) {
+            if (msg.id == messageId) {
+              final reactions = List<Map<String, dynamic>>.from(
+                msg.reactions ?? [],
+              );
+              final existingIndex = reactions.indexWhere(
+                (r) => r['emoji'] == emoji,
+              );
+
+              final userObj = {
+                'userId': num.tryParse(userIdStr),
+                'userName': userName,
+                'reactedAt': DateTime.now().toIso8601String(),
+              };
+
+              if (isAdded) {
+                if (existingIndex != -1) {
+                  final existing = reactions[existingIndex];
+                  final users = List<dynamic>.from(existing['users'] ?? []);
+                  final alreadyReacted = users.any(
+                    (u) => u is Map
+                        ? u['userId']?.toString() == userIdStr
+                        : u.toString() == userIdStr,
+                  );
+
+                  if (!alreadyReacted) {
+                    users.add(userObj);
+                    reactions[existingIndex] = {
+                      ...existing,
+                      'users': users,
+                      'count': users.length,
+                    };
+                  }
+                } else {
+                  reactions.add({
+                    'emoji': emoji,
+                    'users': [userObj],
+                    'count': 1,
+                  });
+                }
+              } else {
+                if (existingIndex != -1) {
+                  final existing = reactions[existingIndex];
+                  var users = List<dynamic>.from(existing['users'] ?? []);
+                  users = users
+                      .where(
+                        (u) => u is Map
+                            ? u['userId']?.toString() != userIdStr
+                            : u.toString() != userIdStr,
+                      )
+                      .toList();
+
+                  if (users.isEmpty) {
+                    reactions.removeAt(existingIndex);
+                  } else {
+                    reactions[existingIndex] = {
+                      ...existing,
+                      'users': users,
+                      'count': users.length,
+                    };
+                  }
+                }
+              }
+
+              return msg.copyWith(reactions: reactions);
+            }
+            return msg;
+          }).toList();
+
+          return MessageGroup(
+            groupId: group.groupId,
+            messages: updatedMessages,
+          );
+        }
+        return group;
+      }).toList();
+
+      notifyListeners();
+
+      _emitEvent(
+        isAdded ? 'reaction_added_success' : 'reaction_removed_success',
+        data,
+      );
+    } catch (e) {
+      debugPrint('❌ Error handling reaction: $e');
+    }
+  }
+
+  // UI Update Methods
+  void _updateMessagesFromIsolate(List<dynamic> messagesData) {
+    if (_isDisposed || messagesData.isEmpty) return;
+
+    for (final messageData in messagesData) {
+      try {
+        final message = Message.fromJson(messageData);
+        _addMessageToGroupUI(message.group, message);
+      } catch (e) {
+        debugPrint('❌ Error updating message from isolate: $e');
+      }
+    }
+
+    notifyListeners();
+  }
+
+  void _updateTypingFromIsolate(Map<String, dynamic> data) {
+    if (_isDisposed) return;
+
+    final groupId = data['groupId'];
+    final typingUsers = List<dynamic>.from(
+      data['typingUsers'] ?? [],
+    ).map((u) => TypingUser.fromJson(u)).toList();
+
+    final currentData = Map<num, List<TypingUser>>.from(_typingDataUI.value);
+    currentData[groupId] = typingUsers;
+    _typingDataUI.value = currentData;
+
+    notifyListeners();
+    _emitEvent('typing_update', data);
+  }
+
+  void _updatePresenceFromIsolate(Map<String, dynamic> data) {
+    if (_isDisposed) return;
+
+    final groupId = data['groupId'];
+    final users = List<num>.from(data['users'] ?? []);
+
+    if (groupId != null) {
+      final currentMap = Map<num, Set<num>>.from(_onlineUsersByGroupUI.value);
+      currentMap[groupId] = users.toSet();
+      _onlineUsersByGroupUI.value = currentMap;
+    }
+
+    final currentUsers = _onlineUsersUI.value.toSet();
+    currentUsers.clear();
+    currentUsers.addAll(users);
+    _onlineUsersUI.value = currentUsers;
+
+    notifyListeners();
+    _emitEvent('presence_update', data);
+  }
+
+  void _handleCallFromIsolate(Map<String, dynamic> data) {
+    // if (_isDisposed) return;
+
+    // try {
+    //   final callData = CallData.fromJson(data);
+    //   // webrtcManager.setIncomingCall(callData);
+    //   _emitEvent('call_processed', data);
+    // } catch (e) {
+    //   debugPrint('❌ Error handling call from isolate: $e');
+    // }
+  }
+
+  void _updateUnreadFromIsolate(Map<String, dynamic> data) {
+    if (_isDisposed) return;
+
+    final groupId = data['groupId'];
+    final messageIds = List<String>.from(data['messageIds'] ?? []);
+
+    if (groupId != null) {
+      final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
+      final groupUnread = currentUnread[groupId];
+      if (groupUnread != null) {
+        messageIds.forEach(groupUnread.remove);
+        if (groupUnread.isEmpty) {
+          currentUnread.remove(groupId);
+        } else {
+          currentUnread[groupId] = groupUnread;
+        }
+        _unreadMessagesUI.value = currentUnread;
+      }
+    }
+
+    notifyListeners();
+  }
+
+  void _updateMessageFromIsolate(Map<String, dynamic> messageData) {
+    if (_isDisposed) return;
+
+    try {
+      final message = Message.fromJson(messageData);
+      final groupId = message.group;
+
+      _messages.value = _messages.value.map((group) {
+        if (group.groupId == groupId) {
+          final messageIndex = group.messages.indexWhere(
+            (m) => m.id == message.id,
+          );
+
+          if (messageIndex != -1) {
+            final updatedMessages = List<Message>.from(group.messages);
+            updatedMessages[messageIndex] = message;
+            return MessageGroup(
+              groupId: group.groupId,
+              messages: updatedMessages,
+            );
+          }
+        }
+        return group;
+      }).toList();
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error updating single message from isolate: $e');
+    }
+  }
+
+  void _updateSingleMessageUI(dynamic messageData) {
+    if (_isDisposed) return;
+
+    try {
+      final message = Message.fromJson(messageData);
+
+      _messages.value = _messages.value.map((group) {
+        if (group.groupId == message.group) {
+          final updatedMessages = group.messages.map((m) {
+            if (m.id == message.id) {
+              return message.copyWith(status: 'edited');
+            }
+            return m;
+          }).toList();
+
+          return MessageGroup(
+            groupId: group.groupId,
+            messages: updatedMessages,
+          );
+        }
+        return group;
+      }).toList();
+
+      notifyListeners();
+    } catch (e) {
+      debugPrint('❌ Error updating single message: $e');
+    }
+  }
+
+  // Add message to UI
+  void _addMessageToGroupUI(num groupId, Message message) {
+    if (_isDisposed) return;
+
+    // Play notification if not our own message
+    if (_userId != message.sender.toString() &&
+        message.type != 'system' &&
+        message.messageType != 'SYSTEM') {
+      _vibrate();
+      audio.play(SynthSoundType.message);
+    }
+
+    // Add to unread messages if appropriate
+    if (_userId != message.sender.toString() &&
+        message.type != 'system' &&
+        message.messageType != 'SYSTEM' &&
+        !_isMessageReadByUser(message, _userId)) {
+      final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
+      currentUnread.putIfAbsent(groupId, () => <String>{});
+      currentUnread[groupId]!.add(message.id);
+      _unreadMessagesUI.value = currentUnread;
+    }
+
+    // Add to UI state
+    final List<MessageGroup> currentMessages = List.from(_messages.value);
+    final groupIndex = currentMessages.indexWhere((g) => g.groupId == groupId);
+
+    if (groupIndex == -1) {
+      // Create new group
+      currentMessages.add(MessageGroup(groupId: groupId, messages: [message]));
+    } else {
+      // Update existing group
+      final existingMessages = List<Message>.from(
+        currentMessages[groupIndex].messages,
+      );
+      final exists = existingMessages.any(
+        (m) =>
+            m.id == message.id ||
+            (message.tempId != null && m.tempId == message.tempId),
+      );
+
+      if (!exists) {
+        existingMessages.add(message);
+        existingMessages.sort(
+          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+            b.createdAt ?? DateTime.now(),
+          ),
+        );
+
+        currentMessages[groupIndex] = MessageGroup(
+          groupId: groupId,
+          messages: existingMessages,
+        );
+      }
+    }
+
+    // IMPORTANT: Assign new list to trigger ValueNotifier update
+    _messages.value = currentMessages;
+
+    // Mark as read if this is the current group
+    if (_currentGroupId == groupId) {
+      markMessageAsRead(message.id, groupId);
+    }
+
+    notifyListeners();
+    _emitEvent('message_received', message);
+  }
+
+  void _handleMessageDeletedInUI(dynamic data) {
+    if (_isDisposed) return;
+
+    final serializableData = _makeSerializable(data);
+    final messageId = serializableData['messageId'];
+    final groupId = serializableData['groupId'];
+
+    _messages.value = _messages.value.map((group) {
+      if (group.groupId.toString() == groupId.toString()) {
+        final updatedMessages = group.messages
+            .where((m) => m.id != messageId)
+            .toList();
+        return MessageGroup(groupId: group.groupId, messages: updatedMessages);
+      }
+      return group;
+    }).toList();
+
+    notifyListeners();
+    _emitEvent('message_deleted', serializableData);
+  }
+
+  void _handleCallStarted(dynamic data) {
+    if (_isDisposed) return;
+
+    try {
+      debugPrint('📞 Incoming call received: $data');
+      final callData = CallData.fromJson(data);
+
+      if (callData.initiatorId == _userId) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (navigatorKey.currentState != null &&
+              navigatorKey.currentState!.mounted) {
+            print(
+              '🚀 Navigating to CallScreen with call: ${callData.callId}',
+            );
+
+            // Close any existing dialogs or modals
+            navigatorKey.currentState!.popUntil((route) => route.isFirst);
+
+            // Navigate to CallScreen
+            navigatorKey.currentState!.push(
+              MaterialPageRoute(
+                builder: (context) => CallScreen(
+                  callData: callData,
+                  webrtcManager: _webrtcManager,
+                ),
+                fullscreenDialog: true, // Makes it modal
+              ),
+            );
+          } else {
+            //   print('⚠️ Navigator not available yet, retrying...');
+            //   // Retry after a delay
+            //   Future.delayed(Duration(milliseconds: 500), () {
+            //     _navigateToCallScreen();
+            //   });
+          }
+        });
+      }
+      // webrtcManager.setIncomingCall(callData);
+      _emitEvent('call_started', data);
+    } on Exception catch (e) {
+      debugPrint("Error handling call: ${e.toString()}");
+    }
+  }
+
+  void _emitEvent(String event, [dynamic data]) {
+    if (_isDisposed) return;
+
+    final now = DateTime.now();
+    final lastEvent = _lastEventTime[event];
+
+    if (lastEvent != null && now.difference(lastEvent) < _eventDebounceTime) {
+      return;
+    }
+
+    _lastEventTime[event] = now;
+
+    final handlers = _eventHandlers[event];
+    if (handlers != null) {
+      for (final handler in handlers) {
+        try {
+          handler(data);
+        } catch (e) {
+          debugPrint('❌ Error in event handler for $event: $e');
+        }
+      }
+    }
+  }
+
   void _scheduleReconnect() {
+    if (_isDisposed) return;
+
     if (_reconnectAttempts >= _maxReconnectAttempts) {
       debugPrint('❌ Max reconnection attempts reached');
       _emitEvent('error', {'error': 'Failed to reconnect to chat service'});
@@ -900,747 +2551,157 @@ class ChatWebSocketHandler with ChangeNotifier {
 
     _reconnectAttempts++;
     final delay = _reconnectDelay * (1 << (_reconnectAttempts - 1));
-
     debugPrint(
       '⏰ Scheduling reconnect in ${delay.inMilliseconds}ms (attempt $_reconnectAttempts)',
     );
 
+    _cancelReconnect();
     _reconnectTimer = Timer(delay, () {
-      connect();
+      if (!_isDisposed) {
+        connect();
+      }
     });
   }
 
   void _cancelReconnect() {
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
-  }
-
-  // Event Management
-  void on(String event, Function(dynamic) handler) {
-    if (socketService.socket != null && socketService.isConnected) {
-      // Socket is already connected, register immediately
-      socketService.socket!.on(event, handler);
-      debugPrint('✅ Immediately registered event listener for: $event');
-    } else {
-      // Socket not ready yet, queue the handler
-      _pendingHandlers.add(MapEntry(event, handler));
-      debugPrint('⏳ Queued event listener for: $event');
-    }
-
-    if (!_eventHandlers.containsKey(event)) {
-      _eventHandlers[event] = [];
-    }
-    _eventHandlers[event]!.add(handler);
-  }
-
-  void off(String event, Function(dynamic) handler) {
-    if (_eventHandlers.containsKey(event)) {
-      _eventHandlers[event]!.remove(handler);
-    }
-  }
-
-  void _emitEvent(String event, [dynamic data]) {
-    final handlers = _eventHandlers[event];
-    if (handlers != null) {
-      for (final handler in handlers) {
-        handler(data);
-      }
-    }
-  }
-
-  // Setup chat event handlers
-  void _setupChatHandlers() {
-    // Authentication events
-    on('chat_authenticated', (data) {
-      _isAuthenticated = true;
-      _emitEvent('chat_authenticated', data);
-    });
-
-    on('chat_initialized', (data) {
-      debugPrint("data?? $data");
-      _isAuthenticated = true;
-      getMessages();
-      getOnlineUsers();
-      _emitEvent('chat_initialized', data);
-    });
-
-    // Group events
-    on('chat_joined', (data) {
-      _emitEvent('chat_joined', data);
-    });
-
-    on('chat_left', (data) {
-      _emitEvent('chat_left', data);
-    });
-
-    on('group_joined', (data) {
-      _emitEvent('group_joined', data);
-    });
-
-    on('groups_refreshed', (data) {
-      _emitEvent('groups_refreshed', data);
-    });
-
-    // Message events
-    on('new_message', (data) {
-      _handleMessageReceived(Message.fromJson(data));
-    });
-
-    on('message_sent', (data) {
-      _emitEvent('message_sent', data);
-    });
-
-    on('message_edited', (data) {
-      _handleMessageEdited(data);
-    });
-
-    on('message_deleted', (data) {
-      _handleMessageDeleted(data);
-    });
-
-    on('message_read', (data) {
-      _emitEvent('message_read', data);
-    });
-
-    on('messages_read', (data) {
-      _handleMessagesRead(data);
-    });
-
-    on('message_read_receipt', (data) {
-      _handleMessageReadReceipt(data);
-    });
-
-    on('messages_list', (data) {
-      _handleMessagesList(data);
-    });
-
-    // Reaction events
-    on('reaction_added_success', (data) {
-      _handleReactionReceived(data, true);
-    });
-
-    on('reaction_removed_success', (data) {
-      _handleReactionReceived(data, false);
-    });
-
-    // Typing events
-    on('user_typing', (data) {
-      _handleTypingStart(data);
-    });
-
-    on('user_stopped_typing', (data) {
-      _handleTypingStop(data);
-    });
-
-    // Presence events
-    on('user_joined', (data) {
-      _handleUserJoined(data);
-    });
-
-    on('user_left', (data) {
-      _handleUserLeft(data);
-    });
-
-    on('user_online', (data) {
-      _handleUserOnline(data);
-    });
-
-    on('user_offline', (data) {
-      _handleUserOffline(data);
-    });
-
-    on('online_users', (data) {
-      _handleOnlineUsers(data);
-    });
-
-    // Calling events
-    on('call_started', (data) {
-      debugPrint("Incoming call received data??? $data");
-      _handleCallStarted(data);
-    });
-
-    on('call_answered', (data) {
-      _handleCallAnswered(data);
-    });
-
-    on('call_rejected', (data) {
-      _handleCallRejected(data);
-    });
-
-    on('call_ended', (data) {
-      _handleCallEnded(data);
-    });
-
-    on('user_joined_call', (data) {
-      _handleUserJoinedCall(data);
-    });
-
-    on('user_left_call', (data) {
-      _handleUserLeftCall(data);
-    });
-
-    // WebRTC events
-    on('webrtc_offer', (data) {
-      _emitEvent('webrtc_offer', data);
-    });
-
-    on('webrtc_answer', (data) {
-      _emitEvent('webrtc_answer', data);
-    });
-
-    on('webrtc_ice_candidate', (data) {
-      _emitEvent('webrtc_ice_candidate', data);
-    });
-
-    // Ping/pong
-    on('ping', (_) {
-      emit('pong', {'timestamp': DateTime.now().millisecondsSinceEpoch});
-    });
-  }
-
-  // Message handling
-  void _handleMessageReceived(Message message) {
-    final groupId = message.group;
-
-    // Play notification if not our own message
-    if (_userId != message.sender.toString() &&
-        message.type != 'system' &&
-        message.messageType != 'SYSTEM') {
-      _playMessageNotification();
-    }
-
-    // Add to unread messages if appropriate
-    if (_userId != message.sender.toString() &&
-        message.type != 'system' &&
-        message.messageType != 'SYSTEM' &&
-        !_isMessageReadByUser(message, _userId)) {
-      _addUnreadMessage(groupId, message.id);
-
-      // If currently viewing this group, mark as read immediately
-      if (_currentGroupId == groupId) {
-        markMessageAsRead(message.id, groupId);
-      }
-    }
-
-    // Add message to state
-    _addMessageToGroup(groupId, message);
-
-    _emitEvent('message_received', message);
-  }
-
-  void _handleMessageEdited(dynamic data) {
-    final message = Message.fromJson(data);
-    final groupId = message.group;
-
-    _updateMessageInGroup(groupId, message);
-    _emitEvent('message_edited', message);
-  }
-
-  void _handleMessageDeleted(dynamic data) {
-    final messageId = data['messageId'];
-    final groupId = data['groupId'];
-
-    _removeMessageFromGroup(groupId, messageId);
-    _emitEvent('message_deleted', data);
-  }
-
-  void _handleMessagesRead(dynamic data) {
-    final groupId = data['groupId'];
-    final messageIds = List<String>.from(data['messageIds'] ?? []);
-
-    if (groupId != null && messageIds.isNotEmpty) {
-      _markMessagesAsRead(groupId, messageIds, data['userId'] ?? _userId);
-    }
-
-    _emitEvent('messages_read', data);
-  }
-
-  void _handleMessageReadReceipt(dynamic data) {
-    final groupId = data['groupId'];
-    final messageIds = List<String>.from(data['messageIds'] ?? []);
-
-    if (groupId != null && messageIds.isNotEmpty) {
-      _markMessagesAsRead(groupId, messageIds, data['userId']);
-    }
-
-    _emitEvent('message_read_receipt', data);
-  }
-
-  void _handleMessagesList(dynamic data) {
-    // try {
-
-    final response = MessagesResponse.fromJson(data);
-
-    _messages.clear();
-    _messages.addAll(response.groups);
-
-    // Track unread messages
-    final newUnreadMessages = <num, Set<String>>{};
-    for (final group in response.groups) {
-      final groupId = group.groupId;
-      final unreadMessageIds = <String>{};
-
-      for (final message in group.messages) {
-        if (_userId != message.sender.toString() &&
-            message.type != 'system' &&
-            message.messageType != 'SYSTEM' &&
-            !_isMessageReadByUser(message, _userId)) {
-          unreadMessageIds.add(message.id);
-        }
-      }
-
-      if (unreadMessageIds.isNotEmpty) {
-        newUnreadMessages[groupId] = unreadMessageIds;
-      }
-    }
-    _unreadMessages.clear();
-    _unreadMessages.addAll(newUnreadMessages);
-    _emitEvent('messages_list', response);
-    // } catch (e) {
-    //   debugPrint('❌ Error parsing messages list: $e');
-    // }
-  }
-
-  void _handleReactionReceived(dynamic data, bool isAdded) {
-    final reaction = data;
-    final groupId = int.parse(reaction['groupId'].toString());
-    final messageId = reaction['messageId'];
-    final emoji = reaction['emoji'] ?? reaction['reaction']?['emoji'];
-    final userId =
-        reaction['userId'] ?? reaction['reaction']?['userId']?.toString();
-    final userName = reaction['userName'] ?? reaction['reaction']?['userName'];
-
-    if (groupId == null ||
-        messageId == null ||
-        emoji == null ||
-        userId == null) {
-      return;
-    }
-
-    _updateMessageReaction(
-      groupId,
-      messageId,
-      emoji,
-      userId,
-      userName,
-      isAdded,
-    );
-
-    if (isAdded) {
-      _emitEvent('reaction_added_success', data);
-    } else {
-      _emitEvent('reaction_removed_success', data);
-    }
-  }
-
-  // Typing handlers
-  void _handleTypingStart(dynamic data) {
-    try {
-      final indicator = TypingIndicator.fromJson(data);
-      final currentUserId = _userId;
-
-      // Don't show our own typing indicator
-      if (indicator.typingUsers.any((user) => user.userId == currentUserId)) {
-        return;
-      }
-
-      final now = DateTime.now();
-      final currentTypingUsers = _typingData[indicator.groupId] ?? [];
-
-      // Filter out old typing users (> 10 seconds)
-      final validTypingUsers = currentTypingUsers.where((user) {
-        if (user.startedAt == null) return true;
-        return now.difference(user.startedAt!).inSeconds < 10;
-      }).toList();
-
-      // Merge with new typing users
-      final newTypingUsers = indicator.typingUsers.where(
-        (user) => user.userId != currentUserId,
-      );
-
-      for (final newUser in newTypingUsers) {
-        final existingIndex = validTypingUsers.indexWhere(
-          (u) => u.userId == newUser.userId,
-        );
-        if (existingIndex == -1) {
-          validTypingUsers.add(newUser);
-        } else {
-          validTypingUsers[existingIndex] = newUser;
-        }
-      }
-
-      // Only include users still typing
-      final finalTypingUsers = validTypingUsers.where((user) {
-        return indicator.typingUsers.any(
-          (newUser) => newUser.userId == user.userId,
-        );
-      }).toList();
-
-      _typingData[indicator.groupId] = finalTypingUsers;
-
-      _emitEvent('typing_start', indicator);
-      _emitEvent('user_typing', indicator);
-      _notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Error handling typing start: $e');
-    }
-  }
-
-  void _handleTypingStop(dynamic data) {
-    try {
-      final indicator = TypingIndicator.fromJson(data);
-
-      if (indicator.typingUsers.isEmpty) {
-        _typingData.remove(indicator.groupId);
-      } else {
-        _typingData[indicator.groupId] = indicator.typingUsers;
-      }
-
-      _emitEvent('typing_stop', indicator);
-      _emitEvent('user_stopped_typing', indicator);
-      _notifyListeners();
-    } catch (e) {
-      debugPrint('❌ Error handling typing stop: $e');
-    }
-  }
-
-  // Presence handlers
-  void _handleUserJoined(dynamic data) {
-    _emitEvent('user_joined', data);
-    _emitEvent('group_update', {
-      'type': 'user_joined',
-      'groupId': data['groupId'],
-      'data': data,
-      'timestamp': data['timestamp'],
-    });
-  }
-
-  void _handleUserLeft(dynamic data) {
-    _emitEvent('user_left', data);
-    _emitEvent('group_update', {
-      'type': 'user_left',
-      'groupId': data['groupId'],
-      'data': data,
-      'timestamp': data['timestamp'],
-    });
-  }
-
-  void _handleUserOnline(dynamic data) {
-    final userId = int.parse(data['userId'].toString());
-    final groupId = int.parse(data['groupId'].toString());
-
-    if (userId != null) {
-      _onlineUsers.add(userId);
-    }
-
-    if (groupId != null && userId != null) {
-      _onlineUsersByGroup.putIfAbsent(groupId, () => <num>{});
-      _onlineUsersByGroup[groupId]!.add(userId);
-    }
-
-    _emitEvent('user_online', data);
-    _notifyListeners();
-  }
-
-  void _handleUserOffline(dynamic data) {
-    final userId = data['userId']?.toString();
-    final groupId = data['groupId']?.toString();
-
-    if (userId != null) {
-      _onlineUsers.remove(userId);
-    }
-
-    if (groupId != null && userId != null) {
-      final groupUsers = _onlineUsersByGroup[groupId];
-      if (groupUsers != null) {
-        groupUsers.remove(userId);
-        if (groupUsers.isEmpty) {
-          _onlineUsersByGroup.remove(groupId);
-        }
-      }
-    }
-
-    _emitEvent('user_offline', data);
-    _notifyListeners();
-  }
-
-  void _handleOnlineUsers(dynamic data) {
-    final groupIds = List<dynamic>.from(data['groupIds'] ?? []);
-    final users = List<num>.from(data['users'] ?? []);
-
-    final Set<num> userIds = users.map((u) => u).toSet();
-    _onlineUsers.clear();
-    _onlineUsers.addAll(userIds);
-
-    for (final groupId in groupIds) {
-      _onlineUsersByGroup[groupId] = userIds;
-    }
-
-    _emitEvent('online_users', data);
-    _notifyListeners();
-  }
-
-  // Calling handlers
-  void _handleCallStarted(dynamic data) {
-    debugPrint('📞 Incoming call received: $data');
-
-    // Only handle if we're not the initiator
-    // if (data['fromUserId']?.toString() != _userId) {
-    _playRingtone();
-    _emitEvent('call_started', data);
-    // }
-
-    webrtcManager.answerCall().then((_) {
-      print("?? going Here ");
-      Navigator.push(
-        navigatorKey.currentContext!,
-        MaterialPageRoute(
-          builder: (context) => CallScreen(
-            callData: webrtcManager.activeCall!,
-            webrtcManager: webrtcManager,
-          ),
-        ),
-      );
-    });
-  }
-
-  void _handleCallAnswered(dynamic data) {
-    debugPrint('📞 Call answered: $data');
-    _stopRingtone();
-    _emitEvent('call_answered', data);
-  }
-
-  void _handleCallRejected(dynamic data) {
-    debugPrint('📞 Call rejected: $data');
-    _stopRingtone();
-    _emitEvent('call_rejected', data);
-  }
-
-  void _handleCallEnded(dynamic data) {
-    debugPrint('📞 Call ended: $data');
-    _stopRingtone();
-    _emitEvent('call_ended', data);
-  }
-
-  void _handleUserJoinedCall(dynamic data) {
-    debugPrint('📞 User joined call: $data');
-    _emitEvent('user_joined_call', data);
-  }
-
-  void _handleUserLeftCall(dynamic data) {
-    debugPrint('📞 User left call: $data');
-    _emitEvent('user_left_call', data);
-  }
-
-  // Message queue management
-  void _queueMessage(String event, dynamic data) {
-    _messageQueue.add({'event': event, 'data': data});
+    _chatInitializedDebounceTimer?.cancel();
+    _authDebounceTimer?.cancel();
   }
 
   void _processMessageQueue() {
-    if (_isProcessingQueue || _messageQueue.isEmpty) return;
+    if (_isDisposed || _isProcessingQueue || _messageQueue.isEmpty) return;
 
     _isProcessingQueue = true;
 
-    while (_messageQueue.isNotEmpty) {
-      final message = _messageQueue.removeAt(0);
-      if (_isConnected) {
-        emit(message['event'], message['data']);
-      }
-    }
-
-    _isProcessingQueue = false;
-  }
-
-  // Audio notifications
-  Future<void> _playMessageNotification() async {
     try {
-      await _audioSession?.setActive(true);
-      // Play notification sound
-      // Implement audio playback using audioplayers or similar package
-      await _vibrate();
-    } catch (e) {
-      debugPrint('❌ Error playing message notification: $e');
+      while (_messageQueue.isNotEmpty) {
+        final message = _messageQueue.removeAt(0);
+        final event = message['event'];
+        final data = message['data'];
+
+        if (_isConnected.value) {
+          emit(event, data ?? {});
+        }
+      }
+    } finally {
+      _isProcessingQueue = false;
     }
   }
 
-  Future<void> _playRingtone() async {
-    if (_isRinging) return;
+  void _queueMessage(String event, [dynamic data]) {
+    if (_isDisposed) return;
 
-    _isRinging = true;
-    // Implement ringtone playback
-    debugPrint('🔔 Playing ringtone');
+    final serializableData = _makeSerializable(data);
+    _messageQueue.add({'event': event, 'data': serializableData});
   }
 
-  void _stopRingtone() {
-    _isRinging = false;
-    debugPrint('🔕 Stopped ringtone');
-  }
+  void emit(String event, [dynamic data]) {
+    if (_isDisposed || !socketService.isConnected) {
+      debugPrint('⚠️ Cannot emit $event: Socket not connected or disposed');
+      _queueMessage(event, data);
+      return;
+    }
 
-  Future<void> _vibrate() async {
     try {
-      if (await Vibration.hasVibrator() ?? false) {
-        await Vibration.vibrate(duration: 500);
+      if (event == 'send_message') {
+        if (_isEmittingMessage) {
+          debugPrint('⚠️ Already emitting a message, skipping duplicate');
+          return;
+        }
+
+        try {
+          _isEmittingMessage = true;
+          socketService.socket?.emit(event, _makeSerializable(data) ?? {});
+          debugPrint('📤 Emitted event: $event');
+        } finally {
+          _isEmittingMessage = false;
+        }
+      } else {
+        socketService.socket?.emit(event, _makeSerializable(data) ?? {});
+        debugPrint('📤 Emitted event: $event');
       }
     } catch (e) {
-      debugPrint('❌ Error vibrating: $e');
+      debugPrint('❌ Error emitting event $event: $e');
     }
+  }
+
+  // Batch Processing
+  void _queueMessageForBatch(dynamic data) {
+    if (_isDisposed) return;
+
+    _messageBatch.add(_makeSerializable(data));
+
+    if (_batchTimer == null || !_batchTimer!.isActive) {
+      _batchTimer = Timer(_batchDelay, _processMessageBatch);
+    }
+
+    if (_messageBatch.length >= _batchSize) {
+      _batchTimer?.cancel();
+      _processMessageBatch();
+    }
+  }
+
+  void _processMessageBatch() {
+    if (_isDisposed || _messageBatch.isEmpty) return;
+
+    final batch = List.from(_messageBatch);
+    _messageBatch.clear();
+
+    _sendToIsolate(IsolateMessage(type: 'process_message_batch', data: batch));
   }
 
   // Public API Methods
-
-  // Connection management
-  Future<void> connect() async {
-    _cancelReconnect();
-
-    final token = await tokenManager.getToken();
-    if (token == null) {
-      debugPrint('⚠️ Cannot connect: No token available');
+  void getMessages({int page = 1, int limit = 50, String? before}) {
+    if (!_isConnected.value) {
+      _queueMessage('get_messages', {
+        'page': page,
+        'limit': limit,
+        'before': before,
+      });
       return;
     }
 
-    debugPrint('🔌 Connecting to chat socket...');
-    await socketService.connect();
+    _sendToIsolate(
+      IsolateMessage(
+        type: 'get_messages',
+        data: {'page': page, 'limit': limit, 'before': before},
+      ),
+    );
+
+    emit('get_messages', {'page': page, 'limit': limit, 'before': before});
   }
 
-  void disconnect() {
-    _cancelReconnect();
-    debugPrint('🔌 Disconnecting from chat socket...');
-    socketService.disconnect();
-    _isConnected = false;
-    _isAuthenticated = false;
-    _connectionStatus = 'disconnected';
-    _notifyListeners();
-  }
-
-  void reconnect() {
-    _cancelReconnect();
-    debugPrint('🔄 Reconnecting chat socket...');
-    socketService.reconnect();
-  }
-
-  Future<bool> waitForConnection({
-    Duration timeout = const Duration(seconds: 5),
-  }) async {
-    if (_isConnected && _isAuthenticated) {
-      return true;
-    }
-
-    final completer = Completer<bool>();
-    final timer = Timer(timeout, () {
-      completer.complete(false);
-    });
-
-    void checkConnection() {
-      if (_isConnected && _isAuthenticated) {
-        timer.cancel();
-        completer.complete(true);
-      }
-    }
-
-    // Check periodically
-    final periodicTimer = Timer.periodic(const Duration(milliseconds: 100), (
-      timer,
-    ) {
-      checkConnection();
-    });
-
-    // Also listen for connection events
-    void connectedHandler(dynamic _) {
-      checkConnection();
-    }
-
-    on('connected', connectedHandler);
-
-    final result = await completer.future;
-
-    periodicTimer.cancel();
-    off('connected', connectedHandler);
-
-    return result;
-  }
-
-  Future<bool> healthCheck() async {
-    if (!_isConnected) return false;
-
-    final completer = Completer<bool>();
-    final timer = Timer(const Duration(seconds: 3), () {
-      completer.complete(false);
-    });
-
-    void connectedHandler(dynamic _) {
-      timer.cancel();
-      completer.complete(true);
-    }
-
-    void errorHandler(dynamic _) {
-      timer.cancel();
-      completer.complete(false);
-    }
-
-    on('connected', connectedHandler);
-    on('error', errorHandler);
-
-    final result = await completer.future;
-
-    // Cleanup after timeout
-    Future.delayed(const Duration(seconds: 3), () {
-      off('connected', connectedHandler);
-      off('error', errorHandler);
-    });
-
-    return result;
-  }
-
-  // Group management
-  void joinGroup(num groupId) {
-    _currentGroupId = groupId;
-
-    if (!_isConnected) {
-      _queueMessage('join_chat', {'groupId': groupId});
-      return;
-    }
-
-    emit('join_chat', {'groupId': groupId});
-    markAllGroupMessagesAsRead(groupId);
-  }
-
-  void leaveGroup(num groupId) {
-    if (_currentGroupId == groupId) {
-      _currentGroupId = null;
-    }
-
-    if (!_isConnected) {
-      _queueMessage('leave_chat', {'groupId': groupId});
-      return;
-    }
-
-    emit('leave_chat', {'groupId': groupId});
-  }
-
-  void joinNewGroup(String groupId) {
-    if (!_isConnected) {
-      _queueMessage('join_new_group', {'groupId': groupId});
-      return;
-    }
-
-    emit('join_new_group', {'groupId': groupId});
-  }
-
-  void refreshGroups() {
-    if (!_isConnected) {
-      _queueMessage('refresh_groups', {});
-      return;
-    }
-
-    emit('refresh_groups');
-  }
-
-  // Message operations
   Map<String, dynamic> sendMessage(SendMessageParams params) {
     final messageData = params.toJson();
 
-    if (!_isConnected) {
+    final tempId = params.tempId;
+    if (tempId != null) {
+      _processingTempIds.add(tempId);
+    }
+
+    // Add to UI immediately for better UX
+    try {
+      final tempMessage = Message.fromJson({
+        ...messageData,
+        'id': tempId ?? 'temp-${DateTime.now().millisecondsSinceEpoch}',
+        'sender': _userId,
+        'senderName': _userName,
+        'createdAt': DateTime.now().toIso8601String(),
+        'status': 'sending',
+        'tempId': tempId,
+      });
+
+      _addMessageToGroupUI(params.groupId, tempMessage);
+    } catch (e) {
+      debugPrint('❌ Error adding temp message to UI: $e');
+    }
+
+    // Send to isolate
+    _sendToIsolate(IsolateMessage(type: 'update_message', data: messageData));
+
+    if (!_isConnected.value) {
       _queueMessage('send_message', messageData);
       return messageData;
     }
@@ -1666,58 +2727,70 @@ class ChatWebSocketHandler with ChangeNotifier {
     );
   }
 
-  Future<Map<String, dynamic>> sendFileMessage(
-    num groupId,
-    List<int> fileBytes,
-    String fileName,
-    String mimeType, {
-    String? caption,
-  }) async {
-    // Implement file upload first
-    final fileUrl = await _uploadFile(fileBytes, fileName, mimeType, groupId);
+  void markMessageAsRead(String messageId, num groupId) {
+    if (_isDisposed) return;
 
-    return sendMessage(
-      SendMessageParams(
-        groupId: groupId.toInt(),
-        message: caption ?? fileName,
-        messageType: 'FILE',
-        tempId: 'file-${DateTime.now().millisecondsSinceEpoch}',
-        attachments: [
-          {
-            'url': fileUrl,
-            'type': mimeType,
-            'name': fileName,
-            'size': fileBytes.length,
-          },
-        ],
-      ),
-    );
-  }
-
-  void getMessages({int page = 1, int limit = 50, String? before}) {
-    if (!_isConnected) {
-      _queueMessage('get_messages', {
-        'page': page,
-        'limit': limit,
-        'before': before,
-      });
-      return;
+    // Update UI immediately
+    final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
+    final groupUnread = currentUnread[groupId];
+    if (groupUnread != null) {
+      groupUnread.remove(messageId);
+      if (groupUnread.isEmpty) {
+        currentUnread.remove(groupId);
+      } else {
+        currentUnread[groupId] = groupUnread;
+      }
+      _unreadMessagesUI.value = currentUnread;
     }
 
-    emit('get_messages', {'page': page, 'limit': limit, 'before': before});
-  }
+    // Update in isolate
+    _sendToIsolate(
+      IsolateMessage(
+        type: 'mark_messages_read',
+        data: {
+          'groupId': groupId,
+          'messageIds': [messageId],
+          'userId': _userId,
+          'userName': _userName,
+        },
+      ),
+    );
 
-  void markMessageAsRead(String messageId, num groupId) {
-    if (!_isConnected) {
+    // Update local messages state
+    _messages.value = _messages.value.map((group) {
+      if (group.groupId == groupId) {
+        final updatedMessages = group.messages.map((msg) {
+          if (msg.id == messageId) {
+            final readBy = List<dynamic>.from(msg.readBy ?? []);
+            if (!readBy.any(
+              (read) => read is Map
+                  ? read['user']?.toString() == _userId ||
+                        read['userId']?.toString() == _userId
+                  : read.toString() == _userId,
+            )) {
+              readBy.add(_userId);
+            }
+
+            return msg.copyWith(status: 'read', readBy: readBy);
+          }
+          return msg;
+        }).toList();
+
+        return MessageGroup(groupId: group.groupId, messages: updatedMessages);
+      }
+      return group;
+    }).toList();
+
+    _lastReadMessageId.value = messageId;
+    notifyListeners();
+
+    if (!_isConnected.value) {
       _queueMessage('mark_message_read', {
         'messageId': messageId,
         'groupId': groupId,
       });
       return;
     }
-
-    // Update local state immediately
-    _markMessagesAsRead(groupId, [messageId], _userId);
 
     emit('mark_message_read', {
       'messageId': messageId,
@@ -1728,7 +2801,9 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   void markMessagesAsRead(List<String> messageIds, num groupId) {
-    if (!_isConnected) {
+    if (_isDisposed) return;
+
+    if (!_isConnected.value) {
       _queueMessage('mark_messages_read', {
         'messageIds': messageIds,
         'groupId': groupId,
@@ -1736,8 +2811,62 @@ class ChatWebSocketHandler with ChangeNotifier {
       return;
     }
 
-    // Update local state immediately
-    _markMessagesAsRead(groupId, messageIds, _userId);
+    // Update UI immediately
+    final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
+    final groupUnread = currentUnread[groupId];
+    if (groupUnread != null) {
+      messageIds.forEach(groupUnread.remove);
+      if (groupUnread.isEmpty) {
+        currentUnread.remove(groupId);
+      } else {
+        currentUnread[groupId] = groupUnread;
+      }
+      _unreadMessagesUI.value = currentUnread;
+    }
+
+    // Update in isolate
+    _sendToIsolate(
+      IsolateMessage(
+        type: 'mark_messages_read',
+        data: {
+          'groupId': groupId,
+          'messageIds': messageIds,
+          'userId': _userId,
+          'userName': _userName,
+        },
+      ),
+    );
+
+    // Update local messages
+    _messages.value = _messages.value.map((group) {
+      if (group.groupId == groupId) {
+        final updatedMessages = group.messages.map((msg) {
+          if (messageIds.contains(msg.id)) {
+            final readBy = List<dynamic>.from(msg.readBy ?? []);
+            if (!readBy.any(
+              (read) => read is Map
+                  ? read['user']?.toString() == _userId ||
+                        read['userId']?.toString() == _userId
+                  : read.toString() == _userId,
+            )) {
+              readBy.add(_userId);
+            }
+
+            return msg.copyWith(status: 'read', readBy: readBy);
+          }
+          return msg;
+        }).toList();
+
+        return MessageGroup(groupId: group.groupId, messages: updatedMessages);
+      }
+      return group;
+    }).toList();
+
+    if (messageIds.isNotEmpty) {
+      _lastReadMessageId.value = messageIds.last;
+    }
+
+    notifyListeners();
 
     emit('mark_messages_read', {
       'messageIds': messageIds,
@@ -1748,41 +2877,92 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   void markAllGroupMessagesAsRead(num groupId) {
-    if (!_isConnected) {
+    if (!_isConnected.value) {
       _queueMessage('mark_group_read', {'groupId': groupId});
       return;
     }
 
     // Clear unread messages for this group
-    _unreadMessages.remove(groupId);
+    final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
+    currentUnread.remove(groupId);
+    _unreadMessagesUI.value = currentUnread;
 
     // Update all messages in this group to read status
-    _updateGroupMessagesStatus(groupId, 'read');
+    _messages.value = _messages.value.map((group) {
+      if (group.groupId == groupId) {
+        final updatedMessages = group.messages.map((msg) {
+          final readBy = List<dynamic>.from(msg.readBy ?? []);
+          if (!readBy.any(
+            (read) => read is Map
+                ? read['user']?.toString() == _userId ||
+                      read['userId']?.toString() == _userId
+                : read.toString() == _userId,
+          )) {
+            readBy.add(_userId);
+          }
+
+          return msg.copyWith(status: 'read', readBy: readBy);
+        }).toList();
+
+        return MessageGroup(groupId: group.groupId, messages: updatedMessages);
+      }
+      return group;
+    }).toList();
 
     emit('mark_group_read', {'groupId': groupId});
-    _notifyListeners();
+    notifyListeners();
   }
 
   void markAllMessagesAsRead() {
-    if (!_isConnected) {
+    if (!_isConnected.value) {
       _queueMessage('mark_all_read', {});
       return;
     }
 
     // Clear all unread messages
-    _unreadMessages.clear();
+    _unreadMessagesUI.value = {};
 
     // Update all messages to read status
-    for (final group in _messages) {
-      _updateGroupMessagesStatus(group.groupId, 'read');
-    }
+    _messages.value = _messages.value.map((group) {
+      final updatedMessages = group.messages.map((msg) {
+        final readBy = List<dynamic>.from(msg.readBy ?? []);
+        if (!readBy.any(
+          (read) => read is Map
+              ? read['user']?.toString() == _userId ||
+                    read['userId']?.toString() == _userId
+              : read.toString() == _userId,
+        )) {
+          readBy.add(_userId);
+        }
+
+        return msg.copyWith(status: 'read', readBy: readBy);
+      }).toList();
+
+      return MessageGroup(groupId: group.groupId, messages: updatedMessages);
+    }).toList();
 
     emit('mark_all_read');
-    _notifyListeners();
+    notifyListeners();
   }
 
   void addReaction(String messageId, String emoji, String groupId) {
-    if (!_isConnected) {
+    if (_isDisposed) return;
+
+    // Update in isolate
+    _sendToIsolate(
+      IsolateMessage(
+        type: 'add_reaction',
+        data: {
+          'groupId': groupId,
+          'messageId': messageId,
+          'emoji': emoji,
+          'userId': _userId,
+          'userName': _userName,
+        },
+      ),
+    );
+
+    if (!_isConnected.value) {
       _queueMessage('add_reaction', {
         'messageId': messageId,
         'emoji': emoji,
@@ -1800,8 +2980,8 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void deleteMessage(String messageId, String groupId) {
-    if (!_isConnected) {
+  void deleteMessage(String messageId, num groupId) {
+    if (!_isConnected.value) {
       _queueMessage('delete_message', {
         'messageId': messageId,
         'groupId': groupId,
@@ -1813,7 +2993,7 @@ class ChatWebSocketHandler with ChangeNotifier {
   }
 
   void editMessage(String messageId, num groupId, String content) {
-    if (!_isConnected) {
+    if (!_isConnected.value) {
       _queueMessage('edit_message', {
         'messageId': messageId,
         'groupId': groupId,
@@ -1829,55 +3009,9 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  // Typing methods
-  void startTyping(String groupId) {
-    if (!_isConnected) {
-      _queueMessage('typing_start', {'groupId': groupId});
-      return;
-    }
-
-    emit('typing_start', {'groupId': groupId});
-  }
-
-  void stopTyping(String groupId) {
-    if (!_isConnected) {
-      _queueMessage('typing_stop', {'groupId': groupId});
-      return;
-    }
-
-    emit('typing_stop', {'groupId': groupId});
-  }
-
-  List<TypingUser> getTypingUsers(num groupId) {
-    return _typingData[groupId] ?? [];
-  }
-
-  bool isUserTyping(num groupId, String userId) {
-    final typers = getTypingUsers(groupId);
-    return typers.any((user) => user.userId == userId);
-  }
-
-  String getTypingDisplayText(num groupId) {
-    final typers = getTypingUsers(groupId);
-    if (typers.isEmpty) return '';
-
-    final names = typers.map((user) => user.userName).toList();
-    if (names.length == 1) {
-      return '${names[0]} is typing...';
-    } else if (names.length == 2) {
-      return '${names[0]} and ${names[1]} are typing...';
-    } else {
-      return '${names[0]}, ${names[1]} and ${typers.length - 2} others are typing...';
-    }
-  }
-
-  bool isTypingDataEmpty() {
-    return _typingData.isEmpty;
-  }
-
   // Presence methods
   void getOnlineUsers({String? groupId}) {
-    if (!_isConnected) {
+    if (!_isConnected.value) {
       if (groupId != null) {
         _queueMessage('get_online_users', {'groupId': groupId});
       } else {
@@ -1886,6 +3020,20 @@ class ChatWebSocketHandler with ChangeNotifier {
       return;
     }
 
+    // Send cached data immediately for UI
+    if (_onlineUsersByGroupUI.value.isNotEmpty ||
+        _onlineUsersUI.value.isNotEmpty) {
+      final cachedData = {
+        'users': _onlineUsersUI.value.toList(),
+        'groupUsers': Map.from(
+          _onlineUsersByGroupUI.value,
+        ).map((key, value) => MapEntry(key, value.toList())),
+      };
+
+      _emitEvent('online_users_cached', cachedData);
+    }
+
+    // Request fresh data from server
     if (groupId != null) {
       emit('get_online_users', {'groupId': groupId});
     } else {
@@ -1895,55 +3043,272 @@ class ChatWebSocketHandler with ChangeNotifier {
 
   List<num> getOnlineUsersForGroup(dynamic groupId) {
     final groupKey = groupId;
-    final users = _onlineUsersByGroup[groupKey];
+    final users = _onlineUsersByGroupUI.value[groupKey];
     return users?.toList() ?? [];
   }
 
   int getOnlineCountForGroup(dynamic groupId) {
     final groupKey = groupId;
-    final users = _onlineUsersByGroup[groupKey];
+    final users = _onlineUsersByGroupUI.value[groupKey];
     return users?.length ?? 0;
   }
 
-  // Calling methods (stubs - implement with WebRTC)
-  Future<void> startCall(String type, Map<String, dynamic> group) async {
-    // Implement WebRTC call start
-    debugPrint('📞 Starting $type call with group ${group['id']}');
+  // Typing methods
+  void startTyping(String groupId) {
+    if (!_isConnected.value) {
+      _queueMessage('typing_start', {'groupId': groupId});
+      return;
+    }
+
+    final now = DateTime.now();
+    final lastSent = _lastTypingSent[groupId];
+    if (lastSent != null && now.difference(lastSent).inSeconds < 1) {
+      return;
+    }
+
+    _lastTypingSent[groupId] = now;
+    emit('typing_start', {'groupId': groupId});
+
+    if (_typingTimeout != null) {
+      _typingTimeout!.cancel();
+    }
+    _typingTimeout = Timer(Duration(seconds: 5), () {
+      stopTyping(groupId);
+    });
   }
 
-  Future<void> joinCall(CallData callData) async {
-    // Implement WebRTC call join
-    debugPrint('📞 Joining call ${callData.callId}');
+  void stopTyping(String groupId) {
+    if (!_isConnected.value) {
+      _queueMessage('typing_stop', {'groupId': groupId});
+      return;
+    }
+
+    if (_typingTimeout != null) {
+      _typingTimeout!.cancel();
+      _typingTimeout = null;
+    }
+
+    _lastTypingSent.remove(groupId);
+    emit('typing_stop', {'groupId': groupId});
   }
 
-  void endCall(Map<String, dynamic> group) {
-    // Implement WebRTC call end
-    debugPrint('📞 Ending call in group ${group['id']}');
+  // Typing helper methods
+  List<TypingUser> getTypingUsers(num groupId) {
+    return _typingDataUI.value[groupId] ?? [];
   }
 
-  void rejectCall() {
-    // Implement WebRTC call reject
-    debugPrint('📞 Rejecting call');
+  bool isUserTyping(num groupId, String userId) {
+    final typers = getTypingUsers(groupId);
+    return typers.any((user) => user.userId.toString() == userId);
+  }
+
+  String getTypingDisplayText(num groupId) {
+    final typers = getTypingUsers(groupId);
+    if (typers.isEmpty) {
+      return '';
+    }
+
+    final names = typers.map((user) => user.userName).toList();
+    if (names.length == 1) {
+      return '${names[0]} is typing...';
+    } else if (names.length == 2) {
+      return '${names[0]} and ${names[1]} are typing...';
+    } else {
+      return '${names[0]}, ${names[1]} and ${names.length - 2} others are typing...';
+    }
+  }
+
+  // Group management
+  void joinGroup(num groupId) {
+    _currentGroupId = groupId;
+    if (!_isConnected.value) {
+      _queueMessage('join_chat', {'groupId': groupId});
+      return;
+    }
+    emit('join_chat', {'groupId': groupId});
+    markAllGroupMessagesAsRead(groupId);
+  }
+
+  void leaveGroup(num groupId) {
+    if (_currentGroupId == groupId) {
+      _currentGroupId = null;
+    }
+    if (!_isConnected.value) {
+      _queueMessage('leave_chat', {'groupId': groupId});
+      return;
+    }
+    emit('leave_chat', {'groupId': groupId});
+  }
+
+  void joinNewGroup(num groupId) {
+    if (!_isConnected.value) {
+      _queueMessage('join_new_group', {'groupId': groupId});
+      return;
+    }
+
+    emit('join_new_group', {'groupId': groupId});
+  }
+
+  void refreshGroups() {
+    if (!_isConnected.value) {
+      _queueMessage('refresh_groups', {});
+      return;
+    }
+
+    emit('refresh_groups');
+  }
+
+  // WebRTC methods
+  Future<void> _initializeWebRTCManager() async {
+    try {
+      final userId = await _getUserIdFromTokenManager();
+      final userName = await _getUserName();
+
+      _webrtcManager = WebRTCManager();
+      _webrtcManager.initialize(
+        this,
+        userId != null ? int.tryParse(userId) ?? 1 : 1,
+        userName ?? 'User',
+      );
+
+      callKitIntegration = CallKitIntegration();
+      await callKitIntegration.initialize(_webrtcManager);
+
+      _webrtcManager.onIncomingCall = (callData) {
+        debugPrint("📨 CHAT SOCKET Incoming call received via WebRTC");
+        audio.play(SynthSoundType.ringtone);
+        callKitIntegration.handleIncomingCallFromWebRTC(callData);
+      };
+
+      _webrtcManager.onCallStarted = (callData) {
+        debugPrint('📞 Call started via WebRTC');
+        _activeCall.value = callData;
+        _isCallActive.value = true;
+      };
+
+      _webrtcManager.onCallEnded = (callData) {
+        debugPrint('📞 Call ended via WebRTC');
+        audio.stop();
+        _activeCall.value = null;
+        _isCallActive.value = false;
+        _incomingCall.value = null;
+      };
+
+      _webrtcManager.onAudioMuted = (isMuted) {
+        _isAudioMuted.value = isMuted;
+      };
+
+      _webrtcManager.onVideoMuted = (isMuted) {
+        _isVideoMuted.value = isMuted;
+      };
+
+      debugPrint('✅ WebRTC Manager initialized');
+    } catch (e, stack) {
+      debugPrint('❌ Error initializing WebRTC Manager: $e\n$stack');
+    }
+  }
+
+  Future<CallData> startWebRTCCall(
+    BuildContext context, {
+    required String type,
+    required int groupId,
+    required String groupName,
+  }) async {
+    try {
+      final callData = await _webrtcManager.startCall(
+        type: type == 'video' ? CallType.video : CallType.audio,
+        groupId: groupId,
+        groupName: groupName,
+      );
+
+      final messageData = {
+        'groupId': groupId,
+        'message': 'Started a ${type} call',
+        'messageType': 'CALL',
+        'metadata': {
+          'eventType': 'CALL_STARTED',
+          'callData': callData.toJson(),
+        },
+      };
+      audio.play(SynthSoundType.ringtone);
+      _emitEvent('call_started', callData.toJson());
+      emit('send_message', messageData);
+      return callData;
+    } catch (e) {
+      debugPrint('❌ Error starting WebRTC call: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> joinWebRTCCall(CallData callData) async {
+    try {
+      await _webrtcManager.joinCall(callData);
+      debugPrint('✅ Joined WebRTC call');
+      _activeCall.value = callData;
+      _isCallActive.value = true;
+    } catch (e) {
+      debugPrint('❌ Error joining WebRTC call: $e');
+      rethrow;
+    }
+  }
+
+  void endWebRTCCall() {
+    _webrtcManager.endCall();
+    debugPrint('✅ Ended WebRTC call');
+    _activeCall.value = null;
+    _isCallActive.value = false;
+  }
+
+  void rejectWebRTCCall() {
+    _webrtcManager.rejectCall();
+    debugPrint('✅ Rejected WebRTC call');
+    _incomingCall.value = null;
+  }
+
+  void sendWebRTCOffer(Map<String, dynamic> data) {
+    emit('webrtc_offer', _makeSerializable(data));
+  }
+
+  void sendWebRTCAnswer(Map<String, dynamic> data) {
+    emit('webrtc_answer', _makeSerializable(data));
+  }
+
+  void sendWebRTCICECandidate(Map<String, dynamic> data) {
+    emit('webrtc_ice_candidate', _makeSerializable(data));
   }
 
   // File upload
-  Future<String> _uploadFile(
-    List<int> fileBytes,
-    String fileName,
-    String mimeType,
-    num groupId,
-  ) async {
-    // Implement file upload to server
-    // This should make an HTTP request to your upload endpoint
-    // Return the file URL
-    return 'https://example.com/uploads/$fileName';
+  Future<String> uploadFile(File file, String groupId) async {
+    throw UnimplementedError('File upload not implemented');
   }
 
   // Helper methods
+  dynamic _makeSerializable(dynamic data) {
+    if (data == null) return null;
+    if (data is Map ||
+        data is List ||
+        data is String ||
+        data is num ||
+        data is bool) {
+      return data;
+    }
+
+    try {
+      if (data is TypingIndicator) return data.toJson();
+      if (data is Message) return data.toJson();
+      if (data is CallData) return data.toJson();
+      if (data is MessageGroup) return (data as MessageGroup).toJson();
+      if (data is TypingUser) return data.toJson();
+      if (data is SendMessageParams) return data.toJson();
+      return {};
+    } catch (e) {
+      debugPrint('❌ Warning: Could not serialize data: $e');
+      return {};
+    }
+  }
 
   bool _isMessageReadByUser(Message message, String? userId) {
     if (message.readBy == null || userId == null) return false;
-
     return message.readBy!.any((read) {
       if (read is Map) {
         return read['user']?.toString() == userId ||
@@ -1953,293 +3318,242 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void _addMessageToGroup(num groupId, Message message) {
-    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
-
-    if (groupIndex == -1) {
-      // Create new group
-      _messages.add(MessageGroup(groupId: groupId, messages: [message]));
-    } else {
-      // Add to existing group
-      final existingMessages = _messages[groupIndex].messages;
-
-      // Check if message already exists
-      final exists = existingMessages.any(
-        (m) =>
-            m.id == message.id ||
-            (message.tempId != null && m.tempId == message.tempId),
-      );
-
-      if (!exists) {
-        existingMessages.add(message);
-        // Sort by timestamp
-        existingMessages.sort(
-          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
-            b.createdAt ?? DateTime.now(),
-          ),
-        );
+  Future<void> _vibrate() async {
+    try {
+      if (await Vibration.hasVibrator() ?? false) {
+        await Vibration.vibrate(duration: 500);
       }
-    }
-
-    _notifyListeners();
-  }
-
-  void _updateMessageInGroup(num groupId, Message message) {
-    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
-
-    if (groupIndex != -1) {
-      final messageIndex = _messages[groupIndex].messages.indexWhere(
-        (m) => m.id == message.id,
-      );
-
-      if (messageIndex != -1) {
-        _messages[groupIndex].messages[messageIndex] = message;
-        _notifyListeners();
-      }
+    } catch (e) {
+      debugPrint('❌ Error vibrating: $e');
     }
   }
 
-  void _removeMessageFromGroup(num groupId, String messageId) {
-    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
-
-    if (groupIndex != -1) {
-      _messages[groupIndex].messages.removeWhere((m) => m.id == messageId);
-      _notifyListeners();
+  Future<String?> _getUserIdFromTokenManager() async {
+    try {
+      final userId = await tokenManager.getUserId();
+      return userId?.toString();
+    } catch (e) {
+      debugPrint('❌ Error getting user ID: $e');
+      return null;
     }
   }
 
-  void _updateMessageReaction(
-    num groupId,
-    String messageId,
-    String emoji,
-    String userId,
-    String? userName,
-    bool isAdded,
-  ) {
-    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
+  Future<String?> _getUserName() async {
+    return 'User';
+  }
 
-    if (groupIndex != -1) {
-      final messageIndex = _messages[groupIndex].messages.indexWhere(
-        (m) => m.id == messageId,
-      );
-
-      if (messageIndex != -1) {
-        final message = _messages[groupIndex].messages[messageIndex];
-        final reactions = List<Map<String, dynamic>>.from(
-          message.reactions ?? [],
-        );
-
-        final reactionIndex = reactions.indexWhere((r) => r['emoji'] == emoji);
-
-        final userObj = {
-          'userId': int.tryParse(userId) ?? userId,
-          'userName': userName,
-          'reactedAt': DateTime.now().toIso8601String(),
-        };
-
-        if (isAdded) {
-          if (reactionIndex != -1) {
-            final users = List<Map<String, dynamic>>.from(
-              reactions[reactionIndex]['users'] ?? [],
-            );
-            final alreadyReacted = users.any(
-              (u) =>
-                  u['userId']?.toString() == userId || u.toString() == userId,
-            );
-
-            if (!alreadyReacted) {
-              users.add(userObj);
-              reactions[reactionIndex]['users'] = users;
-              reactions[reactionIndex]['count'] = users.length;
-            }
-          } else {
-            reactions.add({
-              'emoji': emoji,
-              'users': [userObj],
-              'count': 1,
-            });
-          }
-        } else {
-          if (reactionIndex != -1) {
-            final users = List<Map<String, dynamic>>.from(
-              reactions[reactionIndex]['users'] ?? [],
-            );
-            users.removeWhere(
-              (u) =>
-                  u['userId']?.toString() == userId || u.toString() == userId,
-            );
-
-            if (users.isEmpty) {
-              reactions.removeAt(reactionIndex);
-            } else {
-              reactions[reactionIndex]['users'] = users;
-              reactions[reactionIndex]['count'] = users.length;
-            }
-          }
-        }
-
-        final updatedMessage = Message.fromJson({
-          ...message.toJson(),
-          'reactions': reactions,
-        });
-
-        _messages[groupIndex].messages[messageIndex] = updatedMessage;
-        _notifyListeners();
+  // Token Management
+  Future<void> _checkAndConnect() async {
+    try {
+      final token = await tokenManager.getToken();
+      final userId = await _getUserIdFromTokenManager();
+      if (token != null && userId != null) {
+        await _handleTokenChange(token, userId);
+      } else {
+        debugPrint('⚠️ No token or user ID available');
+        disconnect();
+        _clearChatData();
       }
+    } catch (e) {
+      debugPrint('❌ Error checking initial token: $e');
     }
   }
 
-  void _addUnreadMessage(num groupId, String messageId) {
-    _unreadMessages.putIfAbsent(groupId, () => <String>{});
-    _unreadMessages[groupId]!.add(messageId);
-    _notifyListeners();
-  }
+  Future<void> _handleTokenChange(String? newToken, String? newUserId) async {
+    final oldToken = _currentToken;
+    final oldUserId = _userId;
+    _currentToken = newToken;
+    _userId = newUserId;
 
-  void _markMessagesAsRead(
-    num groupId,
-    List<String> messageIds,
-    String? userId,
-  ) {
-    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
-
-    if (groupIndex != -1 && userId != null) {
-      for (final message in _messages[groupIndex].messages) {
-        if (messageIds.contains(message.id)) {
-          final readBy = List<dynamic>.from(message.readBy ?? []);
-          final userObj = {
-            'userId': int.tryParse(userId) ?? userId,
-            'userName': _userName,
-            'readAt': DateTime.now().toIso8601String(),
-          };
-
-          if (!readBy.any(
-            (r) =>
-                (r is Map ? r['userId']?.toString() : r.toString()) == userId,
-          )) {
-            readBy.add(userObj);
-
-            final messageIndex = _messages[groupIndex].messages.indexWhere(
-              (m) => m.id == message.id,
-            );
-
-            if (messageIndex != -1) {
-              _messages[groupIndex].messages[messageIndex] = Message.fromJson({
-                ...message.toJson(),
-                'status': 'read',
-                'readBy': readBy,
-              });
-            }
-          }
-        }
-      }
-    }
-
-    // Remove from unread messages
-    final groupUnread = _unreadMessages[groupId];
-    if (groupUnread != null) {
-      for (final messageId in messageIds) {
-        groupUnread.remove(messageId);
-      }
-      if (groupUnread.isEmpty) {
-        _unreadMessages.remove(groupId);
-      }
-    }
-
-    if (messageIds.isNotEmpty) {
-      _lastReadMessageId = messageIds.last;
-    }
-
-    _notifyListeners();
-  }
-
-  void _updateGroupMessagesStatus(num groupId, String status) {
-    final groupIndex = _messages.indexWhere((g) => g.groupId == groupId);
-
-    if (groupIndex != -1 && _userId != null) {
-      for (int i = 0; i < _messages[groupIndex].messages.length; i++) {
-        final message = _messages[groupIndex].messages[i];
-        final readBy = List<dynamic>.from(message.readBy ?? []);
-        final userObj = {
-          'userId': int.tryParse(_userId!) ?? _userId,
-          'userName': _userName,
-          'readAt': DateTime.now().toIso8601String(),
-        };
-
-        if (!readBy.any(
-          (r) => (r is Map ? r['userId']?.toString() : r.toString()) == _userId,
-        )) {
-          readBy.add(userObj);
-
-          _messages[groupIndex].messages[i] = Message.fromJson({
-            ...message.toJson(),
-            'status': status,
-            'readBy': readBy,
-          });
-        }
-      }
-    }
-  }
-
-  // Socket emit wrapper
-  void emit(String event, [dynamic data]) {
-    if (!_isConnected) {
-      debugPrint('⚠️ Cannot emit $event: Socket not connected');
+    if (newToken == null || newUserId == null) {
+      debugPrint('🔒 No valid token or user ID, disconnecting...');
+      disconnect();
+      _clearChatData();
       return;
     }
 
-    try {
-      socketService.socket?.emit(event, data);
-      debugPrint('📤 Emitted event: $event');
-    } catch (e) {
-      debugPrint('❌ Error emitting event $event: $e');
+    if (oldToken == null && oldUserId == null) {
+      debugPrint('🔑 First time connection with valid token');
+      await connect();
+    } else if (oldToken != newToken || oldUserId != newUserId) {
+      debugPrint('🔄 Token/user ID changed, reconnecting...');
+      disconnect();
+      await Future.delayed(const Duration(milliseconds: 500));
+      await connect();
     }
+  }
+
+  void _clearChatData() {
+    _messages.value.clear();
+    _typingDataUI.value.clear();
+    _unreadMessagesUI.value.clear();
+    _onlineUsersUI.value.clear();
+    _onlineUsersByGroupUI.value.clear();
+    _lastReadMessageId.value = null;
+    _hasRequestedInitialData = false;
+    _lastChatInitializedData = null;
+    _processedMessageIds.clear();
+    _processingTempIds.clear();
+    notifyListeners();
+  }
+
+  void _startTokenMonitoring() {
+    if (_tokenMonitoringStarted) return;
+    _tokenMonitoringStarted = true;
+    _tokenCheckTimer = Timer.periodic(_tokenCheckInterval, (_) async {
+      await _checkTokenAndReconnect();
+    });
+    debugPrint('🔐 Started token monitoring for chat');
+  }
+
+  void _stopTokenMonitoring() {
+    _tokenCheckTimer?.cancel();
+    _tokenCheckTimer = null;
+    _tokenMonitoringStarted = false;
+    debugPrint('🔐 Stopped token monitoring for chat');
+  }
+
+  Future<void> _checkTokenAndReconnect() async {
+    try {
+      final token = await tokenManager.getToken();
+      final userId = await _getUserIdFromTokenManager();
+      if (token != _currentToken || userId != _userId) {
+        debugPrint('🔄 Token/user ID changed, reconnecting...');
+        await _handleTokenChange(token, userId);
+      }
+      if (token != null) {
+        final isExpired = await tokenManager.isTokenExpired();
+        if (isExpired) {
+          debugPrint('⚠️ Token expired, disconnecting...');
+          disconnect();
+          _clearChatData();
+        }
+      } else if (_currentToken != null) {
+        debugPrint('⚠️ Token removed, disconnecting...');
+        disconnect();
+        _clearChatData();
+      }
+    } catch (e) {
+      debugPrint('❌ Error checking token: $e');
+    }
+  }
+
+  void disconnect() {
+    _cancelReconnect();
+    debugPrint('🔌 Disconnecting from chat socket...');
+    socketService.disconnect();
+    _isConnected.value = false;
+    _isAuthenticated = false;
+    _connectionStatus.value = 'disconnected';
+    _handlersRegisteredWithSocket = false;
+    _hasRequestedInitialData = false;
+    _lastChatInitializedData = null;
+    notifyListeners();
+  }
+
+  void reconnect() {
+    _cancelReconnect();
+    debugPrint('🔄 Reconnecting chat socket...');
+    socketService.reconnect();
   }
 
   // Cleanup
   @override
   void dispose() {
+    if (_isDisposed) return;
+
+    _isDisposed = true;
+    _isInitialized = false;
+
+    debugPrint('🧹 Disposing ChatWebSocketHandler...');
+
+    if (_instance == this) {
+      _instance = null;
+    }
+
+    // Shutdown isolate
+    try {
+      if (_isolateSendPort != null) {
+        _sendToIsolate(IsolateMessage(type: 'shutdown'));
+      }
+      _isolate?.kill(priority: Isolate.immediate);
+      _isolateReceivePort?.close();
+    } catch (e) {
+      debugPrint('❌ Error shutting down isolate: $e');
+    }
+
     _stopTokenMonitoring();
     _cancelReconnect();
-    _stopRingtone();
+    audio.stop();
+
     _eventHandlers.clear();
     _messageQueue.clear();
+    _processedMessageIds.clear();
+    _processingTempIds.clear();
+
     socketService.dispose();
-    _pendingHandlers.clear();
+    _batchTimer?.cancel();
+    _typingTimeout?.cancel();
+    _typingDebounceTimer?.cancel();
+    _chatInitializedDebounceTimer?.cancel();
+    _authDebounceTimer?.cancel();
+    _clearChatData();
+
     super.dispose();
   }
 
-  void _notifyListeners() {
-    if (hasListeners) {
-      notifyListeners();
+  // Utility methods
+  Future<bool> waitForConnection({
+    Duration timeout = const Duration(seconds: 5),
+  }) async {
+    if (_isConnected.value && _isAuthenticated) {
+      return true;
     }
+
+    return Completer<bool>().future.timeout(timeout, onTimeout: () => false);
   }
 
-  // Utility method to convert Message to JSON map (for debugging)
-  Map<String, dynamic> _messageToJson(Message message) {
-    return {
-      'id': message.id,
-      'groupId': message.group,
-      'tempId': message.tempId,
-      'sender': message.sender,
-      'content': message.content,
-      'message': message.message,
-      'createdAt': message.createdAt?.toIso8601String(),
-      'senderName': message.senderName,
-      'type': message.type,
-      'messageType': message.messageType,
-      'status': message.status,
-      'attachments': message.attachments,
-      'reactions': message.reactions,
-      'readBy': message.readBy,
-      'pollData': message.pollData,
-      'paymentStatus': message.paymentStatus,
-      'systemInfo': message.systemInfo,
-      'callData': message.callData,
-      'edited': message.edited,
-      'editedAt': message.editedAt?.toIso8601String(),
-      'deleted': message.deleted,
-      'deletedAt': message.deletedAt?.toIso8601String(),
-      'deletedBy': message.deletedBy,
-    };
+  Future<bool> healthCheck() async {
+    if (!_isConnected.value) {
+      return false;
+    }
+
+    return Completer<bool>().future.timeout(
+      Duration(seconds: 3),
+      onTimeout: () => false,
+    );
+  }
+
+  // Audio generation
+  Uint8List generateSineWav(double freq, double duration) {
+    const sampleRate = 44100;
+    final samples = (duration * sampleRate).toInt();
+    final pcm = Int16List(samples);
+
+    for (int i = 0; i < samples; i++) {
+      pcm[i] = (sin(2 * pi * freq * i / sampleRate) * 2000).toInt();
+    }
+
+    final byteData = ByteData(44 + pcm.lengthInBytes);
+    byteData.setUint32(0, 0x52494646, Endian.big);
+    byteData.setUint32(4, 36 + pcm.lengthInBytes, Endian.little);
+    byteData.setUint32(8, 0x57415645, Endian.big);
+    byteData.setUint32(12, 0x666d7420, Endian.big);
+    byteData.setUint32(16, 16, Endian.little);
+    byteData.setUint16(20, 1, Endian.little);
+    byteData.setUint16(22, 1, Endian.little);
+    byteData.setUint32(24, sampleRate, Endian.little);
+    byteData.setUint32(28, sampleRate * 2, Endian.little);
+    byteData.setUint16(32, 2, Endian.little);
+    byteData.setUint16(34, 16, Endian.little);
+    byteData.setUint32(36, 0x64617461, Endian.big);
+    byteData.setUint32(40, pcm.lengthInBytes, Endian.little);
+
+    byteData.buffer.asUint8List().setRange(
+      44,
+      byteData.lengthInBytes,
+      pcm.buffer.asUint8List(),
+    );
+    return byteData.buffer.asUint8List();
   }
 }

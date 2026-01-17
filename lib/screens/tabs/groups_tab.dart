@@ -1,18 +1,21 @@
-import 'dart:developer';
 import 'dart:math';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/state/empty_state.dart';
+import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/podos/chats/messages.dart';
+import 'package:hoop/dtos/responses/group/Groups.dart';
+import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/screens/groups/chat_detail_screen.dart';
 import 'package:hoop/screens/groups/create_group.dart';
 import 'package:hoop/states/OnboardingService.dart';
+import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/states/group_state.dart';
-import 'package:hoop/dtos/responses/group/Groups.dart';
-import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
-import 'package:provider/provider.dart';
-import 'package:hoop/constants/themes.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
+import 'package:iconsax/iconsax.dart';
+import 'package:provider/provider.dart';
 import 'package:smart_overlay_menu/smart_overlay_menu.dart';
 
 class GroupsTab extends StatefulWidget {
@@ -28,6 +31,18 @@ class _GroupsTabState extends State<GroupsTab> {
   bool _showSearch = false;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  String? userId;
+
+  @override
+  void initState() {
+    super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      userId = authProvider.user?.id.toString();
+      _loadGroupCounts();
+    });
+  }
 
   // Group counts from backend
   Map<String, int> _groupCounts = {
@@ -36,14 +51,6 @@ class _GroupsTabState extends State<GroupsTab> {
     'pending': 0,
     'rejected': 0,
   };
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadGroupCounts();
-    });
-  }
 
   @override
   void dispose() {
@@ -226,6 +233,7 @@ class _GroupsTabState extends State<GroupsTab> {
       body: SafeArea(
         child: Consumer<ChatWebSocketHandler>(
           builder: (context, handler, child) {
+            print("${handler.messages.value.length} dfgdfds");
             return Column(
               children: [
                 // HEADER
@@ -305,14 +313,19 @@ class _GroupsTabState extends State<GroupsTab> {
                 const SizedBox(height: 16),
 
                 // CONTENT AREA
-                Expanded(
-                  child: _buildSegmentContent(
-                    isDark,
-                    textPrimary,
-                    textSecondary,
-                    handler.messages,
-                    provider,
-                  ),
+                ValueListenableBuilder<List<MessageGroup>>(
+                  valueListenable: handler.messages,
+                  builder: (context, value, child) {
+                    return Expanded(
+                      child: _buildSegmentContent(
+                        isDark,
+                        textPrimary,
+                        textSecondary,
+                        value,
+                        provider,
+                      ),
+                    );
+                  },
                 ),
               ],
             );
@@ -446,6 +459,7 @@ class _GroupsTabState extends State<GroupsTab> {
               group: group,
               isDark: isDark,
               textPrimary: textPrimary,
+              userId: userId,
               textSecondary: textSecondary,
               message: (mgs != null && mgs.messages.isNotEmpty)
                   ? mgs.messages.last
@@ -742,6 +756,28 @@ class _GroupsTabState extends State<GroupsTab> {
                 letterSpacing: -0.5,
               ),
             ),
+
+            ValueListenableBuilder<bool>(
+              valueListenable: handler.isConnected,
+              builder: (context, value, child) {
+                if (value) return SizedBox.shrink();
+
+                return Row(
+                  children: [
+                    CupertinoActivityIndicator(),
+                    Text(
+                      "Connecting...",
+                      style: TextStyle(
+                        color: const Color(0xFF080953),
+                        fontSize: 14,
+                        fontWeight: FontWeight.normal,
+                        fontFamily: 'Inter',
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
             Row(
               children: [
                 // Search icon
@@ -769,7 +805,11 @@ class _GroupsTabState extends State<GroupsTab> {
                   ),
                   child: IconButton(
                     onPressed: () {},
-                    icon: Icon(Icons.check, color: textPrimary, size: 22),
+                    icon: Icon(
+                      Iconsax.message_tick,
+                      color: textPrimary,
+                      size: 22,
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 44,
@@ -930,6 +970,7 @@ class _GroupsTabState extends State<GroupsTab> {
 class _GroupCardWithPreview extends StatefulWidget {
   final Group group;
   final bool isDark;
+  final String? userId;
   final Color textPrimary;
   final Color? textSecondary;
   final Message? message;
@@ -940,6 +981,7 @@ class _GroupCardWithPreview extends StatefulWidget {
     required this.isDark,
     required this.textPrimary,
     required this.textSecondary,
+    required this.userId,
     required this.message,
     required this.allMessages,
   });
@@ -1024,7 +1066,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
       "description": group.description ?? '',
       "dueDate": _getDueDate(group),
       "timeLeft": group.status,
-      "color": _getAvatarColor(group.id),
+      "color": _getAvatarColor(group.id.toString()),
       "group": group,
     };
   }
@@ -1046,8 +1088,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
   Widget _buildPreviewContent() {
     // Get the current user ID from your authentication state
-    final currentUserId = '1'; // Replace with actual user ID
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Find messages for this group
     MessageGroup? groupMessages;
     try {
@@ -1065,7 +1105,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
         .take(5)
         .toList();
 
-    final avatarColor = _getAvatarColor(widget.group.id);
+    final avatarColor = _getAvatarColor(widget.group.id.toString());
     final initials = HoopFormatters.getInitials(widget.group.name);
 
     return Container(
@@ -1099,12 +1139,10 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                 GestureDetector(
                   onTap: () {
                     _previewController.close();
-                    Navigator.push(
+                    Navigator.pushNamed(
                       context,
-                      MaterialPageRoute(
-                        builder: (context) =>
-                            ChatDetailScreen(group: _groupToMap(widget.group)),
-                      ),
+                      '/chat/detail',
+                      arguments: _groupToMap(widget.group),
                     );
                   },
                   child: Container(
@@ -1195,10 +1233,10 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
           // Messages preview
           Container(
-            constraints: const BoxConstraints(maxHeight: 200),
+            constraints: const BoxConstraints(maxHeight: 350),
             child: messages.isEmpty
                 ? Container(
-                    height: 60,
+                    height: 120,
                     child: Center(
                       child: Text(
                         'No messages yet',
@@ -1214,12 +1252,13 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                       horizontal: 12,
                       vertical: 8,
                     ),
+                    reverse: true,
                     shrinkWrap: true,
                     physics: const ClampingScrollPhysics(),
-                    itemCount: min(messages.length, 3),
+                    itemCount: min(messages.length, 7),
                     itemBuilder: (context, index) {
                       final message = messages[index];
-                      final isOwn = message.isFromUser(currentUserId);
+                      final isOwn = message.isFromUser(widget.userId ?? '');
 
                       return Container(
                         margin: const EdgeInsets.only(bottom: 6),
@@ -1263,97 +1302,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                     },
                   ),
           ),
-
-          // Open chat button
-          Row(
-            children: [
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(
-                  Icons.call_outlined,
-                  color: Theme.of(context).colorScheme.onBackground,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: HoopTheme.getCategoryBackgroundColor(
-                    'back_button',
-                    isDark,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(
-                  Icons.video_call_outlined,
-                  color: Theme.of(context).colorScheme.onBackground,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: HoopTheme.getCategoryBackgroundColor(
-                    'back_button',
-                    isDark,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  child: GestureDetector(
-                    onTap: () {
-                      _previewController.close();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatDetailScreen(
-                            group: _groupToMap(widget.group),
-                          ),
-                        ),
-                      );
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: HoopTheme.primaryBlue,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          'Open Chat',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-
-              IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: Icon(
-                  Icons.done_all_outlined,
-                  color: Theme.of(context).colorScheme.onBackground,
-                ),
-                style: IconButton.styleFrom(
-                  backgroundColor: HoopTheme.getCategoryBackgroundColor(
-                    'back_button',
-                    isDark,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -1361,7 +1309,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
   @override
   Widget build(BuildContext context) {
-    final avatarColor = _getAvatarColor(widget.group.id);
+    final avatarColor = _getAvatarColor(widget.group.id.toString());
     final statusColor = _getGroupStatusColor(widget.group.status);
     final initials = HoopFormatters.getInitials(widget.group.name);
     final dueDate = _getDueDate(widget.group);
@@ -1370,9 +1318,14 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
     return SmartOverlayMenu(
       controller: _previewController,
       topWidgetAlignment: Alignment.center,
-      bottomWidgetAlignment: Alignment.center,
+
       openWithTap: false, // We handle opening with onLongPress
       topWidget: _buildPreviewContent(),
+      repositionAnimationDuration: Duration(microseconds: 1),
+
+      bottomWidgetAlignment: Alignment.centerLeft,
+      repositionAnimationCurve: Curves.easeInOut,
+      bottomWidget: _buildMessageMenu(handler, widget.group),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -1451,28 +1404,34 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                               ),
                             ),
                             const SizedBox(width: 8),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: statusColor.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Text(
-                                (handler
-                                            .unreadMessages[num.parse( widget.group.id)]
-                                            ?.length ??
-                                        dueDate)
-                                    .toString(),
+                            ValueListenableBuilder<Map<num, Set<String>>>(
+                              valueListenable: handler.unreadMessages,
+                              builder: (context, value, child) {
+                                return Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 8,
+                                    vertical: 4,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: statusColor.withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Text(
+                                    (value[num.parse(
+                                                  widget.group.id.toString(),
+                                                )]
+                                                ?.length ??
+                                            dueDate)
+                                        .toString(),
 
-                                style: TextStyle(
-                                  color: statusColor,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
+                                    style: TextStyle(
+                                      color: statusColor,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ],
                         ),
@@ -1514,6 +1473,130 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                 ],
               ),
             ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMessageMenu(ChatWebSocketHandler handler, Group group) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFF1A1D27)
+            : Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 10,
+            spreadRadius: 2,
+          ),
+        ],
+      ),
+      // width: 200,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildMenuTile(
+            icon: CupertinoIcons.reply,
+            label: 'Open Chat',
+            onTap: () {
+              _previewController.close();
+              Navigator.pushNamed(
+                context,
+                '/chat/detail',
+                arguments: _groupToMap(group),
+              );
+            },
+          ),
+          _buildMenuTile(
+            icon: Iconsax.message_tick,
+            label: 'Read All Messages',
+            onTap: () {
+              _previewController.close();
+              handler.markAllGroupMessagesAsRead(group.id);
+            },
+          ),
+          _buildMenuTile(
+            icon: Iconsax.call,
+            label: 'Audio Call Group',
+            onTap: () async {
+              _previewController.close();
+              final callData = await handler.startWebRTCCall(
+                context,
+                type: 'video',
+                groupId: group.id.toInt(),
+                groupName: group.name,
+              );
+            },
+          ),
+          _buildMenuTile(
+            icon: Iconsax.video,
+            label: 'Video Call Group',
+            onTap: () async {
+              _previewController.close();
+              final callData = await handler.startWebRTCCall(
+                context,
+                type: 'video',
+                groupId: group.id.toInt(),
+                groupName: group.name,
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+
+          _buildMenuTile(
+            icon: Iconsax.profile_delete,
+            label: 'Leave Group',
+            isDestructive: true,
+            onTap: () async {
+              _previewController.close();
+            },
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMenuTile({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+    bool isDestructive = false,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: isDestructive
+                    ? Colors.red
+                    : (isDark ? Colors.grey[300] : Colors.grey[700]),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDestructive
+                      ? Colors.red
+                      : (isDark ? Colors.grey[300] : Colors.grey[700]),
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
           ),
         ),
       ),

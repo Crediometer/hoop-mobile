@@ -1,10 +1,9 @@
-// lib/models/notification.dart
 class NotificationModel {
   final String id;
   final String title;
   final String message;
   final NotificationType type;
-   bool read;
+  bool read;
   final DateTime createdAt;
   final Map<String, dynamic>? data;
   final String? senderId;
@@ -51,10 +50,36 @@ class NotificationModel {
       default: return NotificationType.SYSTEM;
     }
   }
+
+  // Add this copyWith method
+  NotificationModel copyWith({
+    String? id,
+    String? title,
+    String? message,
+    NotificationType? type,
+    bool? read,
+    DateTime? createdAt,
+    Map<String, dynamic>? data,
+    String? senderId,
+    String? groupId,
+    String? actionUrl,
+  }) {
+    return NotificationModel(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      type: type ?? this.type,
+      read: read ?? this.read,
+      createdAt: createdAt ?? this.createdAt,
+      data: data ?? this.data,
+      senderId: senderId ?? this.senderId,
+      groupId: groupId ?? this.groupId,
+      actionUrl: actionUrl ?? this.actionUrl,
+    );
+  }
 }
 
 enum NotificationType {
-
   GROUP,
   SYSTEM,
   MARKETING,
@@ -107,7 +132,7 @@ class ChatMessage {
       type: _parseMessageType(json['type']),
       timestamp: DateTime.parse(json['timestamp']),
       isRead: json['isRead'] ?? false,
-      metadata: json['metadata'] != null 
+      metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
           : null,
       replyToId: json['replyToId'],
@@ -117,25 +142,25 @@ class ChatMessage {
 
   static MessageType _parseMessageType(String type) {
     switch (type.toLowerCase()) {
-      case 'text': return MessageType.text;
-      case 'image': return MessageType.image;
-      case 'video': return MessageType.video;
-      case 'audio': return MessageType.audio;
-      case 'file': return MessageType.file;
-      case 'system': return MessageType.system;
-      default: return MessageType.text;
+      case 'text':
+        return MessageType.text;
+      case 'image':
+        return MessageType.image;
+      case 'video':
+        return MessageType.video;
+      case 'audio':
+        return MessageType.audio;
+      case 'file':
+        return MessageType.file;
+      case 'system':
+        return MessageType.system;
+      default:
+        return MessageType.text;
     }
   }
 }
 
-enum MessageType {
-  text,
-  image,
-  video,
-  audio,
-  file,
-  system,
-}
+enum MessageType { text, image, video, audio, file, system }
 
 // lib/models/chat_room.dart
 class ChatRoom {
@@ -169,14 +194,15 @@ class ChatRoom {
       name: json['name'] ?? '',
       description: json['description'],
       type: _parseChatRoomType(json['type']),
-      participants: (json['participants'] as List<dynamic>?)?.cast<String>() ?? [],
+      participants:
+          (json['participants'] as List<dynamic>?)?.cast<String>() ?? [],
       createdAt: DateTime.parse(json['createdAt']),
-      lastMessage: json['lastMessage'] != null 
+      lastMessage: json['lastMessage'] != null
           ? ChatMessage.fromJson(json['lastMessage'])
           : null,
       unreadCount: json['unreadCount'] ?? 0,
       isMuted: json['isMuted'] ?? false,
-      metadata: json['metadata'] != null 
+      metadata: json['metadata'] != null
           ? Map<String, dynamic>.from(json['metadata'])
           : null,
     );
@@ -184,16 +210,16 @@ class ChatRoom {
 
   static ChatRoomType _parseChatRoomType(String type) {
     switch (type.toLowerCase()) {
-      case 'direct': return ChatRoomType.direct;
-      case 'group': return ChatRoomType.group;
-      case 'channel': return ChatRoomType.channel;
-      default: return ChatRoomType.direct;
+      case 'direct':
+        return ChatRoomType.direct;
+      case 'group':
+        return ChatRoomType.group;
+      case 'channel':
+        return ChatRoomType.channel;
+      default:
+        return ChatRoomType.direct;
     }
   }
 }
 
-enum ChatRoomType {
-  direct,
-  group,
-  channel,
-}
+enum ChatRoomType { direct, group, channel }

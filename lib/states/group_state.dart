@@ -1,11 +1,11 @@
 // lib/providers/group_community_provider.dart
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:hoop/constants/strings.dart';
 import 'package:hoop/dtos/responses/ApiResponse.dart';
 import 'package:hoop/dtos/responses/GeneralResponse/paginated_response.dart';
 import 'package:hoop/dtos/responses/SpotlightVideo.dart';
 import 'package:hoop/dtos/responses/User.dart';
+import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/services/group_services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -197,7 +197,7 @@ class GroupCommunityProvider extends ChangeNotifier {
   }
 
   // Group Management Methods
-  Future<ApiResponse<Group>> createGroup(CreateGroupRequest groupData) async {
+  Future<ApiResponse<Group>> createGroup(Map<String, dynamic> groupData) async {
     try {
       final response = await _groupService.createGroup(groupData);
       if (response.success && response.data != null) {
@@ -216,7 +216,6 @@ class GroupCommunityProvider extends ChangeNotifier {
   Future<ApiResponse<GroupDetails>> getGroup(String id) async {
     try {
       final response = await _groupService.getGroup(id);
-      print("response???? ${response.data}");
       if (response.success && response.data != null) {
         _currentGroup = response.data;
         notifyListeners();
@@ -227,7 +226,8 @@ class GroupCommunityProvider extends ChangeNotifier {
     }
   }
 
-  Future<ApiResponse<GroupDetailsPublic>> getPublicGroup(String id) async {
+  Future<ApiResponse<GroupDetailsPublic>> getPublicGroup(int id) async {
+    print("id..... $id");
     try {
       final response = await _groupService.getGroupPublic(id);
       if (response.success && response.data != null) {

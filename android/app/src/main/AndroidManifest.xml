@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC"/>
+    <!-- OR for older Android versions -->
+    <uses-permission android:name="android.permission.USE_FINGERPRINT"/>
     <uses-feature android:name="android.hardware.camera" />
     <uses-feature android:name="android.hardware.camera.autofocus" />
     <application android:label="hoop" android:name="${applicationName}" android:icon="@mipmap/hoop_launcher">

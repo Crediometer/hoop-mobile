@@ -98,24 +98,29 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                 ),
                               ),
                               const SizedBox(width: 8),
-                              if (handler.unreadCount > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 8,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: HoopTheme.vibrantOrange,
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Text(
-                                    handler.unreadCount.toString(),
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
+                                ValueListenableBuilder<int>(
+                                  valueListenable: handler.unreadCount,
+                                  builder: (context, value, child) {
+                                    if(value <= 0) return SizedBox.shrink();
+                                    return Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: HoopTheme.vibrantOrange,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Text(
+                                        value.toString(),
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    );
+                                  }
                                 ),
                             ],
                           );
@@ -162,7 +167,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           shape: BoxShape.circle,
                         ),
                         child: IconButton(
-                          onPressed: handler.unreadCount > 0
+                          onPressed: handler.unreadCount.value > 0
                               ? () => _handleMarkAllAsRead(handler)
                               : null,
                           icon: Icon(Icons.check, color: textPrimary, size: 22),
@@ -183,129 +188,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       ),
     );
   }
-
-  Widget _buildSearchFilter(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: HoopInput(
-                      controller: _searchController,
-                      labelText: "Search notifications...",
-                      prefixIcon: Icon(
-                        Icons.search,
-                        color: HoopTheme.getTextSecondary(isDark),
-                      ),
-                      onChanged: (value) {
-                        setState(() {});
-                      },
-                    ),
-                  ),
-                  if (_searchController.text.isNotEmpty)
-                    IconButton(
-                      onPressed: () {
-                        _searchController.clear();
-                        setState(() {});
-                      },
-                      icon: Icon(
-                        Icons.clear,
-                        color: HoopTheme.getTextSecondary(isDark),
-                        size: 18,
-                      ),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  const SizedBox(width: 8),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          // Filter dropdown
-          Container(
-            decoration: BoxDecoration(
-              color: HoopTheme.getCommunityCardColor(1, isDark),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _filterType,
-                  icon: Icon(
-                    Icons.filter_list,
-                    color: HoopTheme.getTextSecondary(isDark),
-                    size: 20,
-                  ),
-                  items:
-                      [
-                        'all',
-                        'GROUP_STARTED',
-                        'SLOT_ASSIGNED',
-                        'CONTRIBUTION_RECEIVED,PAYMENT_MISSED',
-                        'GROUP_GOAL_ACHIEVED',
-                        'WEEKLY_POLL_UPDATE',
-                        'MEETING_SCHEDULED',
-                        'MENTION',
-                        'SYSTEM_ALERT',
-                      ].map((String value) {
-                        return DropdownMenuItem<String>(
-                          value: value,
-                          child: Text(
-                            _getFilterLabel(value),
-                            style: TextStyle(
-                              color: HoopTheme.getTextPrimary(isDark),
-                              fontSize: 14,
-                            ),
-                          ),
-                        );
-                      }).toList(),
-                  onChanged: (String? newValue) {
-                    setState(() {
-                      _filterType = newValue ?? 'all';
-                    });
-                  },
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getFilterLabel(String value) {
-    switch (value) {
-      case 'all':
-        return 'All Types';
-      case 'GROUP_STARTED':
-        return 'Group Started';
-      case 'SLOT_ASSIGNED':
-        return 'Slot Assigned';
-      case 'CONTRIBUTION_RECEIVED,PAYMENT_MISSED':
-        return 'Payments';
-      case 'GROUP_GOAL_ACHIEVED':
-        return 'Goals';
-      case 'WEEKLY_POLL_UPDATE':
-        return 'Polls';
-      case 'MEETING_SCHEDULED':
-        return 'Meetings';
-      case 'MENTION':
-        return 'Mentions';
-      case 'SYSTEM_ALERT':
-        return 'System';
-      default:
-        return value;
-    }
-  }
-
   Widget _buildTabs(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -331,12 +213,17 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       setState(() => _activeTab = 'all'),
                 ),
                 const SizedBox(width: 8),
-                HoopSegmentButton(
-                  isSelected: _activeTab == 'unread',
-                  label: 'Unread ${handler.unreadCount}',
-                  segment: 0,
-                  handleSegmentChange: (s) =>
-                      setState(() => _activeTab = 'unread'),
+                ValueListenableBuilder(
+                  valueListenable: handler.unreadCount,
+                  builder: (context, value, child) {
+                    return HoopSegmentButton(
+                      isSelected: _activeTab == 'unread',
+                      label: 'Unread $value',
+                      segment: 0,
+                      handleSegmentChange: (s) =>
+                          setState(() => _activeTab = 'unread'),
+                    );
+                  }
                 ),
                 const SizedBox(width: 8),
                 HoopSegmentButton(

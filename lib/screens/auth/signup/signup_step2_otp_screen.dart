@@ -1,30 +1,28 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hoop/screens/auth/signup/signup_step3_personal_info_screen.dart';
+import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/widgets/progress_bar.dart';
+import 'package:provider/provider.dart';
 
 class SignupStep2OtpScreen extends StatefulWidget {
-  final String email;
-  const SignupStep2OtpScreen({super.key, required this.email});
+  const SignupStep2OtpScreen({super.key});
 
   @override
   State<SignupStep2OtpScreen> createState() => _SignupStep2OtpScreenState();
 }
 
 class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
-  final int totalSteps = 4;
+  final int totalSteps = 6;
   final int currentStep = 2;
   final int otpLength = 6;
-  final List<TextEditingController> _otpControllers = [];
   Timer? _timer;
   int _remainingSeconds = 300; // 5 minutes
+  bool _isLoading = false;
 
   @override
   void initState() {
     super.initState();
-    for (int i = 0; i < otpLength; i++) {
-      _otpControllers.add(TextEditingController());
-    }
     startTimer();
   }
 
@@ -44,44 +42,96 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
     return "${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}";
   }
 
-  void verifyOtp() {
-    String code = _otpControllers.map((c) => c.text).join();
-    if (code.length == otpLength) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const SignupStep3PersonalInfoScreen(),
-        ),
-      );
+  Future<void> verifyOtp() async {
+    final authProvider = context.read<AuthProvider>();
+    final otp = authProvider.otp;
+    
+    if (otp.length == otpLength) {
+      setState(() => _isLoading = true);
+      
+      final success = await authProvider.register();
+      
+      if (mounted) {
+        setState(() => _isLoading = false);
+        
+        if (success) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const SignupStep3PersonalInfoScreen(),
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Invalid verification code"),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Please enter a valid 6-digit code")),
+        const SnackBar(
+          content: Text("Please enter a valid 6-digit code"),
+          backgroundColor: Colors.red,
+        ),
       );
+    }
+  }
+
+  Future<void> resendCode() async {
+    if (_remainingSeconds <= 0) {
+      setState(() => _isLoading = true);
+      
+      final authProvider = context.read<AuthProvider>();
+      final result = await authProvider.sendEmailVerification();
+      
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          if (result['success'] == true) {
+            _remainingSeconds = 300;
+            startTimer();
+            // Clear previous OTP
+            for (var controller in authProvider.otpControllers) {
+              controller.clear();
+            }
+          }
+        });
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              result['success'] == true 
+                ? "Verification code resent!"
+                : result['message'] ?? "Failed to resend code",
+            ),
+            backgroundColor: result['success'] == true ? Colors.green : Colors.red,
+          ),
+        );
+      }
     }
   }
 
   @override
   void dispose() {
     _timer?.cancel();
-    for (var controller in _otpControllers) {
-      controller.dispose();
-    }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = context.read<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     // Colors based on theme
-    final backgroundColor = isDark ? const Color(0xFF0C0E1A) : Colors.white;
     final cardColor = isDark ? const Color(0xFF1C1F2E) : Colors.grey[200]!;
     final textColor = isDark ? Colors.white : Colors.black87;
     final hintColor = isDark ? Colors.grey : Colors.black54;
     final borderColor = isDark ? Colors.white70 : Colors.black45;
 
     return Scaffold(
-      backgroundColor: backgroundColor,
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -94,20 +144,22 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
               ),
               const SizedBox(height: 24),
 
+              // Email icon
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   color: cardColor,
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: const Icon(
-                  Icons.phone_iphone_rounded,
+                child: Icon(
+                  Icons.email_rounded,
                   size: 40,
                   color: Colors.blueAccent,
                 ),
               ),
               const SizedBox(height: 20),
 
+              // Title
               Text(
                 "Verify Your Email Address",
                 style: TextStyle(
@@ -123,11 +175,12 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
               ),
               const SizedBox(height: 6),
               Text(
-                widget.email,
+                authProvider.email, // Direct access from provider
                 style: const TextStyle(color: Colors.blueAccent, fontSize: 14),
               ),
               const SizedBox(height: 32),
 
+              // OTP label
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
@@ -145,7 +198,7 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
                     width: 48,
                     height: 58,
                     child: TextField(
-                      controller: _otpControllers[index],
+                      controller: authProvider.otpControllers[index],
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
                       maxLength: 1,
@@ -155,6 +208,10 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
                           FocusScope.of(context).nextFocus();
                         } else if (value.isEmpty && index > 0) {
                           FocusScope.of(context).previousFocus();
+                        }
+                        // Auto-submit when last digit is entered
+                        if (value.isNotEmpty && index == otpLength - 1) {
+                          Future.delayed(const Duration(milliseconds: 300), verifyOtp);
                         }
                       },
                       decoration: InputDecoration(
@@ -188,17 +245,7 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
                     style: TextStyle(color: hintColor),
                   ),
                   GestureDetector(
-                    onTap: () {
-                      if (_remainingSeconds <= 0) {
-                        setState(() {
-                          _remainingSeconds = 300;
-                          startTimer();
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("Code resent!")),
-                        );
-                      }
-                    },
+                    onTap: _remainingSeconds <= 0 ? resendCode : null,
                     child: Text(
                       "Resend",
                       style: TextStyle(
@@ -213,12 +260,14 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                "Code expires in $formattedTime",
+                _remainingSeconds > 0
+                    ? "Code expires in $formattedTime"
+                    : "Code has expired",
                 style: TextStyle(color: hintColor, fontSize: 13),
               ),
               const SizedBox(height: 32),
 
-              // Gradient Verify Button
+              // Verify Button
               GestureDetector(
                 onTap: verifyOtp,
                 child: AnimatedContainer(
@@ -228,8 +277,8 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
                       colors: [
-                        Color(0xFF0a1866), // Darker blue
-                        Color(0xFF1347cd), // to-blue-600
+                        Color(0xFF0a1866),
+                        Color(0xFF1347cd),
                       ],
                       begin: Alignment.centerLeft,
                       end: Alignment.centerRight,
@@ -249,14 +298,23 @@ class _SignupStep2OtpScreenState extends State<SignupStep2OtpScreen> {
                     ],
                   ),
                   alignment: Alignment.center,
-                  child: Text(
-                    "Verify →",
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          "Verify →",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                 ),
               ),
             ],

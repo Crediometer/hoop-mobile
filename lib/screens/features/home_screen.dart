@@ -1,16 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/screens/features/primary_setup_required_screen.dart';
+import 'package:hoop/screens/tabs/activity_tab.dart';
+import 'package:hoop/screens/tabs/community_tab.dart';
+import 'package:hoop/screens/tabs/groups_tab.dart';
+import 'package:hoop/screens/tabs/profile_tab.dart';
+import 'package:hoop/screens/tabs/shiners_tab.dart';
 import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/onesignal_state.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
 import 'package:hoop/states/ws/notification_socket.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:provider/provider.dart';
-import 'package:hoop/screens/features/primary_setup_required_screen.dart';
-import 'package:hoop/screens/tabs/community_tab.dart';
-import 'package:hoop/screens/tabs/groups_tab.dart';
-import 'package:hoop/screens/tabs/shiners_tab.dart';
-import 'package:hoop/screens/tabs/activity_tab.dart';
-import 'package:hoop/screens/tabs/profile_tab.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -242,43 +242,51 @@ class _HomeScreenState extends State<HomeScreen> {
                                               ? Colors.grey
                                               : Colors.black54),
                                   ),
-                                  if (notification.unreadCount > 0)
-                                    Positioned(
-                                      right: 0,
-                                      top: 0,
-                                      child: Container(
-                                        width: 18,
-                                        height: 18,
-                                        decoration: BoxDecoration(
-                                          color: Colors.red,
-                                          borderRadius: BorderRadius.circular(9),
-                                          border: Border.all(
-                                            color: isDark
-                                                ? const Color(0xFF0F111A)
-                                                : Colors.white,
-                                            width: 2,
-                                          ),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            notification.unreadCount > 9
-                                                ? '9+'
-                                                : notification.unreadCount
-                                                      .toString(),
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.bold,
+
+                                  ValueListenableBuilder<int>(
+                                    valueListenable: notification.unreadCount,
+                                    builder: (context, value, child) {
+                                      if (value > 0) {
+                                        return Positioned(
+                                          right: 0,
+                                          top: 0,
+                                          child: Container(
+                                            width: 18,
+                                            height: 18,
+                                            decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              borderRadius:
+                                                  BorderRadius.circular(9),
+                                              border: Border.all(
+                                                color: isDark
+                                                    ? const Color(0xFF0F111A)
+                                                    : Colors.white,
+                                                width: 2,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Text(
+                                                value > 9
+                                                    ? '9+'
+                                                    : value
+                                                          .toString(),
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 10,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
                                             ),
                                           ),
-                                        ),
-                                      ),
-                                    ),
+                                        );
+                                      }
+                                      return SizedBox.shrink();
+                                    },
+                                  ),
                                 ],
                               );
                             },
                           )
-                        
                         else if (index == 1)
                           // Spotlight tab with chat badge
                           Consumer<ChatWebSocketHandler>(
@@ -303,7 +311,9 @@ class _HomeScreenState extends State<HomeScreen> {
                                         height: 18,
                                         decoration: BoxDecoration(
                                           color: Colors.red,
-                                          borderRadius: BorderRadius.circular(9),
+                                          borderRadius: BorderRadius.circular(
+                                            9,
+                                          ),
                                           border: Border.all(
                                             color: isDark
                                                 ? const Color(0xFF0F111A)
@@ -343,15 +353,15 @@ class _HomeScreenState extends State<HomeScreen> {
                         const SizedBox(height: 4),
 
                         // Tab label
-                        if (selected)
-                          Text(
-                            _tabLabels[index],
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: const Color(0xFFF97316),
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
+                        // if (selected)
+                        //   Text(
+                        //     _tabLabels[index],
+                        //     style: TextStyle(
+                        //       fontSize: 10,
+                        //       color: const Color(0xFFF97316),
+                        //       fontWeight: FontWeight.w500,
+                        //     ),
+                        //   ),
 
                         // Orange indicator dot
                         if (selected && _tabLabels[index].isEmpty)

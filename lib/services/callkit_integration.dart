@@ -1,8 +1,13 @@
 // lib/services/callkit_integration.dart
+import 'package:flutter/material.dart';
 import 'package:flutter_callkit_incoming/entities/entities.dart';
 import 'package:flutter_callkit_incoming/flutter_callkit_incoming.dart';
 import 'package:hoop/dtos/podos/calls/call_models.dart';
+import 'package:hoop/main.dart';
+import 'package:hoop/screens/calls/call_screen.dart';
 import 'package:hoop/states/webrtc_manager.dart';
+
+
 
 class CallKitIntegration {
   static final CallKitIntegration _instance = CallKitIntegration._internal();
@@ -11,7 +16,8 @@ class CallKitIntegration {
 
   final WebRTCManager _webrtcManager = WebRTCManager();
   String? _activeCallKitId;
-
+  CallData? _currentCallData; // Store current call data
+  
   // Initialize
   Future<void> initialize(WebRTCManager webrtcManager) async {
     // Setup CallKit event listeners
@@ -24,28 +30,27 @@ class CallKitIntegration {
   }
 
   Future<void> _setupCallKit() async {
-    // Setup event listeners
-    FlutterCallkitIncoming.onEvent.listen((CallEvent? event) {
+    FlutterCallkitIncoming.onEvent.listen((CallEvent? event) async {
       switch (event?.event) {
         case Event.actionCallIncoming:
           print('📞 CallKit: Incoming call');
-          _handleCallKitCallStart(event!.body!);
+          await _handleCallKitCallStart(event!.body!);
           break;
         case Event.actionCallAccept:
           print('📞 CallKit: Call accepted');
-          _handleCallKitCallAccept(event!.body!);
+          await _handleCallKitCallAccept(event!.body!);
           break;
         case Event.actionCallDecline:
           print('📞 CallKit: Call declined');
-          _handleCallKitCallDecline(event!.body!);
+          await _handleCallKitCallDecline(event!.body!);
           break;
         case Event.actionCallEnded:
           print('📞 CallKit: Call ended');
-          _handleCallKitCallEnded(event!.body!);
+          await _handleCallKitCallEnded(event!.body!);
           break;
         case Event.actionCallTimeout:
           print('📞 CallKit: Call timeout');
-          _handleCallKitCallTimeout(event!.body!);
+          await _handleCallKitCallTimeout(event!.body!);
           break;
         default:
           break;
@@ -56,49 +61,44 @@ class CallKitIntegration {
   // Handle incoming call from WebRTC
   Future<void> handleIncomingCallFromWebRTC(CallData callData) async {
     print('📞 Handling incoming call from WebRTC: ${callData.callId}');
+    
+    _currentCallData = callData; // Store the call data
 
     final params = CallKitParams(
       id: callData.callId,
-      nameCaller: callData.participants
-          .firstWhere((p) => p.id == callData.initiator)
-          .name,
-      appName: 'Hoop Calls',
-      avatar: '',
-      handle: 'Group: ${callData.groupName}',
+      nameCaller: callData.initiatorName,
+      appName: 'Hoop Africa',
+      avatar: 'https://png.pngtree.com/png-clipart/20230927/original/pngtree-man-avatar-image-for-profile-png-image_13001877.png',
+      handle: '+1 (555) 123-4567',
       type: callData.type == CallType.video ? 1 : 0,
       duration: 45000,
-      textAccept: 'Accept',
-      callingNotification: NotificationParams(
-        callbackText: 'Call back',
-        showNotification: true,
-        isShowCallback: true,
-      ),
-      missedCallNotification: NotificationParams(
-        callbackText: 'Missed Call',
-        isShowCallback: true,
-        showNotification: true,
-      ),
+      textAccept: 'Hooper',
       textDecline: 'Decline',
-      // textMissedCall: 'Missed call',
-      // textCallback: 'Call back',
+      callingNotification: NotificationParams(
+        callbackText: 'Call Hoop Back',
+        count: 1,
+        isShowCallback: true,
+        subtitle: 'Test Calling...',
+        showNotification: true,
+      ),
       extra: <String, dynamic>{
-        'callData': callData.toJson(),
-        'callType': callData.type == CallType.video ? 'video' : 'audio',
-        'groupId': callData.groupId,
-        'initiator': callData.initiator,
+        'userId': 'test_user_123',
+        'callType': callData.type == CallType.video ? 'video' : 'voice',
+        'timestamp': DateTime.now().millisecondsSinceEpoch,
+        'callData': callData.toJson(), // Store callData in extra
       },
       ios: IOSParams(
         iconName: 'CallKitLogo',
         handleType: 'generic',
-        supportsVideo: callData.type == CallType.video,
+        supportsVideo: true,
         maximumCallGroups: 2,
         maximumCallsPerCallGroup: 1,
         audioSessionMode: 'default',
         audioSessionActive: true,
         audioSessionPreferredSampleRate: 44100.0,
         audioSessionPreferredIOBufferDuration: 0.005,
-        supportsDTMF: false,
-        supportsHolding: false,
+        supportsDTMF: true,
+        supportsHolding: true,
         supportsGrouping: false,
         supportsUngrouping: false,
         ringtonePath: 'system_ringtone_default',
@@ -106,14 +106,18 @@ class CallKitIntegration {
       android: AndroidParams(
         isCustomNotification: true,
         isShowLogo: true,
-        // isShowCallback: true,
-        // isShowMissedCallNotification: true,
         ringtonePath: 'system_ringtone_default',
         backgroundColor: '#7C3AED',
-        backgroundUrl: '',
+        backgroundUrl: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=500',
         actionColor: '#10B981',
         incomingCallNotificationChannelName: 'Incoming Calls',
         missedCallNotificationChannelName: 'Missed Calls',
+      ),
+      missedCallNotification: NotificationParams(
+        showNotification: true,
+        isShowCallback: true,
+        subtitle: 'Missed call from ${callData.groupName}',
+        callbackText: 'Call back',
       ),
     );
 
@@ -168,6 +172,7 @@ class CallKitIntegration {
     if (_activeCallKitId == callData.callId) {
       await FlutterCallkitIncoming.endCall(callData.callId);
       _activeCallKitId = null;
+      _currentCallData = null;
     }
   }
 
@@ -179,9 +184,8 @@ class CallKitIntegration {
     if (extra != null && extra.containsKey('callData')) {
       final callDataJson = extra['callData'] as Map<String, dynamic>;
       final callData = CallData.fromJson(callDataJson);
+      _currentCallData = callData; // Store call data
       print('📞 CallKit: Starting WebRTC call ${callData.callId}');
-
-      // The WebRTC manager should already have received this via WebSocket
     }
   }
 
@@ -190,7 +194,45 @@ class CallKitIntegration {
     print('📞 CallKit: Accepting call $callId');
 
     // Answer the WebRTC call
-    _webrtcManager.answerCall();
+    await _webrtcManager.answerCall();
+    
+    // Navigate to CallScreen
+    await _navigateToCallScreen();
+  }
+
+  // Navigation method
+  Future<void> _navigateToCallScreen() async {
+    if (_currentCallData == null) {
+      print('⚠️ No call data available for navigation');
+      return;
+    }
+
+    // Use WidgetsBinding to ensure we're in the main isolate
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigatorKey.currentState != null && navigatorKey.currentState!.mounted) {
+        print('🚀 Navigating to CallScreen with call: ${_currentCallData!.callId}');
+        
+        // Close any existing dialogs or modals
+        navigatorKey.currentState!.popUntil((route) => route.isFirst);
+        
+        // Navigate to CallScreen
+        navigatorKey.currentState!.push(
+          MaterialPageRoute(
+            builder: (context) => CallScreen(
+              callData: _currentCallData!,
+              webrtcManager: _webrtcManager,
+            ),
+            fullscreenDialog: true, // Makes it modal
+          ),
+        );
+      } else {
+        print('⚠️ Navigator not available yet, retrying...');
+        // Retry after a delay
+        Future.delayed(Duration(milliseconds: 500), () {
+          _navigateToCallScreen();
+        });
+      }
+    });
   }
 
   Future<void> _handleCallKitCallDecline(Map<String, dynamic> body) async {
@@ -203,6 +245,7 @@ class CallKitIntegration {
     // End CallKit call
     await FlutterCallkitIncoming.endCall(callId);
     _activeCallKitId = null;
+    _currentCallData = null;
   }
 
   Future<void> _handleCallKitCallEnded(Map<String, dynamic> body) async {
@@ -212,6 +255,10 @@ class CallKitIntegration {
     // End WebRTC call
     _webrtcManager.endCall();
     _activeCallKitId = null;
+    _currentCallData = null;
+    
+    // Navigate back if on CallScreen
+    _navigateBackFromCallScreen();
   }
 
   Future<void> _handleCallKitCallTimeout(Map<String, dynamic> body) async {
@@ -221,10 +268,25 @@ class CallKitIntegration {
     // Cleanup WebRTC
     _webrtcManager.endCall();
     _activeCallKitId = null;
+    _currentCallData = null;
+    
+    // Navigate back if on CallScreen
+    _navigateBackFromCallScreen();
+  }
+
+  // Navigate back from CallScreen
+  void _navigateBackFromCallScreen() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (navigatorKey.currentState != null && navigatorKey.currentState!.mounted) {
+        navigatorKey.currentState!.popUntil((route) => route.isFirst);
+      }
+    });
   }
 
   // Cleanup
   Future<void> dispose() async {
     await FlutterCallkitIncoming.endAllCalls();
+    _activeCallKitId = null;
+    _currentCallData = null;
   }
 }

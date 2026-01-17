@@ -4,58 +4,13 @@ import 'package:hoop/dtos/podos/tokens/token_manager.dart';
 import 'package:hoop/dtos/responses/ApiResponse.dart';
 import 'package:hoop/dtos/responses/GeneralResponse/paginated_response.dart';
 import 'package:hoop/dtos/responses/SpotlightVideo.dart';
+import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
+import 'package:hoop/screens/groups/create_group.dart';
 import 'package:hoop/services/base_http.dart';
 
 // Create group request model
-class CreateGroupRequest {
-  final String name;
-  final String description;
-  final String category;
-  final int maxMembers;
-  final double contributionAmount;
-  final String contributionFrequency;
-  final bool isPublic;
-  final String startDate;
-  final bool allowMessage;
-  final bool allowVideoCall;
-  final double? latitude;
-  final double? longitude;
 
-  CreateGroupRequest({
-    required this.name,
-    required this.description,
-    required this.category,
-    required this.maxMembers,
-    required this.contributionAmount,
-    required this.contributionFrequency,
-    this.isPublic = true,
-    required this.startDate,
-    this.allowMessage = true,
-    this.allowVideoCall = true,
-    this.latitude,
-    this.longitude,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'name': name,
-      'description': description,
-      'category': category,
-      'maxMembers': maxMembers,
-      'contributionAmount': contributionAmount,
-      'contributionFrequency': contributionFrequency,
-      'isPublic': isPublic,
-      'startDate': startDate,
-      'allowMessage': allowMessage,
-      'allowVideoCall': allowVideoCall,
-      if (latitude != null) 'latitude': latitude,
-      if (longitude != null) 'longitude': longitude,
-    };
-  }
-}
-
-// Group HTTP Service that extends BaseHttpService
 class GroupHttpService extends BaseHttpService {
   GroupHttpService() : super(baseUrl: BASE_URL);
 
@@ -85,7 +40,7 @@ class GroupHttpService extends BaseHttpService {
   }
 
   // Get public group details
-  Future<ApiResponse<GroupDetailsPublic>> getGroupPublic(String id) async {
+  Future<ApiResponse<GroupDetailsPublic>> getGroupPublic(int id) async {
     return getTyped<GroupDetailsPublic>(
       'groups/public/$id',
       fromJson: (json) => GroupDetailsPublic.fromJson(json),
@@ -93,10 +48,11 @@ class GroupHttpService extends BaseHttpService {
   }
 
   // Create group
-  Future<ApiResponse<Group>> createGroup(CreateGroupRequest groupData) async {
+  Future<ApiResponse<Group>> createGroup(Map<String, dynamic> groupData) async {
+    print("groupData?? $groupData");
     return postTyped<Group>(
       'groups/create',
-      body: groupData.toJson(),
+      body: groupData,
       fromJson: (json) => Group.fromJson(json),
     );
   }
@@ -305,6 +261,7 @@ class GroupHttpService extends BaseHttpService {
     String? message,
     int slots = 1,
   }) async {
+    print("'groups/$groupId/join'?? $message, $slots");
     return postTyped<GroupMember>(
       'groups/$groupId/join',
       body: {'message': message, 'slots': slots},

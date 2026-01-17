@@ -1,6 +1,10 @@
-import 'package:flutter/material.dart';
-import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'dart:async';
+import 'package:flutter/material.dart';
+import 'package:hoop/dtos/podos/calls/call_models.dart';
+import 'package:hoop/services/callkit_integration.dart';
+import 'package:hoop/states/webrtc_manager.dart';
+import 'package:hoop/states/ws/chat_sockets.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 class OneSignalService extends ChangeNotifier {
   // Singleton instance
@@ -10,6 +14,8 @@ class OneSignalService extends ChangeNotifier {
     return _instance!;
   }
 
+  late WebRTCManager _webrtcManager;
+  WebRTCManager get webrtcManager => _webrtcManager;
   // State
   String _debugLabelString = "";
   bool _initialized = false;
@@ -17,17 +23,18 @@ class OneSignalService extends ChangeNotifier {
   bool _requireConsent = false;
   String? _externalUserId;
   String? _language;
-  
+  late CallKitIntegration callKitIntegration;
+
   // Permission state
   bool _hasPermission = false;
   bool _permissionRequested = false;
   bool _isLoading = false;
   OSNotificationPermission? _permissionStatus;
-  
+
   // Notification counts
   int _notificationCount = 0;
   int _unreadCount = 0;
-  
+
   // Getters
   String get debugLabelString => _debugLabelString;
   bool get initialized => _initialized;
@@ -38,27 +45,31 @@ class OneSignalService extends ChangeNotifier {
   int get notificationCount => _notificationCount;
   int get unreadCount => _unreadCount;
   OSNotificationPermission? get permissionStatus => _permissionStatus;
-  
+
   // Notification handlers
   Function(OSNotificationClickEvent)? _onNotificationClick;
   Function(OSNotificationWillDisplayEvent)? _onForegroundNotification;
-  
+
   // Tags for different notification types
   final Map<String, String> _notificationTags = {};
-  
+
   // Context for navigation
   BuildContext? _context;
-  
+
   // Stream controllers for real-time updates
-  final StreamController<int> _notificationCountController = StreamController<int>.broadcast();
-  final StreamController<int> _unreadCountController = StreamController<int>.broadcast();
-  final StreamController<bool> _permissionController = StreamController<bool>.broadcast();
-  
+  final StreamController<int> _notificationCountController =
+      StreamController<int>.broadcast();
+  final StreamController<int> _unreadCountController =
+      StreamController<int>.broadcast();
+  final StreamController<bool> _permissionController =
+      StreamController<bool>.broadcast();
+
   // Streams
-  Stream<int> get notificationCountStream => _notificationCountController.stream;
+  Stream<int> get notificationCountStream =>
+      _notificationCountController.stream;
   Stream<int> get unreadCountStream => _unreadCountController.stream;
   Stream<bool> get permissionStream => _permissionController.stream;
-  
+
   OneSignalService._internal();
 
   Future<void> initialize({
@@ -70,7 +81,7 @@ class OneSignalService extends ChangeNotifier {
     bool requestPermissionAutomatically = true,
   }) async {
     if (_initialized) return;
-    
+
     _context = context;
     _requireConsent = requireConsent;
     _onNotificationClick = onNotificationClick;
@@ -89,23 +100,46 @@ class OneSignalService extends ChangeNotifier {
 
       // Set up notification handlers
       _setupNotificationHandlers();
-      
+
       // Check current permission status
       await _checkPermissionStatus();
-      
+
       // Request permission automatically if configured
-      if (requestPermissionAutomatically && !_hasPermission && !_permissionRequested) {
+      if (requestPermissionAutomatically &&
+          !_hasPermission &&
+          !_permissionRequested) {
         // await _requestPermissionWithDialog();
       }
 
       // Set up live activities
       OneSignal.LiveActivities.setupDefault();
-      
+
       // Clear all notifications
       OneSignal.Notifications.clearAll();
 
+      _webrtcManager = WebRTCManager();
+
+      _webrtcManager.initialize(
+        ChatWebSocketHandler(),
+        1,
+        "Raji",
+      ); // todo: change this
+      callKitIntegration = CallKitIntegration();
+
+      callKitIntegration.initialize(webrtcManager);
+      // Setup callbacks
+      _webrtcManager.onIncomingCall = (callData) {
+        debugPrint(
+          "📨 Incoming call received via WebRTC : Never allow it able $callData",
+        );
+        // Send notification via existing chat system
+        // audio.play(SynthSoundType.ringtone);
+        callKitIntegration.handleIncomingCallFromWebRTC(callData);
+        // You can also show a notification or update UI
+        // This will be handled by your CallKit integration
+      };
+
       _initialized = true;
-      
     } catch (error) {
       print('Error initializing OneSignal: $error');
       _debugLabelString = 'Error initializing OneSignal: $error';
@@ -122,7 +156,9 @@ class OneSignalService extends ChangeNotifier {
       _hasPermission = status;
       _permissionController.add(_hasPermission);
       notifyListeners();
-      print('Current permission status: $status, Has permission: $_hasPermission');
+      print(
+        'Current permission status: $status, Has permission: $_hasPermission',
+      );
     } catch (error) {
       print('Error checking permission status: $error');
     }
@@ -130,7 +166,7 @@ class OneSignalService extends ChangeNotifier {
 
   Future<bool> requestPermission({bool showDialog = true}) async {
     if (_permissionRequested && _hasPermission) return true;
-    
+
     _permissionRequested = true;
     _isLoading = true;
     notifyListeners();
@@ -145,17 +181,17 @@ class OneSignalService extends ChangeNotifier {
           return false;
         }
       }
-      
+
       final result = await OneSignal.Notifications.requestPermission(true);
       _hasPermission = result;
       _permissionController.add(result);
-      
+
       if (result) {
         _debugLabelString = 'Permission granted! Notifications enabled.';
-        
+
         // Subscribe to default topics after permission granted
         await _subscribeToDefaultTopics();
-        
+
         // Show success message
         if (_context != null && _context!.mounted) {
           ScaffoldMessenger.of(_context!).showSnackBar(
@@ -167,16 +203,16 @@ class OneSignalService extends ChangeNotifier {
           );
         }
       } else {
-        _debugLabelString = 'Permission denied. You can enable notifications in settings.';
-        
+        _debugLabelString =
+            'Permission denied. You can enable notifications in settings.';
+
         if (_context != null && _context!.mounted && showDialog) {
           _showPermissionDeniedDialog();
         }
       }
-      
+
       notifyListeners();
       return result;
-      
     } catch (error) {
       print('Error requesting permission: $error');
       _debugLabelString = 'Error requesting permission: $error';
@@ -190,82 +226,84 @@ class OneSignalService extends ChangeNotifier {
 
   Future<bool> _showPermissionRequestDialog() async {
     return await showDialog<bool>(
-      context: _context!,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        title: Text(
-          'Enable Notifications',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: Theme.of(context).colorScheme.onBackground,
-          ),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(
-              Icons.notifications_active,
-              size: 48,
-              color: Color(0xFFF97316),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Stay updated with:',
+          context: _context!,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            title: Text(
+              'Enable Notifications',
               style: TextStyle(
-                fontWeight: FontWeight.w500,
-                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.onBackground,
               ),
             ),
-            SizedBox(height: 8),
-            _buildPermissionFeature(
-              'Group activities and messages',
-              Icons.people,
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.notifications_active,
+                  size: 48,
+                  color: Color(0xFFF97316),
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Stay updated with:',
+                  style: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+                ),
+                SizedBox(height: 8),
+                _buildPermissionFeature(
+                  'Group activities and messages',
+                  Icons.people,
+                ),
+                _buildPermissionFeature(
+                  'Payment reminders and updates',
+                  Icons.payments,
+                ),
+                _buildPermissionFeature(
+                  'Meeting schedules and alerts',
+                  Icons.calendar_today,
+                ),
+                _buildPermissionFeature(
+                  'Important announcements',
+                  Icons.announcement,
+                ),
+                SizedBox(height: 16),
+                Text(
+                  'Never miss important updates from your groups!',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
+              ],
             ),
-            _buildPermissionFeature(
-              'Payment reminders and updates',
-              Icons.payments,
-            ),
-            _buildPermissionFeature(
-              'Meeting schedules and alerts',
-              Icons.calendar_today,
-            ),
-            _buildPermissionFeature(
-              'Important announcements',
-              Icons.announcement,
-            ),
-            SizedBox(height: 16),
-            Text(
-              'Never miss important updates from your groups!',
-              style: TextStyle(
-                fontSize: 12,
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text(
+                  'Not Now',
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text(
-              'Not Now',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Color(0xFFF97316),
+                  foregroundColor: Colors.white,
+                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                ),
+                child: Text('Enable Notifications'),
               ),
-            ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Color(0xFFF97316),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: Text('Enable Notifications'),
-          ),
-        ],
-      ),
-    ) ?? false;
+        ) ??
+        false;
   }
 
   Widget _buildPermissionFeature(String text, IconData icon) {
@@ -273,20 +311,9 @@ class OneSignalService extends ChangeNotifier {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 16,
-            color: Color(0xFFF97316).withOpacity(0.8),
-          ),
+          Icon(icon, size: 16, color: Color(0xFFF97316).withOpacity(0.8)),
           SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 13,
-              ),
-            ),
-          ),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 13))),
         ],
       ),
     );
@@ -304,7 +331,7 @@ class OneSignalService extends ChangeNotifier {
         'WEEKLY_POLL_UPDATE',
         'SYSTEM_ALERT',
       ]);
-      
+
       await setNotificationPreferences(
         groupNotifications: true,
         paymentNotifications: true,
@@ -314,7 +341,7 @@ class OneSignalService extends ChangeNotifier {
         goalNotifications: true,
         pollNotifications: true,
       );
-      
+
       print('Subscribed to default notification topics');
     } catch (error) {
       print('Error subscribing to topics: $error');
@@ -329,17 +356,11 @@ class OneSignalService extends ChangeNotifier {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              Icons.notifications_off,
-              size: 48,
-              color: Colors.orange,
-            ),
+            Icon(Icons.notifications_off, size: 48, color: Colors.orange),
             SizedBox(height: 16),
             Text(
               'To enable notifications and stay updated:',
-              style: TextStyle(
-                fontSize: 14,
-              ),
+              style: TextStyle(fontSize: 14),
             ),
             SizedBox(height: 12),
             _buildSettingStep('1. Go to Settings', Icons.settings),
@@ -374,18 +395,9 @@ class OneSignalService extends ChangeNotifier {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 20,
-            color: Color(0xFFF97316),
-          ),
+          Icon(icon, size: 20, color: Color(0xFFF97316)),
           SizedBox(width: 12),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-            ),
-          ),
+          Text(text, style: TextStyle(fontSize: 13)),
         ],
       ),
     );
@@ -393,9 +405,8 @@ class OneSignalService extends ChangeNotifier {
 
   Future<void> _openAppSettings() async {
     try {
-      
       print('Opening app settings...');
-      
+
       // Fallback: Show instructions
       ScaffoldMessenger.of(_context!).showSnackBar(
         SnackBar(
@@ -440,38 +451,46 @@ class OneSignalService extends ChangeNotifier {
     // Notification click listener
     OneSignal.Notifications.addClickListener((event) {
       print('NOTIFICATION CLICKED: ${event.notification.jsonRepresentation()}');
-      
+
       // Update unread count
       _unreadCount = _unreadCount > 0 ? _unreadCount - 1 : 0;
       _unreadCountController.add(_unreadCount);
-      
+
       // Call custom handler if provided
       _onNotificationClick?.call(event);
-      
+
       // Update debug label
-      _debugLabelString = 
+      _debugLabelString =
           "Clicked notification: \n${event.notification.jsonRepresentation().replaceAll("\\n", "\n")}";
       notifyListeners();
-      
+
       // Handle different notification types
       _handleNotificationClick(event);
     });
 
     // Foreground notification listener
     OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      print('FOREGROUND NOTIFICATION: ${event.notification.jsonRepresentation()}');
-      
+      print('FOREGROUND NOTIFICATION: ${event.notification.additionalData}');
+
       // Update counts
       _notificationCount++;
       _unreadCount++;
       _notificationCountController.add(_notificationCount);
       _unreadCountController.add(_unreadCount);
-      
-      // Call custom handler if provided
-      _onForegroundNotification?.call(event);
-      
+
+      if (event.notification.rawPayload?['type'] == 'call') {
+        // destiny...
+        _webrtcManager.setIncomingCall(
+          CallData.fromJson(event.notification.rawPayload!),
+        );
+      } else {
+        // Call custom handler if provided
+        _onForegroundNotification?.call(event);
+      }
+      //
+
       // Update debug label
-      _debugLabelString = 
+      _debugLabelString =
           "Notification received: \n${event.notification.jsonRepresentation().replaceAll("\\n", "\n")}";
       notifyListeners();
     });
@@ -480,17 +499,56 @@ class OneSignalService extends ChangeNotifier {
     _setupInAppMessageHandlers();
   }
 
+  // In OneSignalService class
+
+  Future<void> subscribeToGroupTags(List<num> groupIds) async {
+    try {
+      final tags = <String, String>{};
+
+      for (final groupId in groupIds) {
+        // Format: group_8 -> true
+        tags['group_$groupId'] = 'true';
+      }
+
+      await OneSignal.User.addTags(tags);
+
+      // Update local cache
+      _notificationTags.addAll(tags);
+
+      print('✅ Subscribed to group tags: ${tags.keys.join(', ')}');
+      notifyListeners();
+    } catch (error) {
+      print('❌ Error subscribing to group tags: $error');
+    }
+  }
+
+  Future<void> unsubscribeFromGroupTags(List<num> groupIds) async {
+    try {
+      for (final groupId in groupIds) {
+        await OneSignal.User.removeTag('group_$groupId');
+        _notificationTags.remove('group_$groupId');
+      }
+
+      print(
+        '✅ Unsubscribed from group tags: ${groupIds.map((id) => 'group_$id').join(', ')}',
+      );
+      notifyListeners();
+    } catch (error) {
+      print('❌ Error unsubscribing from group tags: $error');
+    }
+  }
+
   void _setupInAppMessageHandlers() {
     OneSignal.InAppMessages.addClickListener((event) {
-      _debugLabelString = 
+      _debugLabelString =
           "In App Message Clicked: \n${event.result.jsonRepresentation().replaceAll("\\n", "\n")}";
       notifyListeners();
     });
-    
+
     OneSignal.InAppMessages.addWillDisplayListener((event) {
       print("WILL DISPLAY IN APP MESSAGE ${event.message.messageId}");
     });
-    
+
     OneSignal.InAppMessages.addDidDisplayListener((event) {
       print("DID DISPLAY IN APP MESSAGE ${event.message.messageId}");
     });
@@ -499,14 +557,14 @@ class OneSignalService extends ChangeNotifier {
   void _handleNotificationClick(OSNotificationClickEvent event) {
     final notification = event.notification;
     final additionalData = notification.additionalData;
-    
+
     if (additionalData != null) {
       final type = additionalData['type']?.toString();
       final action = additionalData['action']?.toString();
       final payload = additionalData['payload']?.toString();
-      
+
       print('Notification Type: $type, Action: $action, Payload: $payload');
-      
+
       // Handle navigation based on type
       _handleNotificationNavigation(type, additionalData);
     }
@@ -514,7 +572,7 @@ class OneSignalService extends ChangeNotifier {
 
   void _handleNotificationNavigation(String? type, Map<String, dynamic> data) {
     if (_context == null || !_context!.mounted) return;
-    
+
     switch (type) {
       case 'GROUP_STARTED':
         // Navigate to group
@@ -540,7 +598,7 @@ class OneSignalService extends ChangeNotifier {
       // await OneSignal.User.addTag("topic_$topic", "subscribed");
     }
     _notificationTags.addAll({
-      for (var topic in topics) "topic_$topic": "subscribed"
+      for (var topic in topics) "topic_$topic": "subscribed",
     });
     notifyListeners();
   }
@@ -563,7 +621,7 @@ class OneSignalService extends ChangeNotifier {
     bool? pollNotifications,
   }) async {
     final Map<String, String> tags = {};
-    
+
     if (groupNotifications != null) {
       tags['pref_group'] = groupNotifications.toString();
     }
@@ -585,7 +643,7 @@ class OneSignalService extends ChangeNotifier {
     if (pollNotifications != null) {
       tags['pref_poll'] = pollNotifications.toString();
     }
-    
+
     await OneSignal.User.addTags(tags);
     _notificationTags.addAll(tags);
     notifyListeners();
@@ -652,12 +710,13 @@ class OneSignalService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> startLiveActivity(String activityId, Map<String, dynamic> data) async {
-    await OneSignal.LiveActivities.startDefault(
-      activityId,
-      {"title": "Live Activity"},
-      data,
-    );
+  Future<void> startLiveActivity(
+    String activityId,
+    Map<String, dynamic> data,
+  ) async {
+    await OneSignal.LiveActivities.startDefault(activityId, {
+      "title": "Live Activity",
+    }, data);
   }
 
   Future<void> enterLiveActivity(String activityId, String token) async {
@@ -699,7 +758,7 @@ class OneSignalService extends ChangeNotifier {
       if (payload != null) 'payload': payload,
       if (actions != null) 'actions': actions,
     };
-    
+
     return data;
   }
 

@@ -1,7 +1,7 @@
 
 // lib/dtos/responses/group/Groups.dart
 class Group {
-  final String id;
+  final num id;
   final String name;
   final String description;
   final double contributionAmount;
@@ -63,7 +63,7 @@ class Group {
 
   factory Group.fromJson(Map<String, dynamic> json) {
     return Group(
-      id: json['id'].toString(),
+      id: json['id'],
       name: json['name'] ?? '',
       description: json['description'] ?? '',
       contributionAmount: (json['contributionAmount'] ?? 0).toDouble(),

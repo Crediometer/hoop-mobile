@@ -4,9 +4,8 @@ class PersonalInfoData {
   final String bio;
   final String occupation;
   final double latitude;
-  final String requestId;
+
   final double longitude;
-  final String bvn;
 
   PersonalInfoData({
     required this.dateOfBirth,
@@ -14,9 +13,8 @@ class PersonalInfoData {
     required this.bio,
     required this.occupation,
     required this.latitude,
-    required this.requestId,
     required this.longitude,
-    required this.bvn,
+
   });
 
   Map<String, dynamic> toJson() => {
@@ -25,9 +23,25 @@ class PersonalInfoData {
         'bio': bio,
         'occupation': occupation,
         'latitude': latitude,
-        'requestId': requestId,
+
         'longitude': longitude,
-        'bvn': bvn,
       };
 }
 
+
+  // Location Data Model
+  class LocationData {
+    final double latitude;
+    final double longitude;
+    final String? address;
+    final String accuracy; // 'high', 'medium', 'low'
+    final String source; // 'gps', 'ip', 'default'
+
+    LocationData({
+      required this.latitude,
+      required this.longitude,
+      this.address,
+      required this.accuracy,
+      required this.source,
+    });
+  }

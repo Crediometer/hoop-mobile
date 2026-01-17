@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/constants/themes.dart';
+import 'package:hoop/dtos/responses/ApiResponse.dart';
+import 'package:hoop/dtos/responses/group/index.dart';
+import 'package:hoop/states/group_state.dart';
 
-// ============================================
-// DTOs and Models
-// ============================================
 
 class GroupFormData {
   String name;
@@ -97,21 +98,14 @@ class CycleDuration {
   final String label;
   final String unit;
 
-  CycleDuration({
-    required this.value,
-    required this.label,
-    required this.unit,
-  });
+  CycleDuration({required this.value, required this.label, required this.unit});
 }
 
 class CustomCycleUnit {
   final String value;
   final String label;
 
-  CustomCycleUnit({
-    required this.value,
-    required this.label,
-  });
+  CustomCycleUnit({required this.value, required this.label});
 }
 
 class PayoutOrderOption {
@@ -288,9 +282,7 @@ class _CustomInputFieldState extends State<CustomInputField> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: hasError
-                  ? Colors.red
-                  : HoopTheme.getBorderColor(isDark),
+              color: hasError ? Colors.red : HoopTheme.getBorderColor(isDark),
             ),
           ),
           child: Stack(
@@ -340,18 +332,11 @@ class _CustomInputFieldState extends State<CustomInputField> {
             padding: const EdgeInsets.only(top: 4),
             child: Row(
               children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 14,
-                  color: Colors.red,
-                ),
+                Icon(Icons.error_outline, size: 14, color: Colors.red),
                 const SizedBox(width: 4),
                 Text(
                   widget.error!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.red,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.red),
                 ),
               ],
             ),
@@ -465,9 +450,7 @@ class _CustomTextAreaFieldState extends State<CustomTextAreaField> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: hasError
-                  ? Colors.red
-                  : HoopTheme.getBorderColor(isDark),
+              color: hasError ? Colors.red : HoopTheme.getBorderColor(isDark),
             ),
           ),
           child: TextField(
@@ -495,18 +478,11 @@ class _CustomTextAreaFieldState extends State<CustomTextAreaField> {
             padding: const EdgeInsets.only(top: 4),
             child: Row(
               children: [
-                Icon(
-                  Icons.error_outline,
-                  size: 14,
-                  color: Colors.red,
-                ),
+                Icon(Icons.error_outline, size: 14, color: Colors.red),
                 const SizedBox(width: 4),
                 Text(
                   widget.error!,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.red,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.red),
                 ),
               ],
             ),
@@ -528,7 +504,7 @@ class GroupFormValidators {
     if (value.trim().length < 3) {
       return "Group name must be at least 3 characters";
     }
-    if (value.trim().length > 50) {
+    if (value.trim().length > 150) {
       return "Group name must be less than 50 characters";
     }
     return null;
@@ -575,7 +551,7 @@ class GroupFormValidators {
     if (numMembers < 2) {
       return "Must have at least 2 members";
     }
-    if (numMembers > 50) {
+    if (numMembers > 150) {
       return "Cannot exceed 50 members";
     }
     return null;
@@ -640,11 +616,7 @@ class GroupFormValidators {
         return "Start date cannot be in the past";
       }
 
-      final oneYearFromNow = DateTime(
-        today.year + 1,
-        today.month,
-        today.day,
-      );
+      final oneYearFromNow = DateTime(today.year + 1, today.month, today.day);
       if (selectedDateOnly.isAfter(oneYearFromNow)) {
         return "Start date cannot be more than 1 year in the future";
       }
@@ -655,10 +627,7 @@ class GroupFormValidators {
     }
   }
 
-  static String? validateCycleDuration(
-    String? value,
-    bool useCustomCycle,
-  ) {
+  static String? validateCycleDuration(String? value, bool useCustomCycle) {
     if (!useCustomCycle && (value == null || value.isEmpty)) {
       return "Cycle duration is required";
     }
@@ -691,19 +660,20 @@ class GroupCreationFlowScreen extends StatefulWidget {
   const GroupCreationFlowScreen({Key? key}) : super(key: key);
 
   @override
-  State<GroupCreationFlowScreen> createState() => _GroupCreationFlowScreenState();
+  State<GroupCreationFlowScreen> createState() =>
+      _GroupCreationFlowScreenState();
 }
 
 class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
   int _currentStep = 1;
   final int _totalSteps = 3;
-  
+
   late GroupFormData _formData;
   final Map<String, String?> _errors = {};
   final Set<String> _touchedFields = {};
   bool _isCreating = false;
   bool _useCustomCycle = false;
-  
+
   // Data for dropdowns
   final List<CycleDuration> _predefinedCycleDurations = [
     CycleDuration(value: "1", label: "Daily", unit: "days"),
@@ -717,13 +687,13 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
     CycleDuration(value: "60", label: "Every 2 months", unit: "days"),
     CycleDuration(value: "90", label: "Quarterly", unit: "days"),
   ];
-  
+
   final List<CustomCycleUnit> _customCycleUnits = [
     CustomCycleUnit(value: "days", label: "Days"),
     CustomCycleUnit(value: "weeks", label: "Weeks"),
     CustomCycleUnit(value: "months", label: "Months"),
   ];
-  
+
   final List<PayoutOrderOption> _payoutOrderOptions = [
     PayoutOrderOption(
       value: "join-date",
@@ -749,25 +719,26 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
   }
 
   // Handle pairing changes
-  @override
-  void didUpdateWidget(covariant GroupCreationFlowScreen oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    
-    // When pairing is disabled and current value has decimal, reset to whole number
-    if (!_formData.allowPairing && _formData.adminSlots.isNotEmpty) {
-      final currentValue = double.tryParse(_formData.adminSlots);
-      if (currentValue != null && currentValue % 1 != 0) {
-        _updateFormData(adminSlots: currentValue.round().toString());
+  void _handlePairingUpdate(bool value) {
+    setState(() {
+      _formData = _formData.copyWith(allowPairing: value);
+      
+      // When pairing is disabled and current value has decimal, reset to whole number
+      if (!value && _formData.adminSlots.isNotEmpty) {
+        final currentValue = double.tryParse(_formData.adminSlots);
+        if (currentValue != null && currentValue % 1 != 0) {
+          _formData = _formData.copyWith(adminSlots: currentValue.round().toString());
+        }
       }
-    }
-    
-    // When pairing is enabled and value is less than 0.5, set to minimum
-    if (_formData.allowPairing && _formData.adminSlots.isNotEmpty) {
-      final currentValue = double.tryParse(_formData.adminSlots);
-      if (currentValue != null && currentValue < 0.5) {
-        _updateFormData(adminSlots: '0.5');
+      
+      // When pairing is enabled and value is less than 0.5, set to minimum
+      if (value && _formData.adminSlots.isNotEmpty) {
+        final currentValue = double.tryParse(_formData.adminSlots);
+        if (currentValue != null && currentValue < 0.5) {
+          _formData = _formData.copyWith(adminSlots: '0.5');
+        }
       }
-    }
+    });
   }
 
   void _updateFormData({
@@ -787,22 +758,26 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
     String? startDate,
   }) {
     setState(() {
-      _formData = _formData.copyWith(
-        name: name,
-        description: description,
-        contributionAmount: contributionAmount,
-        cycleDuration: cycleDuration,
-        cycleUnit: cycleUnit,
-        customCycleValue: customCycleValue,
-        customCycleUnit: customCycleUnit,
-        maxMembers: maxMembers,
-        adminSlots: adminSlots,
-        payoutOrder: payoutOrder,
-        isPrivate: isPrivate,
-        requireApproval: requireApproval,
-        allowPairing: allowPairing,
-        startDate: startDate,
-      );
+      if (allowPairing != null) {
+        _handlePairingUpdate(allowPairing);
+      } else {
+        _formData = _formData.copyWith(
+          name: name,
+          description: description,
+          contributionAmount: contributionAmount,
+          cycleDuration: cycleDuration,
+          cycleUnit: cycleUnit,
+          customCycleValue: customCycleValue,
+          customCycleUnit: customCycleUnit,
+          maxMembers: maxMembers,
+          adminSlots: adminSlots,
+          payoutOrder: payoutOrder,
+          isPrivate: isPrivate,
+          requireApproval: requireApproval,
+          allowPairing: allowPairing,
+          startDate: startDate,
+        );
+      }
 
       // Clear errors for updated fields
       if (name != null) _errors.remove('name');
@@ -849,7 +824,10 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
         error = GroupFormValidators.validateStartDate(value);
         break;
       case 'cycleDuration':
-        error = GroupFormValidators.validateCycleDuration(value, _useCustomCycle);
+        error = GroupFormValidators.validateCycleDuration(
+          value,
+          _useCustomCycle,
+        );
         break;
       case 'customCycleValue':
         error = GroupFormValidators.validateCustomCycle(value);
@@ -870,26 +848,39 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
 
     if (step == 1) {
       errors['name'] = GroupFormValidators.validateName(_formData.name);
-      errors['description'] = GroupFormValidators.validateDescription(_formData.description);
-      errors['contributionAmount'] = GroupFormValidators.validateContributionAmount(_formData.contributionAmount);
-      errors['maxMembers'] = GroupFormValidators.validateMaxMembers(_formData.maxMembers);
+      errors['description'] = GroupFormValidators.validateDescription(
+        _formData.description,
+      );
+      errors['contributionAmount'] =
+          GroupFormValidators.validateContributionAmount(
+            _formData.contributionAmount,
+          );
+      errors['maxMembers'] = GroupFormValidators.validateMaxMembers(
+        _formData.maxMembers,
+      );
       errors['adminSlots'] = GroupFormValidators.validateAdminSlots(
         _formData.adminSlots,
         _formData.allowPairing,
         _formData.maxMembers,
       );
-      errors['startDate'] = GroupFormValidators.validateStartDate(_formData.startDate);
+      errors['startDate'] = GroupFormValidators.validateStartDate(
+        _formData.startDate,
+      );
       errors['cycleDuration'] = GroupFormValidators.validateCycleDuration(
         _formData.cycleDuration,
         _useCustomCycle,
       );
       if (_useCustomCycle) {
-        errors['customCycleValue'] = GroupFormValidators.validateCustomCycle(_formData.customCycleValue);
+        errors['customCycleValue'] = GroupFormValidators.validateCustomCycle(
+          _formData.customCycleValue,
+        );
       }
 
       // Remove null errors
       errors.removeWhere((key, value) => value == null);
     }
+
+    print("?? $errors");
 
     return errors;
   }
@@ -946,22 +937,34 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
     } else {
       final predefined = _predefinedCycleDurations.firstWhere(
         (cycle) => cycle.value == _formData.cycleDuration,
-        orElse: () => CycleDuration(value: '', label: _formData.cycleDuration, unit: 'days'),
+        orElse: () => CycleDuration(
+          value: '',
+          label: _formData.cycleDuration,
+          unit: 'days',
+        ),
       );
       return predefined.label;
     }
   }
 
-  String _getCycleDurationForAPI() {
-    if (_useCustomCycle) {
+  String _getCycleDurationForApi() {
+    if (_useCustomCycle && 
+        _formData.customCycleValue.isNotEmpty && 
+        _formData.customCycleUnit.isNotEmpty) {
       return '${_formData.customCycleValue} ${_formData.customCycleUnit}';
-    } else {
+    } else if (_formData.cycleDuration.isNotEmpty) {
+      // Find the predefined cycle
       final predefined = _predefinedCycleDurations.firstWhere(
         (cycle) => cycle.value == _formData.cycleDuration,
         orElse: () => CycleDuration(value: '', label: '', unit: 'days'),
       );
-      return '${predefined.value} ${predefined.unit}';
+      
+      if (predefined.value.isNotEmpty) {
+        return '${predefined.value} ${predefined.unit}';
+      }
     }
+    
+    return _formData.cycleDuration; // fallback
   }
 
   Future<void> _handleCreateGroup() async {
@@ -978,37 +981,54 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
         _isCreating = true;
       });
 
-      // TODO: Replace with actual API call
-      // final payload = {
-      //   'name': _formData.name,
-      //   'description': _formData.description,
-      //   'contributionAmount': int.parse(_formData.contributionAmount),
-      //   'cycleDuration': _getCycleDurationForAPI(),
-      //   'maxMembers': int.parse(_formData.maxMembers),
-      //   'adminSlots': double.parse(_formData.adminSlots),
-      //   'payoutOrder': _formData.payoutOrder,
-      //   'isPrivate': _formData.isPrivate,
-      //   'requireApproval': _formData.requireApproval,
-      //   'allowPairing': _formData.allowPairing,
-      //   'startDate': _formData.startDate,
-      // };
-      // 
-      // final response = await yourApiService.createGroup(payload);
+      // Prepare the payload according to the backend DTO
+      final payload = {
+        'name': _formData.name,
+        'description': _formData.description,
+        'contributionAmount': double.parse(_formData.contributionAmount),
+        
+        // Format cycle duration properly
+        'cycleDuration': _getCycleDurationForApi(),
+        
+        'maxMembers': int.parse(_formData.maxMembers),
+        'adminSlots': double.parse(_formData.adminSlots),
+        'payoutOrder': _formData.payoutOrder,
+        'isPrivate': _formData.isPrivate,
+        'requireApproval': _formData.requireApproval,
+        'allowPairing': _formData.allowPairing,
+        'location': null,
+        'tags': [],
+        'startDate': _formData.startDate,
+      };
 
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+      print('Sending payload: $payload'); // Debug print
 
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Group created successfully!'),
-          backgroundColor: HoopTheme.successGreen,
-        ),
-      );
+      ApiResponse<Group> groupCreation = await GroupCommunityProvider()
+          .createGroup( payload);
 
-      // Navigate back
-      Navigator.of(context).pop();
+      if (groupCreation.success) {
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Group created successfully!'),
+            backgroundColor: HoopTheme.successGreen,
+          ),
+        );
 
+        // Navigate back
+        Navigator.of(context).pop();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              groupCreation.message ??
+                  groupCreation.error ??
+                  "Failed to create Group",
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
     } catch (error) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -1037,19 +1057,15 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                 color: step < _currentStep
                     ? HoopTheme.successGreen
                     : step == _currentStep
-                        ? HoopTheme.primaryBlue
-                        : HoopTheme.getMutedColor(
-                            Theme.of(context).brightness == Brightness.dark,
-                          ),
+                    ? HoopTheme.primaryBlue
+                    : HoopTheme.getMutedColor(
+                        Theme.of(context).brightness == Brightness.dark,
+                      ),
                 shape: BoxShape.circle,
               ),
               child: Center(
                 child: step < _currentStep
-                    ? Icon(
-                        Icons.check,
-                        size: 16,
-                        color: Colors.white,
-                      )
+                    ? Icon(Icons.check, size: 16, color: Colors.white)
                     : Text(
                         '$step',
                         style: TextStyle(
@@ -1079,9 +1095,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
 
   Widget _buildHeader() {
     return Container(
-      padding: const EdgeInsets.fromLTRB( 16,38,16, 48),
+      padding: const EdgeInsets.fromLTRB(16, 38, 16, 48),
       decoration: BoxDecoration(
-        // color: Theme.of(context).colorScheme.background,
         border: Border(
           bottom: BorderSide(
             color: HoopTheme.getBorderColor(
@@ -1205,7 +1220,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                 },
                 error: _errors['description'],
                 touched: _touchedFields.contains('description'),
-                hintText: 'Describe what your group is about, what you\'ll be buying together, and who should join...',
+                hintText:
+                    'Describe what your group is about, what you\'ll be buying together, and who should join...',
                 maxLength: 200,
               ),
               const SizedBox(height: 16),
@@ -1258,7 +1274,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  // color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1307,7 +1322,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                     ),
                     CustomSwitch(
                       value: _formData.allowPairing,
-                      onChanged: (value) => _updateFormData(allowPairing: value),
+                      onChanged: (value) =>
+                          _updateFormData(allowPairing: value),
                     ),
                   ],
                 ),
@@ -1333,7 +1349,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               CustomInputField(
                 label: 'Contribution Amount (NGN)',
                 value: _formData.contributionAmount,
-                onChanged: (value) => _updateFormData(contributionAmount: value),
+                onChanged: (value) =>
+                    _updateFormData(contributionAmount: value),
                 onBlur: (value) {
                   _markFieldTouched('contributionAmount');
                   _validateField('contributionAmount', value);
@@ -1392,13 +1409,16 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                           child: CustomInputField(
                             label: 'Duration',
                             value: _formData.customCycleValue,
-                            onChanged: (value) => _updateFormData(customCycleValue: value),
+                            onChanged: (value) =>
+                                _updateFormData(customCycleValue: value),
                             onBlur: (value) {
                               _markFieldTouched('customCycleValue');
                               _validateField('customCycleValue', value);
                             },
                             error: _errors['customCycleValue'],
-                            touched: _touchedFields.contains('customCycleValue'),
+                            touched: _touchedFields.contains(
+                              'customCycleValue',
+                            ),
                             hintText: 'e.g., 3',
                             keyboardType: TextInputType.number,
                           ),
@@ -1418,7 +1438,9 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                               ),
                               const SizedBox(height: 8),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 12),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(12),
                                   border: Border.all(
@@ -1457,14 +1479,18 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: _errors.containsKey('cycleDuration') && _touchedFields.contains('cycleDuration')
+                              color:
+                                  _errors.containsKey('cycleDuration') &&
+                                      _touchedFields.contains('cycleDuration')
                                   ? Colors.red
                                   : HoopTheme.getBorderColor(isDark),
                             ),
                           ),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
-                              value: _formData.cycleDuration.isNotEmpty ? _formData.cycleDuration : null,
+                              value: _formData.cycleDuration.isNotEmpty
+                                  ? _formData.cycleDuration
+                                  : null,
                               hint: Text(
                                 'Select Cycle Duration',
                                 style: TextStyle(
@@ -1488,7 +1514,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                             ),
                           ),
                         ),
-                        if (_errors.containsKey('cycleDuration') && _touchedFields.contains('cycleDuration'))
+                        if (_errors.containsKey('cycleDuration') &&
+                            _touchedFields.contains('cycleDuration'))
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Row(
@@ -1636,11 +1663,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
             ),
             child: Row(
               children: [
-                Icon(
-                  Icons.info,
-                  color: HoopTheme.primaryBlue,
-                  size: 20,
-                ),
+                Icon(Icons.info, color: HoopTheme.primaryBlue, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -1703,7 +1726,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  // color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1722,7 +1744,9 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Icon(
-                            _formData.isPrivate ? Icons.visibility_off : Icons.visibility,
+                            _formData.isPrivate
+                                ? Icons.visibility_off
+                                : Icons.visibility,
                             color: HoopTheme.primaryBlue,
                             size: 20,
                           ),
@@ -1764,7 +1788,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  // color: Theme.of(context).colorScheme.surface,
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1813,7 +1836,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                     ),
                     CustomSwitch(
                       value: _formData.requireApproval,
-                      onChanged: (value) => _updateFormData(requireApproval: value),
+                      onChanged: (value) =>
+                          _updateFormData(requireApproval: value),
                     ),
                   ],
                 ),
@@ -1861,14 +1885,13 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              // color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
               ),
             ),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
                   'Group Preview',
@@ -1897,7 +1920,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              // color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1928,21 +1950,13 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                       '₦${_formatNumber(_formData.contributionAmount)}',
                       HoopTheme.successGreen,
                     ),
-                    _buildFinancialItem(
-                      'Cycle',
-                      _formatCycleDuration(),
-                      null,
-                    ),
+                    _buildFinancialItem('Cycle', _formatCycleDuration(), null),
                     _buildFinancialItem(
                       'Max Members',
                       _formData.maxMembers,
                       null,
                     ),
-                    _buildFinancialItem(
-                      'Late Penalty',
-                      '2.5%',
-                      null,
-                    ),
+                    _buildFinancialItem('Late Penalty', '2.5%', null),
                   ],
                 ),
               ],
@@ -1955,7 +1969,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              // color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -1978,12 +1991,16 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                     _buildSettingItem(
                       'Privacy',
                       _formData.isPrivate ? 'Private' : 'Public',
-                      _formData.isPrivate ? HoopTheme.vibrantOrange : HoopTheme.successGreen,
+                      _formData.isPrivate
+                          ? HoopTheme.vibrantOrange
+                          : HoopTheme.successGreen,
                     ),
                     _buildSettingItem(
                       'Join Approval',
                       _formData.requireApproval ? 'Required' : 'Automatic',
-                      _formData.requireApproval ? HoopTheme.vibrantOrange : HoopTheme.successGreen,
+                      _formData.requireApproval
+                          ? HoopTheme.vibrantOrange
+                          : HoopTheme.successGreen,
                     ),
                     _buildSettingItem(
                       'Payout Order',
@@ -1993,7 +2010,9 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
                     _buildSettingItem(
                       'Allow Pairing',
                       _formData.allowPairing ? 'Yes' : 'No',
-                      _formData.allowPairing ? HoopTheme.successGreen : HoopTheme.getTextSecondary(isDark),
+                      _formData.allowPairing
+                          ? HoopTheme.successGreen
+                          : HoopTheme.getTextSecondary(isDark),
                     ),
                     _buildSettingItem(
                       'Your Slots',
@@ -2018,11 +2037,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.info,
-                  color: HoopTheme.primaryBlue,
-                  size: 20,
-                ),
+                Icon(Icons.info, color: HoopTheme.primaryBlue, size: 20),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
@@ -2057,7 +2072,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
 
   Widget _buildReviewItem(String label, String value) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2093,7 +2108,7 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
 
   Widget _buildFinancialItem(String label, String value, Color? valueColor) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2181,7 +2196,6 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        // color: Theme.of(context).colorScheme.background,
         border: Border(
           top: BorderSide(
             color: HoopTheme.getBorderColor(isDark).withOpacity(0.1),
@@ -2189,65 +2203,19 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
         ),
       ),
       child: _currentStep < _totalSteps
-          ? SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isStep1Valid ? _handleNext : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: HoopTheme.primaryBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text('Continue'),
-                    const SizedBox(width: 8),
-                    Icon(Icons.arrow_forward, size: 20),
-                  ],
-                ),
-              ),
+          ? HoopButton(
+              buttonText: 'Continue',
+              onPressed: isStep1Valid ? _handleNext : null,
+              isLoading: _isCreating,
+              disabled:  !isStep1Valid,
             )
-          : SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isCreating || !isStep1Valid ? null : _handleCreateGroup,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: HoopTheme.successGreen,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: _isCreating
-                    ? Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text('Creating Group...'),
-                        ],
-                      )
-                    : Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text('Create Group'),
-                          const SizedBox(width: 8),
-                          Icon(Icons.check, size: 20),
-                        ],
-                      ),
-              ),
+          : HoopButton(
+              buttonText: _isCreating ? 'Creating Group...' : 'Create Group',
+              onPressed: _isCreating || !isStep1Valid
+                  ? null
+                  : _handleCreateGroup,
+              isLoading: _isCreating,
+              disabled: _isCreating || !isStep1Valid,
             ),
     );
   }
@@ -2262,8 +2230,8 @@ class _GroupCreationFlowScreenState extends State<GroupCreationFlowScreen> {
             child: _currentStep == 1
                 ? _buildStep1()
                 : _currentStep == 2
-                    ? _buildStep2()
-                    : _buildStep3(),
+                ? _buildStep2()
+                : _buildStep3(),
           ),
           _buildFooter(),
         ],

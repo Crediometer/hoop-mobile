@@ -23,7 +23,7 @@ class PaginatedResponse<T> {
     T Function(dynamic) fromJsonT,
   ) {
 
-    log("???json,,, $json");
+
     return PaginatedResponse<T>(
       content: (json['content'] as List?)?.map((item) => fromJsonT(item)).toList() ?? [],
       page: json['page'] ?? 0,
