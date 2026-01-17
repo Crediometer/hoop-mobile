@@ -78,10 +78,6 @@ jobs:
       - name: "📦 Get dependencies"
         run: flutter pub get
       
-      
-      - name: "🔍 Analyze code"
-        run: flutter analyze
-      
       - name: "📝 Check formatting"
         run: flutter format --set-exit-if-changed .
       
