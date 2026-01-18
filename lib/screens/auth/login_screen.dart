@@ -11,7 +11,7 @@ import 'package:hoop/screens/auth/signup/signup_step4_facial_verification_screen
 import 'package:hoop/screens/features/home_screen.dart';
 import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/utils/forms/validators.dart';
-import 'package:hoop/utils/helpers/toasters/Snackbar.dart';
+import 'package:hoop/utils/helpers/toasters/SnackBar.dart';
 import 'package:hoop/widgets/progress_bar.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
