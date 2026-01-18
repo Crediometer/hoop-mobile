@@ -1,14 +1,40 @@
 default_platform(:android)
 
 platform :android do
+  before_all do
+    # Ensure we're in the android directory
+    Dir.chdir("..") unless Dir.pwd.end_with?("android")
+    
+    # Validate AAB exists
+    aab_path = '../build/app/outputs/bundle/release/app-release.aab'
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB file not found at #{aab_path}. Build the app first!")
+    end
+    
+    # Validate JSON key exists
+    unless File.exist?('play.json')
+      UI.user_error!("play.json not found. Ensure it's in the android directory!")
+    end
+    
+    # Log build info
+    UI.message("📱 Deploying com.hoop.mobile")
+    UI.message("📦 AAB size: #{File.size(aab_path) / (1024 * 1024)} MB")
+  end
+
   desc "Deploy to Internal Testing"
   lane :internal do
     upload_to_play_store(
       track: 'internal',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'play.json',
-      release_status: 'completed'
-      package_name: 'com.hoop.mobile'
+      release_status: 'completed',
+      package_name: 'com.hoop.mobile',
+      skip_upload_apk: true,
+      skip_upload_aab: false,
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      rollout: '0.1'  # Gradual rollout for internal
     )
   end
 
@@ -18,8 +44,14 @@ platform :android do
       track: 'beta',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'play.json',
-      release_status: 'completed'
-      package_name: 'com.hoop.mobile'
+      release_status: 'completed',
+      package_name: 'com.hoop.mobile',
+      skip_upload_apk: true,
+      skip_upload_aab: false,
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      whats_new_file: '../fastlane/whatsnew.txt'  # Optional: Release notes
     )
   end
 
@@ -29,8 +61,15 @@ platform :android do
       track: 'production',
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'play.json',
-      release_status: 'completed'
-      package_name: 'com.hoop.mobile'
+      release_status: 'completed',
+      package_name: 'com.hoop.mobile',
+      skip_upload_apk: true,
+      skip_upload_aab: false,
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      rollout: '1.0',  # 100% rollout
+      whats_new_file: '../fastlane/whatsnew.txt'  # Optional: Release notes
     )
   end
 end
