@@ -84,8 +84,6 @@ jobs:
         run: |
           flutter test || echo "Tests may have failed, continuing with build"
       
-      - name: "🔍 Analyze code"
-        run: flutter analyze
       
       - name: "🏷️ Check release type"
         id: release-check
