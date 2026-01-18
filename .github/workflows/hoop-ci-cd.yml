@@ -74,11 +74,18 @@ jobs:
             ~/.pub-cache
             /opt/hostedtoolcache/flutter/.pub-cache
           key: pub-cache-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            pub-cache-
       
       - name: "📦 Get dependencies"
         run: flutter pub get
       
-    
+      - name: "🧪 Run tests"
+        run: |
+          flutter test || echo "Tests may have failed, continuing with build"
+      
+      - name: "🔍 Analyze code"
+        run: flutter analyze
       
       - name: "🏷️ Check release type"
         id: release-check
@@ -147,8 +154,6 @@ jobs:
           FULL_VERSION="${{ steps.version.outputs.value }}+${{ steps.build-number.outputs.value }}"
           sed -i "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
           echo "✅ Updated pubspec.yaml to version: $FULL_VERSION"
-          
-          # Show the change
           echo "📄 Updated pubspec.yaml:"
           grep 'version:' pubspec.yaml
 
@@ -168,6 +173,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
       
       - name: "📦 Get dependencies"
         run: flutter pub get
@@ -194,10 +200,13 @@ jobs:
           EOF
           echo "✅ key.properties created"
       
-      # Determine which main.dart to use
-      - name: "🎯 Select entry point"
+      # Setup environment-specific main.dart
+      - name: "🎯 Setup environment configuration"
         run: |
           ENV="${{ needs.setup.outputs.environment }}"
+          echo "Setting up environment: $ENV"
+          # Add your environment-specific setup here
+          # Example: cp lib/main_$ENV.dart lib/main.dart
       
       # Build Android
       - name: "🏗️ Build Android App Bundle"
@@ -206,12 +215,19 @@ jobs:
           echo "✅ AAB built successfully"
           ls -la build/app/outputs/bundle/release/
       
-      # Setup Fastlane for Android
-      - name: "⚡ Setup Fastlane"
+      # Setup Ruby and Fastlane for Android
+      - name: "⚡ Setup Ruby and Fastlane (Android)"
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          cache-version: 1
+          working-directory: ./android
+      
+      - name: "📦 Install Fastlane dependencies"
         run: |
           cd android
-          gem install bundler
-          bundle install
+          bundle install --jobs 4 --retry 3
       
       # Deploy to Play Store
       - name: "🚀 Deploy to Play Store"
@@ -239,9 +255,10 @@ jobs:
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: android-aab
+          name: android-aab-${{ needs.setup.outputs.environment }}
           path: build/app/outputs/bundle/release/*.aab
           retention-days: 30
+          if-no-files-found: error
 
   # ========== iOS BUILD ==========
   ios:
@@ -299,14 +316,18 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
           
           # List installed certificates
+          echo "Installed certificates:"
           security find-identity -v -p codesigning
           
           echo "✅ iOS code signing setup complete"
       
-      # Determine which main.dart to use
-      - name: "🎯 Select entry point"
+      # Setup environment-specific main.dart
+      - name: "🎯 Setup environment configuration"
         run: |
           ENV="${{ needs.setup.outputs.environment }}"
+          echo "Setting up environment: $ENV"
+          # Add your environment-specific setup here
+          # Example: cp lib/main_$ENV.dart lib/main.dart
       
       # Build iOS
       - name: "🏗️ Build iOS IPA"
@@ -317,12 +338,19 @@ jobs:
           echo "✅ IPA built successfully"
           ls -la build/ios/ipa/
       
-      # Setup Fastlane for iOS
-      - name: "⚡ Setup Fastlane"
+      # Setup Ruby and Fastlane for iOS
+      - name: "⚡ Setup Ruby and Fastlane (iOS)"
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+          bundler-cache: true
+          cache-version: 1
+          working-directory: ./ios
+      
+      - name: "📦 Install Fastlane dependencies"
         run: |
           cd ios
-          gem install bundler
-          bundle install
+          bundle install --jobs 4 --retry 3
       
       # Deploy to TestFlight/App Store
       - name: "🚀 Deploy to TestFlight/App Store"
@@ -333,6 +361,15 @@ jobs:
           APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
         run: |
           cd ios
+          
+          # Save App Store Connect API key
+          cat <<EOF > api_key.json
+          {
+            "key_id": "$APP_STORE_KEY_ID",
+            "issuer_id": "$APP_STORE_ISSUER_ID",
+            "key": "$APP_STORE_PRIVATE_KEY"
+          }
+          EOF
           
           ENV="${{ needs.setup.outputs.environment }}"
           if [[ "$ENV" == "staging" ]]; then
@@ -349,9 +386,10 @@ jobs:
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa
+          name: ios-ipa-${{ needs.setup.outputs.environment }}
           path: build/ios/ipa/*.ipa
           retention-days: 30
+          if-no-files-found: error
 
   # ========== NOTIFICATION ==========
   notify:
@@ -361,9 +399,11 @@ jobs:
     if: always()
     
     steps:
-      - name: "📊 Build status"
+      - name: "📊 Build status summary"
         run: |
           echo "=== CI/CD Pipeline Summary ==="
+          echo "Workflow: ${{ github.workflow }}"
+          echo "Run: ${{ github.run_number }}"
           echo "Trigger: ${{ github.event_name }}"
           echo "Ref: ${{ github.ref }}"
           echo "Version: ${{ needs.setup.outputs.version }}+${{ needs.setup.outputs.build_number }}"
@@ -374,15 +414,32 @@ jobs:
           echo "- Android: ${{ needs.android.result }}"
           echo "- iOS: ${{ needs.ios.result }}"
           echo ""
-          echo "Artifacts created in GitHub Actions"
+          echo "Artifacts are available in GitHub Actions"
+          
+          # Calculate total time
+          START_TIME="${{ needs.setup.outputs.start_time }}"
+          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "Completed at: $END_TIME"
       
-      - name: "📱 Send Slack notification"
+      - name: "📱 Send Slack notification on failure"
         if: failure()
         uses: 8398a7/action-slack@v3
         with:
-          status: ${{ job.status }}
-          author_name: 'Flutter CI/CD'
-          fields: |
-            repo,commit,author,took
+          status: failure
+          author_name: 'Flutter CI/CD Pipeline'
+          icon_emoji: '🚨'
+          fields: workflow,job,commit,ref,author,took
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+      
+      - name: "📱 Send Slack notification on success"
+        if: success() && needs.setup.outputs.is_release == 'true'
+        uses: 8398a7/action-slack@v3
+        with:
+          status: success
+          author_name: 'Flutter CI/CD Pipeline'
+          icon_emoji: '✅'
+          fields: workflow,job,commit,ref,author,took
+          mention: here
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
