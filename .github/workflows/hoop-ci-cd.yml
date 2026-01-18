@@ -198,14 +198,11 @@ jobs:
       - name: "🎯 Select entry point"
         run: |
           ENV="${{ needs.setup.outputs.environment }}"
-          ENTRY_POINT="lib/main.dart"
-          echo "ENTRY_POINT=$ENTRY_POINT" >> $GITHUB_ENV
-          echo "Using entry point: $ENTRY_POINT"
       
       # Build Android
       - name: "🏗️ Build Android App Bundle"
         run: |
-          flutter build appbundle --release -t $ENTRY_POINT
+          flutter build appbundle --release 
           echo "✅ AAB built successfully"
           ls -la build/app/outputs/bundle/release/
       
@@ -310,15 +307,12 @@ jobs:
       - name: "🎯 Select entry point"
         run: |
           ENV="${{ needs.setup.outputs.environment }}"
-          ENTRY_POINT="lib/main.dart"
-          echo "ENTRY_POINT=$ENTRY_POINT" >> $GITHUB_ENV
-          echo "Using entry point: $ENTRY_POINT"
       
       # Build iOS
       - name: "🏗️ Build iOS IPA"
         run: |
           # Build IPA
-          flutter build ipa --release -t $ENTRY_POINT
+          flutter build ipa --release 
           
           echo "✅ IPA built successfully"
           ls -la build/ios/ipa/

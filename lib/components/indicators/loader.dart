@@ -1,9 +1,8 @@
 // components/ui/wave_loader.dart
-import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/states/auth_state.dart';
+import 'package:provider/provider.dart';
 
 class WaveLoader extends StatefulWidget {
   final double size;
