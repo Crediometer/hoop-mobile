@@ -8,6 +8,7 @@ platform :android do
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'play.json',
       release_status: 'completed'
+      package_name: 'com.hoop.mobile'
     )
   end
 
@@ -18,6 +19,7 @@ platform :android do
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'play.json',
       release_status: 'completed'
+      package_name: 'com.hoop.mobile'
     )
   end
 
@@ -28,6 +30,7 @@ platform :android do
       aab: '../build/app/outputs/bundle/release/app-release.aab',
       json_key: 'play.json',
       release_status: 'completed'
+      package_name: 'com.hoop.mobile'
     )
   end
 end

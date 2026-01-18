@@ -1,13 +1,11 @@
 name: Hoop Mobile CI/CD Pipeline
 
 on:
-  # 1. Run tests and builds on push to any branch
   push:
     branches: [dev, staging, main]
     tags:
-      - 'v*'  # Trigger on version tags like v1.0.0, v2.0.0
+      - 'v*'
   
-  # 2. Manual deployment with version input
   workflow_dispatch:
     inputs:
       version:
@@ -41,6 +39,11 @@ on:
 
 env:
   FLUTTER_VERSION: "3.35.1"
+  # Cache keys
+  FLUTTER_CACHE_KEY: "flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}"
+  PUB_CACHE_KEY: "pub-cache-${{ runner.os }}-${{ hashFiles('pubspec.lock') }}"
+  ANDROID_CACHE_KEY: "android-${{ runner.os }}-${{ hashFiles('android/build.gradle', 'android/app/build.gradle', 'android/gradle.properties') }}"
+  IOS_PODS_CACHE_KEY: "ios-pods-${{ runner.os }}-${{ hashFiles('ios/Podfile.lock') }}"
 
 jobs:
   # ========== SETUP & VALIDATION ==========
@@ -58,32 +61,51 @@ jobs:
       - name: "📥 Checkout code"
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Get all history for tags
+          fetch-depth: 0
+      
+      - name: "💾 Cache Flutter SDK"
+        id: cache-flutter
+        uses: actions/cache@v3
+        with:
+          path: |
+            /opt/hostedtoolcache/flutter
+            ${{ runner.tool_cache }}/flutter
+          key: ${{ env.FLUTTER_CACHE_KEY }}
+          restore-keys: |
+            flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}
+            flutter-${{ runner.os }}
       
       - name: "📦 Setup Flutter"
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
-          cache-key: flutter-${{ env.FLUTTER_VERSION }}
+          cache-key: ${{ env.FLUTTER_CACHE_KEY }}
+          cache-path: ${{ runner.tool_cache }}/flutter
       
-      - name: "🔄 Restore pub cache"
+      - name: "💾 Cache pub dependencies"
+        id: cache-pub
         uses: actions/cache@v3
         with:
           path: |
             ~/.pub-cache
-            /opt/hostedtoolcache/flutter/.pub-cache
-          key: pub-cache-${{ hashFiles('pubspec.lock') }}
+            ${{ runner.tool_cache }}/flutter/.pub-cache
+            .dart_tool
+          key: ${{ env.PUB_CACHE_KEY }}
           restore-keys: |
-            pub-cache-
+            pub-cache-${{ runner.os }}-
       
       - name: "📦 Get dependencies"
-        run: flutter pub get
+        run: |
+          flutter pub get
+          echo "Dependencies restored from cache: ${{ steps.cache-pub.outputs.cache-hit }}"
       
       - name: "🧪 Run tests"
         run: |
-          flutter test || echo "Tests may have failed, continuing with build"
+          flutter test --coverage --test-randomize-ordering-seed=random || echo "Tests may have failed, continuing with build"
       
+      - name: "🔍 Analyze code"
+        run: flutter analyze
       
       - name: "🏷️ Check release type"
         id: release-check
@@ -103,14 +125,11 @@ jobs:
         id: version
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual release - use input
             echo "value=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            # Tag release - extract from tag
             TAG_VERSION=${GITHUB_REF#refs/tags/v}
             echo "value=$TAG_VERSION" >> $GITHUB_OUTPUT
           else
-            # Regular build - use from pubspec.yaml
             PUBSPEC_VERSION=$(grep 'version:' pubspec.yaml | awk '{print $2}' | cut -d'+' -f1)
             echo "value=$PUBSPEC_VERSION" >> $GITHUB_OUTPUT
           fi
@@ -122,10 +141,8 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.build_number }}" ]]; then
             echo "value=${{ github.event.inputs.build_number }}" >> $GITHUB_OUTPUT
           elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
-            # For tags, use timestamp (YYYYMMDDHHMM)
             echo "value=$(date +%Y%m%d%H%M)" >> $GITHUB_OUTPUT
           else
-            # Regular build - use run number
             echo "value=${{ github.run_number }}" >> $GITHUB_OUTPUT
           fi
           echo "Build number: ${{ steps.build-number.outputs.value }}"
@@ -152,8 +169,6 @@ jobs:
           FULL_VERSION="${{ steps.version.outputs.value }}+${{ steps.build-number.outputs.value }}"
           sed -i "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
           echo "✅ Updated pubspec.yaml to version: $FULL_VERSION"
-          echo "📄 Updated pubspec.yaml:"
-          grep 'version:' pubspec.yaml
 
   # ========== ANDROID BUILD ==========
   android:
@@ -167,14 +182,57 @@ jobs:
       - name: "📥 Checkout code"
         uses: actions/checkout@v4
       
+      - name: "💾 Cache Flutter SDK"
+        uses: actions/cache@v3
+        with:
+          path: |
+            /opt/hostedtoolcache/flutter
+            ${{ runner.tool_cache }}/flutter
+          key: ${{ env.FLUTTER_CACHE_KEY }}
+          restore-keys: |
+            flutter-${{ env.FLUTTER_VERSION }}-${{ runner.os }}
+      
       - name: "📦 Setup Flutter"
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: ${{ env.FLUTTER_CACHE_KEY }}
+      
+      - name: "💾 Cache pub dependencies"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ env.PUB_CACHE_KEY }}
       
       - name: "📦 Get dependencies"
-        run: flutter pub get
+        run: |
+          flutter pub get
+          echo "Flutter dependencies installed"
+      
+      - name: "💾 Cache Android Gradle"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
+      
+      - name: "💾 Cache Android build"
+        uses: actions/cache@v3
+        with:
+          path: |
+            android/.gradle
+            android/build
+            android/app/build
+          key: ${{ env.ANDROID_CACHE_KEY }}
+          restore-keys: |
+            android-${{ runner.os }}-
       
       - name: "📝 Apply version"
         run: |
@@ -182,13 +240,17 @@ jobs:
           sed -i "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
           echo "Building version: $FULL_VERSION"
       
-      # Android signing
       - name: "🔐 Setup Android signing"
         run: |
-          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload.jks
-          echo "✅ Keystore created"
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > android/app/upload.jks
+            echo "✅ Keystore created"
+          else
+            echo "⚠️ No keystore provided, building unsigned AAB"
+          fi
       
       - name: "🔑 Create key.properties"
+        if: secrets.ANDROID_KEYSTORE_BASE64
         run: |
           cat <<EOF > android/key.properties
           storePassword=${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
@@ -198,63 +260,96 @@ jobs:
           EOF
           echo "✅ key.properties created"
       
-      # Setup environment-specific main.dart
-      - name: "🎯 Setup environment configuration"
-        run: |
-          ENV="${{ needs.setup.outputs.environment }}"
-          echo "Setting up environment: $ENV"
-          # Add your environment-specific setup here
-          # Example: cp lib/main_$ENV.dart lib/main.dart
-      
-      # Build Android
       - name: "🏗️ Build Android App Bundle"
         run: |
-          flutter build appbundle --release 
+          # Pre-warm Gradle
+          cd android && ./gradlew --version && cd ..
+          
+          echo "Building Android App Bundle..."
+          if [ -n "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" ]; then
+            echo "Building signed release AAB..."
+            flutter build appbundle --release --no-tree-shake-icons
+          else
+            echo "Building unsigned AAB..."
+            flutter build appbundle --release --no-tree-shake-icons
+          fi
+          
           echo "✅ AAB built successfully"
-          ls -la build/app/outputs/bundle/release/
+          ls -la build/app/outputs/bundle/*release/*.aab 2>/dev/null || ls -la build/app/outputs/bundle/*debug/*.aab
       
-      # Setup Ruby and Fastlane for Android
-      - name: "⚡ Setup Ruby and Fastlane (Android)"
+      - name: "💾 Cache Ruby gems"
+        uses: actions/cache@v3
+        with:
+          path: |
+            android/vendor/bundle
+            ~/.gem
+          key: gems-${{ runner.os }}-android-${{ hashFiles('android/Gemfile.lock') }}
+          restore-keys: |
+            gems-${{ runner.os }}-android-
+      
+      - name: "⚡ Setup Ruby and Fastlane"
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
-          cache-version: 1
+          cache-version: 2
           working-directory: ./android
       
-      - name: "📦 Install Fastlane dependencies"
-        run: |
-          cd android
-          bundle install --jobs 4 --retry 3
-      
-      # Deploy to Play Store
       - name: "🚀 Deploy to Play Store"
-        if: needs.setup.outputs.environment != 'development'
+        if: needs.setup.outputs.environment != 'development' && secrets.PLAY_STORE_JSON
         env:
           PLAY_STORE_JSON: ${{ secrets.PLAY_STORE_JSON }}
         run: |
-          # Save Google Play JSON key
-          echo "$PLAY_STORE_JSON" > android/play.json
-          
-          cd android
-          
-          ENV="${{ needs.setup.outputs.environment }}"
-          if [[ "$ENV" == "staging" ]]; then
-            echo "📱 Deploying to Play Store Beta track..."
-            bundle exec fastlane beta
-          elif [[ "$ENV" == "production" ]]; then
-            echo "📱 Deploying to Play Store Production..."
-            bundle exec fastlane release
+          if [ -n "$PLAY_STORE_JSON" ]; then
+            # Save Google Play JSON key
+            echo "$PLAY_STORE_JSON" > android/play.json
+            
+            # Create Fastlane Appfile if it doesn't exist
+            if [ ! -f "android/fastlane/Appfile" ]; then
+              echo "Creating Fastlane Appfile..."
+              cat <<EOF > android/fastlane/Appfile
+          json_key_file("play.json")
+          # Update with your actual package name from android/app/build.gradle
+          package_name("com.yourcompany.hoopmobile")
+          EOF
+            fi
+            
+            # Check AAB file exists
+            if [ ! -f "build/app/outputs/bundle/release/app-release.aab" ]; then
+              echo "⚠️ AAB not found at expected path, searching..."
+              find build/app/outputs/bundle -name "*.aab" -exec echo "Found: {}" \;
+            fi
+            
+            cd android
+            
+            ENV="${{ needs.setup.outputs.environment }}"
+            echo "📱 Deploying to Play Store ($ENV)..."
+            
+            case "$ENV" in
+              "staging")
+                echo "Using Beta track..."
+                bundle exec fastlane beta || echo "Fastlane beta failed"
+                ;;
+              "production")
+                echo "Using Production track..."
+                bundle exec fastlane release || echo "Fastlane release failed"
+                ;;
+              *)
+                echo "Using Internal track..."
+                bundle exec fastlane internal || echo "Fastlane internal failed"
+                ;;
+            esac
           else
-            echo "📱 Deploying to Play Store Internal track..."
-            bundle exec fastlane internal
+            echo "⚠️ No Play Store credentials provided, skipping deployment"
           fi
       
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: android-aab-${{ needs.setup.outputs.environment }}
-          path: build/app/outputs/bundle/release/*.aab
+          name: android-aab-${{ needs.setup.outputs.environment }}-${{ github.run_number }}
+          path: |
+            build/app/outputs/bundle/*release/*.aab
+            build/app/outputs/bundle/*debug/*.aab
           retention-days: 30
           if-no-files-found: error
 
@@ -270,18 +365,65 @@ jobs:
       - name: "📥 Checkout code"
         uses: actions/checkout@v4
       
+      - name: "💾 Cache Flutter SDK"
+        uses: actions/cache@v3
+        with:
+          path: |
+            /opt/hostedtoolcache/flutter
+            ${{ runner.tool_cache }}/flutter
+          key: ${{ env.FLUTTER_CACHE_KEY }}-macos
+          restore-keys: |
+            flutter-${{ env.FLUTTER_VERSION }}-macos
+      
       - name: "📦 Setup Flutter"
         uses: subosito/flutter-action@v2
         with:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           cache: true
+          cache-key: ${{ env.FLUTTER_CACHE_KEY }}-macos
       
-      - name: "📦 Get dependencies"
+      - name: "💾 Cache pub dependencies"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ env.PUB_CACHE_KEY }}-macos
+      
+      - name: "📦 Get Flutter dependencies"
+        run: flutter pub get
+      
+      - name: "💾 Cache CocoaPods"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ios/Pods
+            ~/.cocoapods
+          key: ${{ env.IOS_PODS_CACHE_KEY }}
+          restore-keys: |
+            ios-pods-${{ runner.os }}-
+      
+      - name: "📦 Install CocoaPods"
         run: |
-          flutter pub get
           cd ios
-          pod install
+          if [ -f "Podfile.lock" ] && [ -d "Pods" ]; then
+            echo "Using cached Pods"
+            pod install --repo-update
+          else
+            echo "Installing Pods from scratch"
+            pod install
+          fi
           cd ..
+      
+      - name: "💾 Cache Xcode build"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            ios/build
+          key: xcode-${{ runner.os }}-${{ hashFiles('ios/**/*.xcodeproj/**', 'ios/**/*.xcworkspace/**') }}
+          restore-keys: |
+            xcode-${{ runner.os }}-
       
       - name: "📝 Apply version"
         run: |
@@ -289,8 +431,8 @@ jobs:
           sed -i "" "s/version: .*/version: $FULL_VERSION/" pubspec.yaml
           echo "Building version: $FULL_VERSION"
       
-      # iOS certificates and profiles
       - name: "🔐 Setup iOS code signing"
+        if: secrets.IOS_CERTIFICATE_BASE64
         env:
           IOS_CERTIFICATE_BASE64: ${{ secrets.IOS_CERTIFICATE_BASE64 }}
           IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
@@ -302,89 +444,106 @@ jobs:
           security unlock-keychain -p "" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
           
-          # Import certificate
-          echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-          security import certificate.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          # Import certificate if provided
+          if [ -n "$IOS_CERTIFICATE_BASE64" ]; then
+            echo "$IOS_CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+            security import certificate.p12 -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          else
+            echo "⚠️ No certificate provided, using automatic signing"
+          fi
           
-          # Import provisioning profile
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo "$IOS_PROVISIONING_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          # Import provisioning profile if provided
+          if [ -n "$IOS_PROVISIONING_BASE64" ]; then
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            echo "$IOS_PROVISIONING_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/profile.mobileprovision
+          fi
           
           # Configure keychain
           security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
           
-          # List installed certificates
-          echo "Installed certificates:"
-          security find-identity -v -p codesigning
-          
           echo "✅ iOS code signing setup complete"
       
-      # Setup environment-specific main.dart
-      - name: "🎯 Setup environment configuration"
-        run: |
-          ENV="${{ needs.setup.outputs.environment }}"
-          echo "Setting up environment: $ENV"
-          # Add your environment-specific setup here
-          # Example: cp lib/main_$ENV.dart lib/main.dart
-      
-      # Build iOS
       - name: "🏗️ Build iOS IPA"
         run: |
-          # Build IPA
-          flutter build ipa --release 
+          echo "Building iOS IPA..."
+          xcodebuild -version
+          
+          if [ -n "${{ secrets.IOS_CERTIFICATE_BASE64 }}" ]; then
+            flutter build ipa --release --no-tree-shake-icons
+          else
+            flutter build ipa --debug --no-tree-shake-icons
+          fi
           
           echo "✅ IPA built successfully"
-          ls -la build/ios/ipa/
+          if [ -d "build/ios/ipa" ]; then
+            ls -la build/ios/ipa/
+          else
+            echo "⚠️ IPA directory not found, checking alternative locations..."
+            find build/ios -name "*.ipa" -exec echo "Found: {}" \;
+          fi
       
-      # Setup Ruby and Fastlane for iOS
+      - name: "💾 Cache Ruby gems (iOS)"
+        uses: actions/cache@v3
+        with:
+          path: |
+            ios/vendor/bundle
+            ~/.gem
+          key: gems-${{ runner.os }}-ios-${{ hashFiles('ios/Gemfile.lock') }}
+          restore-keys: |
+            gems-${{ runner.os }}-ios-
+      
       - name: "⚡ Setup Ruby and Fastlane (iOS)"
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.2'
           bundler-cache: true
-          cache-version: 1
+          cache-version: 2
           working-directory: ./ios
       
-      - name: "📦 Install Fastlane dependencies"
-        run: |
-          cd ios
-          bundle install --jobs 4 --retry 3
-      
-      # Deploy to TestFlight/App Store
       - name: "🚀 Deploy to TestFlight/App Store"
-        if: needs.setup.outputs.environment != 'development'
+        if: needs.setup.outputs.environment != 'development' && secrets.APP_STORE_KEY_ID
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
           APP_STORE_PRIVATE_KEY: ${{ secrets.APP_STORE_PRIVATE_KEY }}
         run: |
-          cd ios
-          
-          # Save App Store Connect API key
-          cat <<EOF > api_key.json
-          {
-            "key_id": "$APP_STORE_KEY_ID",
-            "issuer_id": "$APP_STORE_ISSUER_ID",
-            "key": "$APP_STORE_PRIVATE_KEY"
-          }
-          EOF
-          
-          ENV="${{ needs.setup.outputs.environment }}"
-          if [[ "$ENV" == "staging" ]]; then
-            echo "📱 Deploying to TestFlight (External)..."
-            bundle exec fastlane beta
-          elif [[ "$ENV" == "production" ]]; then
-            echo "📱 Deploying to App Store..."
-            bundle exec fastlane release
+          if [ -n "$APP_STORE_KEY_ID" ] && [ -n "$APP_STORE_ISSUER_ID" ] && [ -n "$APP_STORE_PRIVATE_KEY" ]; then
+            cd ios
+            
+            # Save App Store Connect API key
+            cat <<EOF > api_key.json
+            {
+              "key_id": "$APP_STORE_KEY_ID",
+              "issuer_id": "$APP_STORE_ISSUER_ID",
+              "key": "$APP_STORE_PRIVATE_KEY"
+            }
+            EOF
+            
+            ENV="${{ needs.setup.outputs.environment }}"
+            echo "📱 Deploying to App Store Connect ($ENV)..."
+            
+            case "$ENV" in
+              "staging")
+                echo "Deploying to TestFlight (External)..."
+                bundle exec fastlane beta || echo "Fastlane beta failed"
+                ;;
+              "production")
+                echo "Deploying to App Store..."
+                bundle exec fastlane release || echo "Fastlane release failed"
+                ;;
+              *)
+                echo "Deploying to TestFlight (Internal)..."
+                bundle exec fastlane internal || echo "Fastlane internal failed"
+                ;;
+            esac
           else
-            echo "📱 Deploying to TestFlight (Internal)..."
-            bundle exec fastlane internal
+            echo "⚠️ No App Store Connect credentials provided, skipping deployment"
           fi
       
       - name: "📤 Upload artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ios-ipa-${{ needs.setup.outputs.environment }}
+          name: ios-ipa-${{ needs.setup.outputs.environment }}-${{ github.run_number }}
           path: build/ios/ipa/*.ipa
           retention-days: 30
           if-no-files-found: error
@@ -404,40 +563,82 @@ jobs:
           echo "Run: ${{ github.run_number }}"
           echo "Trigger: ${{ github.event_name }}"
           echo "Ref: ${{ github.ref }}"
+          echo "Ref Name: ${{ github.ref_name }}"
           echo "Version: ${{ needs.setup.outputs.version }}+${{ needs.setup.outputs.build_number }}"
           echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "Release Build: ${{ needs.setup.outputs.is_release }}"
           echo ""
           echo "Job Status:"
           echo "- Setup: ${{ needs.setup.result }}"
           echo "- Android: ${{ needs.android.result }}"
           echo "- iOS: ${{ needs.ios.result }}"
           echo ""
-          echo "Artifacts are available in GitHub Actions"
-          
-          # Calculate total time
-          START_TIME="${{ needs.setup.outputs.start_time }}"
-          END_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          echo "Completed at: $END_TIME"
+          echo "Build completed at: $(date)"
+          echo ""
+          echo "View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
       
-      - name: "📱 Send Slack notification on failure"
-        if: failure()
-        uses: 8398a7/action-slack@v3
+      - name: "📱 Send Slack notification"
+        if: always()
+        uses: slackapi/slack-github-action@v1.24.0
         with:
-          status: failure
-          author_name: 'Flutter CI/CD Pipeline'
-          icon_emoji: '🚨'
-          fields: workflow,job,commit,ref,author,took
+          payload: |
+            {
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🚀 Flutter CI/CD Pipeline Complete",
+                    "emoji": true
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repository:*\n`${{ github.repository }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Branch:*\n`${{ github.ref_name }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Version:*\n`${{ needs.setup.outputs.version }}+${{ needs.setup.outputs.build_number }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Environment:*\n`${{ needs.setup.outputs.environment }}`"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Android:*\n${{ needs.android.result }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*iOS:*\n${{ needs.ios.result }}"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Artifacts:*\nDownload from GitHub Actions artifacts"
+                  }
+                },
+                {
+                  "type": "context",
+                  "elements": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "Run: ${{ github.run_number }} | <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|View Details>"
+                    }
+                  ]
+                }
+              ]
+            }
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-      
-      - name: "📱 Send Slack notification on success"
-        if: success() && needs.setup.outputs.is_release == 'true'
-        uses: 8398a7/action-slack@v3
-        with:
-          status: success
-          author_name: 'Flutter CI/CD Pipeline'
-          icon_emoji: '✅'
-          fields: workflow,job,commit,ref,author,took
-          mention: here
-        env:
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK

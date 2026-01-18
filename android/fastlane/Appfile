@@ -1,0 +1,2 @@
+json_key_file("play.json")  # Path to your service account JSON key
+package_name("com.hoop.mobile")  # Your package name
