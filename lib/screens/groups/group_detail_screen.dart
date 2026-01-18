@@ -1,5 +1,4 @@
 import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/group_join_request.dart';

@@ -1,5 +1,5 @@
 
-import 'package:hoop/dtos/responses/group/Groups.dart';
+import 'package:hoop/dtos/responses/group/groups.dart';
 
 class GroupWithScore {
   final Group group;

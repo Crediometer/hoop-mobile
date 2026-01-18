@@ -1,7 +1,7 @@
 
 // lib/models/group_invite.dart
 import 'package:hoop/dtos/responses/User.dart';
-import 'package:hoop/dtos/responses/group/Groups.dart';
+import 'package:hoop/dtos/responses/group/groups.dart';
 
 class GroupInvite {
   final String id;

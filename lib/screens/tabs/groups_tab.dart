@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:hoop/components/state/empty_state.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/podos/chats/messages.dart';
-import 'package:hoop/dtos/responses/group/Groups.dart';
+import 'package:hoop/dtos/responses/group/groups.dart';
 import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/screens/groups/chat_detail_screen.dart';
 import 'package:hoop/screens/groups/create_group.dart';

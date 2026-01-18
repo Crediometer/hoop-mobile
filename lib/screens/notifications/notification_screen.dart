@@ -3,7 +3,7 @@ import 'package:hoop/components/buttons/SegmentButton.dart';
 import 'package:hoop/components/buttons/back_button.dart';
 import 'package:hoop/components/state/empty_state.dart';
 import 'package:hoop/constants/themes.dart';
-import 'package:hoop/dtos/responses/notifications/notification.dart';
+import 'package:hoop/dtos/responses/Notifications/notification.dart';
 import 'package:hoop/states/ws/notification_socket.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';

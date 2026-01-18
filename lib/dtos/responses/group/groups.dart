@@ -1,5 +1,5 @@
 
-// lib/dtos/responses/group/Groups.dart
+// lib/dtos/responses/group/groups.dart
 class Group {
   final num id;
   final String name;

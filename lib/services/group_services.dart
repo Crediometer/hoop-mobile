@@ -1,12 +1,10 @@
 // lib/services/group_http_service.dart
 import 'package:hoop/constants/strings.dart';
-import 'package:hoop/dtos/podos/tokens/token_manager.dart';
 import 'package:hoop/dtos/responses/ApiResponse.dart';
 import 'package:hoop/dtos/responses/GeneralResponse/paginated_response.dart';
 import 'package:hoop/dtos/responses/SpotlightVideo.dart';
 import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
-import 'package:hoop/screens/groups/create_group.dart';
 import 'package:hoop/services/base_http.dart';
 
 // Create group request model

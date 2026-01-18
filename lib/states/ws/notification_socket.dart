@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'dart:isolate';
 import 'dart:convert';
-import 'package:hoop/dtos/responses/notifications/notification.dart';
+import 'package:hoop/dtos/responses/Notifications/notification.dart';
 import 'package:hoop/dtos/podos/tokens/token_manager.dart';
 import 'package:audio_session/audio_session.dart';
 import 'package:hoop/services/websocket_service.dart';

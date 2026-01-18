@@ -1,4 +1,4 @@
-export './Groups.dart';
+export './groups.dart';
 export './community_preference.dart';
 export './group_contribution.dart';
 export './group_invite.dart';

@@ -1,4 +1,4 @@
-name: 🚀 Flutter CI/CD Pipeline
+name: Hoop Mobile CI/CD Pipeline
 
 on:
   # 1. Run tests and builds on push to any branch
