@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
-import 'package:hoop/states/OnboardingService.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:hoop/screens/tabs/community_tab.dart';
+import 'package:hoop/states/OnboardingService.dart';
 
 class SetupPrimaryAccountScreen extends StatefulWidget {
-  const SetupPrimaryAccountScreen({super.key, required bool popOnAdd});
+  const SetupPrimaryAccountScreen({super.key});
 
   @override
   State<SetupPrimaryAccountScreen> createState() =>
@@ -464,11 +463,20 @@ class _VerifyPrimaryAccountScreenState
                           onPressed: isAgreed
                               ? () async {
                                   try {
-                                    await OnboardingService.markOnboardingComplete();
+                                    
 
-                                    Navigator.pop(context, true);
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (builder) =>
+                                            MandateActivatedScreen(),
+                                      ),
+                                    );
+                                    await OnboardingService.markOnboardingComplete();
                                   } on Exception catch (e) {
-                                    debugPrint("Stakkkkk -==== "+e.toString());
+                                    debugPrint(
+                                      "Stakkkkk -==== " + e.toString(),
+                                    );
                                     // TODO
                                   }
                                 }
@@ -576,319 +584,6 @@ class Ticker {
   void dispose() => stop();
 }
 
-/// ✅ Success Screen (after Add Account)
-// import 'package:flutter/material.dart';
-
-class AddAccountScreen extends StatelessWidget {
-  const AddAccountScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0E1016) : Colors.white,
-      appBar: AppBar(
-        title: Text(
-          "Setup Primary Account",
-          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 20),
-            TextField(
-              decoration: InputDecoration(
-                labelText: "Bank Name",
-                hintText: "Select your bank",
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF1E2235)
-                    : const Color(0xFFF6F6F9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                labelText: "Account Number",
-                hintText: "Enter your account number",
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF1E2235)
-                    : const Color(0xFFF6F6F9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-              keyboardType: TextInputType.number,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              decoration: InputDecoration(
-                labelText: "Account Name",
-                hintText: "Enter your account name",
-                filled: true,
-                fillColor: isDark
-                    ? const Color(0xFF1E2235)
-                    : const Color(0xFFF6F6F9),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-              ),
-            ),
-            const SizedBox(height: 25),
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0B1A6C),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const SuccessScreen()),
-                  );
-                },
-                child: const Text(
-                  "Add Account",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class SuccessScreen extends StatelessWidget {
-  const SuccessScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    final subColor = isDark ? Colors.white70 : Colors.black54;
-    final boxColor = isDark ? const Color(0xFF1E2235) : const Color(0xFFF6F6F9);
-
-    return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0E1016) : Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          "Setup Primary Account",
-          style: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(height: 20),
-            Container(
-              decoration: BoxDecoration(
-                color: isDark
-                    ? const Color(0xFF1E2235)
-                    : const Color(0xFFF2F4FF),
-                shape: BoxShape.circle,
-              ),
-              padding: const EdgeInsets.all(15),
-              child: const Icon(
-                Icons.account_balance_wallet_rounded,
-                color: Color(0xFF0B1A6C),
-                size: 40,
-              ),
-            ),
-            const SizedBox(height: 20),
-            Text(
-              "Setup Primary Account",
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: textColor,
-              ),
-            ),
-            const SizedBox(height: 5),
-            Text(
-              "Add your bank account for transactions",
-              style: TextStyle(color: subColor, fontSize: 15),
-            ),
-            const SizedBox(height: 30),
-
-            // Consent section
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: boxColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Consent",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    "I authorize Hoop to debit my primary bank account for contributions and payouts.",
-                    style: TextStyle(color: subColor, fontSize: 14),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Checkbox(
-                        value: true,
-                        onChanged: (_) {},
-                        activeColor: const Color(0xFF0B1A6C),
-                      ),
-                      const SizedBox(width: 5),
-                      Expanded(
-                        child: Text(
-                          "I agree to the mandate terms.",
-                          style: TextStyle(color: subColor, fontSize: 14),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-
-            // Verify section
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: boxColor,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    "Verify with Micro-Transfer",
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    "Send ₦100.00 to verify your mandate.",
-                    style: TextStyle(color: subColor, fontSize: 14),
-                  ),
-                  const SizedBox(height: 15),
-                  _buildKeyValueRow("Amount", "₦100.00", textColor, subColor),
-                  const SizedBox(height: 8),
-                  _buildKeyValueRow(
-                    "Account Number",
-                    "0123456789",
-                    textColor,
-                    subColor,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildKeyValueRow(
-                    "Bank",
-                    "GTBank (058)",
-                    textColor,
-                    subColor,
-                  ),
-                  const SizedBox(height: 8),
-                  _buildKeyValueRow(
-                    "Time remaining",
-                    "09:46",
-                    textColor,
-                    subColor,
-                  ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 48,
-                    child: ElevatedButton(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0B1A6C),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                      onPressed: () {
-                        Navigator.pushAndRemoveUntil(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const MandateActivatedScreen(),
-                          ),
-                          (route) => false,
-                        );
-                      },
-                      child: const Text("I have sent ₦100.00"),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text("Back"),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildKeyValueRow(
-    String key,
-    String value,
-    Color textColor,
-    Color subColor,
-  ) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(key, style: TextStyle(color: subColor, fontSize: 14)),
-        Text(
-          value,
-          style: TextStyle(
-            color: textColor,
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class MandateActivatedScreen extends StatelessWidget {
   const MandateActivatedScreen({super.key});
 
@@ -981,30 +676,14 @@ class MandateActivatedScreen extends StatelessWidget {
               style: TextStyle(color: subColor, fontSize: 14),
             ),
             const SizedBox(height: 40),
-
-            // Go to Home Button
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF0B1A6C),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () {
-                  Navigator.pushAndRemoveUntil(
-                    context,
-                    MaterialPageRoute(builder: (_) => const CommunityScreen()),
-                    (route) => false,
-                  );
-                },
-                child: const Text(
-                  "Go to Home",
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-              ),
+            HoopButton(
+              onPressed: () {
+                Navigator.popUntil(
+                  context,
+                  (route) => route.settings.name == '/home',
+                );
+              },
+              buttonText: "Go to Home",
             ),
           ],
         ),

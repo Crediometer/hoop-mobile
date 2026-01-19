@@ -28,9 +28,9 @@ import 'package:provider/provider.dart';
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-   // Ensure that the Flutter binding is initialized.
-  WidgetsFlutterBinding.ensureInitialized(); 
+
+  // Ensure that the Flutter binding is initialized.
+  WidgetsFlutterBinding.ensureInitialized();
 
   // Force portrait mode only
   await SystemChrome.setPreferredOrientations([
@@ -38,7 +38,6 @@ void main() async {
     DeviceOrientation.portraitDown,
   ]);
 
-  
   runApp(const MyApp());
 }
 
@@ -217,11 +216,8 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
       );
 
     case '/account/setup-primary':
-      final args = getArguments();
       return MaterialPageRoute(
-        builder: (_) => SetupPrimaryAccountScreen(
-          popOnAdd: args['popOnAdd'] as bool? ?? false,
-        ),
+        builder: (_) => SetupPrimaryAccountScreen(),
         settings: settings,
       );
 
@@ -242,7 +238,7 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
                       navigatorKey.currentContext!,
                     ).pushNamedAndRemoveUntil('/', (route) => false);
                   },
-                  buttonText:'Go Home',
+                  buttonText: 'Go Home',
                 ),
               ],
             ),
@@ -252,6 +248,7 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
       );
   }
 }
+
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -266,7 +263,7 @@ class AuthWrapper extends StatelessWidget {
         // AFTER loading is complete, check onboarding
         if (authProvider.needsUserOnboarding) {
           return OnboardingScreen();
-        }   
+        }
         // If not authenticated, show login screen
         if (!authProvider.isAuthenticated) {
           return const LoginScreen();

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/cupertino.dart';
@@ -33,6 +34,10 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       SmartOverlayMenuController();
   final ScrollController _scrollController = ScrollController();
   final _reactionKeys = <String, GlobalKey>{};
+
+  // Typing state
+  Timer? _typingDebounceTimer;
+  bool _isTypingActive = false;
 
   String? userId;
   late ChatWebSocketHandler _chatHandler;
@@ -82,6 +87,13 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     _focusNode.dispose();
     _scrollController.dispose();
     _reactionKeys.clear();
+
+    // Clean up typing state
+    _typingDebounceTimer?.cancel();
+    if (_isTypingActive) {
+      _sendTypingStop();
+    }
+
     super.dispose();
   }
 
@@ -119,6 +131,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       content,
       tempId,
     );
+
+    // Stop typing when message is sent
+    if (_isTypingActive) {
+      _sendTypingStop();
+    }
 
     // Scroll to bottom
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -158,6 +175,11 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
 
     setState(() => _replyingTo = null);
+
+    // Stop typing when message is sent
+    if (_isTypingActive) {
+      _sendTypingStop();
+    }
   }
 
   void _editMessage() {
@@ -176,6 +198,45 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
     );
 
     setState(() => _editingMessage = null);
+
+    // Stop typing when message is sent
+    if (_isTypingActive) {
+      _sendTypingStop();
+    }
+  }
+
+  // Typing event handlers
+  void _handleTyping() {
+    // Debounce typing events
+    _typingDebounceTimer?.cancel();
+    _typingDebounceTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!_isTypingActive && _messageController.text.isNotEmpty) {
+        _sendTypingStart();
+      }
+      _typingDebounceTimer = null;
+    });
+  }
+
+  void _handleStopTyping() {
+    if (_isTypingActive) {
+      _sendTypingStop();
+    }
+  }
+
+  void _sendTypingStart() {
+    final groupId = widget.group['id'];
+    if (groupId == null) return;
+
+    _chatHandler.startTyping(groupId.toString());
+    _isTypingActive = true;
+  }
+
+  void _sendTypingStop() {
+    final groupId = widget.group['id'];
+    if (groupId == null) return;
+
+    _chatHandler.stopTyping(groupId.toString());
+    _isTypingActive = false;
   }
 
   void _onReply(Message message) {
@@ -211,7 +272,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
   }
 
   void _onMessageInfo(Message message) {
-    _showMessageInfoSheet(message);
+    // Implementation for message info
   }
 
   void _onSaveDownload(Message message) {
@@ -236,24 +297,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       _editingMessage = null;
       _messageController.clear();
     });
-  }
-
-  void _showFullEmojiPickerForMessage(Message message) {
-    smartOverlayMenuController.close();
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      isScrollControlled: true,
-      builder: (context) {
-        return _FullEmojiBottomSheet(
-          message: message,
-          onReact: (emoji) {
-            Navigator.pop(context);
-            _onReact(message, emoji);
-          },
-        );
-      },
-    );
   }
 
   Future<void> _pickFile() async {
@@ -326,6 +369,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       builder: (context, handler, child) {
         final onlineCount = handler.getOnlineCountForGroup(widget.group['id']);
         final messages = _getMessagesForGroup(handler.messages.value);
+        final typingUsers = handler.getTypingUsers(widget.group['id'] ?? 0);
+
         return Scaffold(
           backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.white,
           appBar: AppBar(
@@ -379,7 +424,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         const SizedBox(height: 2),
 
                         Text(
-                          onlineCount > 0
+                          typingUsers.isNotEmpty
+                              ? '${typingUsers.first.userName} is typing'
+                              : onlineCount > 0
                               ? "$onlineCount online • Active"
                               : "No one online • Active",
                           style: TextStyle(
@@ -428,6 +475,9 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             },
             child: Column(
               children: [
+                if (typingUsers.isNotEmpty)
+                  // Typing indicator
+                  _buildTypingIndicator(typingUsers),
                 if (_replyingTo != null || _editingMessage != null)
                   Container(
                     padding: const EdgeInsets.symmetric(
@@ -553,7 +603,6 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                         message.id.toString(),
                         () => GlobalKey(),
                       );
-
                       return Padding(
                         key: messageKey,
                         padding: const EdgeInsets.only(bottom: 12),
@@ -651,7 +700,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                     children: [
                       IconButton(
                         icon: Icon(
-                          Icons.add_circle_outline,
+                          Iconsax.add_circle,
                           color: textSecondary,
                           size: 28,
                         ),
@@ -661,7 +710,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       if (!_isRecording)
                         IconButton(
                           icon: Icon(
-                            Icons.mic_none,
+                            Iconsax.microphone,
                             color: textSecondary,
                             size: 28,
                           ),
@@ -670,7 +719,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                       if (_isRecording)
                         IconButton(
                           icon: Icon(
-                            Icons.stop_circle,
+                            Iconsax.stop_circle,
                             color: Colors.red,
                             size: 28,
                           ),
@@ -716,6 +765,15 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                       border: InputBorder.none,
                                     ),
                                     onSubmitted: (_) => _sendMessage(),
+                                    onChanged: (text) {
+                                      if (text.isNotEmpty) {
+                                        // Send typing start event
+                                        _handleTyping();
+                                      } else {
+                                        // Send typing stop event
+                                        _handleStopTyping();
+                                      }
+                                    },
                                   ),
                                 ),
                               ),
@@ -733,7 +791,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
                                         shape: BoxShape.circle,
                                       ),
                                       child: const Icon(
-                                        Icons.send,
+                                        Iconsax.send_1,
                                         color: Colors.white,
                                         size: 20,
                                       ),
@@ -753,6 +811,121 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
         );
       },
     );
+  }
+
+  // Typing indicator widget
+  Widget _buildTypingIndicator(List<TypingUser> typingUsers) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textPrimary = isDark ? Colors.white : Colors.black;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Container(
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.8,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1A1D27) : Colors.grey[200],
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white10 : Colors.grey[300]!,
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Typing dots
+              _TypingDots(
+                color: isDark ? Colors.grey[400]! : Colors.grey[600]!,
+              ),
+              const SizedBox(width: 8),
+              // Typing text with user count bubble
+              _buildTypingTextWithBubble(typingUsers, isDark, textPrimary),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTypingTextWithBubble(
+    List<TypingUser> typingUsers,
+    bool isDark,
+    Color textPrimary,
+  ) {
+    if (typingUsers.isEmpty) return const SizedBox.shrink();
+
+    if (typingUsers.length <= 2) {
+      // Show names directly for 1-2 users
+      return Text(
+        _getTypingText(typingUsers),
+        style: TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.grey[700],
+          fontSize: 14,
+        ),
+      );
+    } else {
+      // For 3+ users, show "2 more" bubble
+      return Row(
+        children: [
+          // First two names
+          Text(
+            '${typingUsers[0].userName}, ${typingUsers[1].userName} ',
+            style: TextStyle(
+              color: isDark ? Colors.grey[300] : Colors.grey[700],
+              fontSize: 14,
+            ),
+          ),
+          // "and X more" bubble
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: HoopTheme.primaryBlue.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: HoopTheme.primaryBlue.withOpacity(0.3),
+                width: 1,
+              ),
+            ),
+            child: Text(
+              'and ${typingUsers.length - 2} more',
+              style: TextStyle(
+                color: HoopTheme.primaryBlue,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          // "are typing" text
+          Text(
+            ' are typing...',
+            style: TextStyle(
+              color: isDark ? Colors.grey[300] : Colors.grey[700],
+              fontSize: 14,
+            ),
+          ),
+        ],
+      );
+    }
+  }
+
+  String _getTypingText(List<TypingUser> typingUsers) {
+    if (typingUsers.isEmpty) return '';
+
+    final names = typingUsers.map((user) => user.userName).toList();
+
+    if (names.length == 1) {
+      return '${names[0]} is typing...';
+    } else if (names.length == 2) {
+      return '${names[0]} and ${names[1]} are typing...';
+    } else {
+      // This is handled by _buildTypingTextWithBubble
+      return 'Multiple people are typing...';
+    }
   }
 
   Widget _buildReactionOverlay(Message message) {
@@ -779,11 +952,8 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             .map(
               (emoji) => GestureDetector(
                 onTap: () {
-                  if (emoji == '⨁') {
-                    _showFullEmojiPickerForMessage(message);
-                  } else {
-                    _onReact(message, emoji);
-                  }
+                  // Handle reaction
+                  _onReact(message, emoji);
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -835,7 +1005,7 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
             icon: CupertinoIcons.heart,
             label: 'React',
             onTap: () {
-              _showFullEmojiPickerForMessage(message);
+              // Show emoji picker
             },
           ),
           if (message.attachments != null && message.attachments!.isNotEmpty)
@@ -917,12 +1087,310 @@ class _ChatDetailScreenState extends State<ChatDetailScreen> {
       return [];
     }
   }
+}
 
-  void _showMessageInfoSheet(Message message) {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => _MessageInfoSheet(message: message),
+// Typing dots animation widget
+class _TypingDots extends StatefulWidget {
+  final Color color;
+
+  const _TypingDots({required this.color});
+
+  @override
+  _TypingDotsState createState() => _TypingDotsState();
+}
+
+class _TypingDotsState extends State<_TypingDots>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late List<Animation<double>> _dotAnimations;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+
+    _dotAnimations = [
+      Tween<double>(begin: 0.3, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.0, 0.2, curve: Curves.easeInOut),
+        ),
+      ),
+      Tween<double>(begin: 0.3, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.2, 0.4, curve: Curves.easeInOut),
+        ),
+      ),
+      Tween<double>(begin: 0.3, end: 1.0).animate(
+        CurvedAnimation(
+          parent: _controller,
+          curve: const Interval(0.4, 0.6, curve: Curves.easeInOut),
+        ),
+      ),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: List.generate(3, (index) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Opacity(
+                opacity: _dotAnimations[index].value,
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: widget.color,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+            );
+          }),
+        );
+      },
     );
+  }
+}
+
+// Message bubble widget
+class _MessageBubble extends StatelessWidget {
+  final Message message;
+  final String userId;
+  final bool isDark;
+  final Color textPrimary;
+
+  const _MessageBubble({
+    required this.message,
+    required this.userId,
+    required this.isDark,
+    required this.textPrimary,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwn = message.isFromUser(userId);
+    final hasAttachments =
+        message.attachments != null && message.attachments!.isNotEmpty;
+
+    return Align(
+      alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.8,
+        ),
+        margin: EdgeInsets.only(
+          bottom: 8,
+          left: isOwn ? MediaQuery.of(context).size.width * 0.2 : 0,
+          right: isOwn ? 0 : MediaQuery.of(context).size.width * 0.2,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: isOwn
+              ? HoopTheme.primaryBlue
+              : (isDark ? const Color(0xFF1A1D27) : Colors.grey[200]),
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: isOwn
+                ? const Radius.circular(20)
+                : const Radius.circular(4),
+            bottomRight: isOwn
+                ? const Radius.circular(4)
+                : const Radius.circular(20),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (hasAttachments)
+              Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Icon(
+                      _getAttachmentIcon(message.messageType ?? 'text'),
+                      size: 16,
+                      color: isOwn
+                          ? Colors.white70
+                          : textPrimary.withOpacity(0.7),
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      '${message.attachments?.length} attachment${message.attachments!.length > 1 ? 's' : ''}',
+                      style: TextStyle(
+                        color: isOwn
+                            ? Colors.white70
+                            : textPrimary.withOpacity(0.7),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            Text(
+              message.content,
+              style: TextStyle(
+                color: isOwn ? Colors.white : textPrimary,
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (message.edited == true)
+                  Text(
+                    'edited • ',
+                    style: TextStyle(
+                      color: isOwn
+                          ? Colors.white70
+                          : textPrimary.withOpacity(0.5),
+                      fontSize: 11,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                if (message.createdAt != null)
+                  Text(
+                    _formatTime(message.createdAt!),
+                    style: TextStyle(
+                      color: isOwn
+                          ? Colors.white70
+                          : textPrimary.withOpacity(0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+                if (isOwn && message.status != null)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      _getStatusIcon(message.status!),
+                      size: 11,
+                      color: _getStatusColor(message.status!, isOwn),
+                    ),
+                  ),
+              ],
+            ),
+            if (message.reactions != null && message.reactions!.isNotEmpty)
+              Container(
+                margin: const EdgeInsets.only(top: 6),
+                child: Wrap(
+                  spacing: 4,
+                  runSpacing: 2,
+                  children: message.reactions!.map((reaction) {
+                    if (reaction is Map) {
+                      final emoji = reaction['emoji']?.toString() ?? '👍';
+                      final count = reaction['count']?.toString() ?? '1';
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.15)
+                              : Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          '$emoji $count',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      );
+                    }
+                    return const SizedBox();
+                  }).toList(),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// Helper functions
+IconData _getAttachmentIcon(String type) {
+  switch (type.toLowerCase()) {
+    case 'image':
+      return Icons.image;
+    case 'video':
+      return Icons.videocam;
+    case 'audio':
+      return Icons.audiotrack;
+    case 'file':
+      return Icons.insert_drive_file;
+    default:
+      return Icons.attachment;
+  }
+}
+
+String _formatTime(DateTime date) {
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+  final yesterday = DateTime(now.year, now.month, now.day - 1);
+  final messageDate = DateTime(date.year, date.month, date.day);
+
+  if (messageDate == today) {
+    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  } else if (messageDate == yesterday) {
+    return 'Yesterday ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  } else {
+    return '${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+}
+
+IconData _getStatusIcon(String status) {
+  switch (status.toLowerCase()) {
+    case 'sent':
+      return Icons.check;
+    case 'delivered':
+      return Icons.done_all;
+    case 'read':
+      return Icons.done_all;
+    case 'edited':
+      return Icons.edit;
+    case 'deleted':
+      return Icons.delete;
+    default:
+      return Icons.access_time;
+  }
+}
+
+Color _getStatusColor(String status, bool isOwn) {
+  if (!isOwn) return Colors.transparent;
+
+  switch (status.toLowerCase()) {
+    case 'read':
+      return Colors.blue;
+    case 'delivered':
+      return Colors.grey;
+    case 'sent':
+      return Colors.grey.withOpacity(0.5);
+    case 'edited':
+      return Colors.orange;
+    case 'deleted':
+      return Colors.red;
+    default:
+      return Colors.grey;
   }
 }
 
@@ -1818,162 +2286,162 @@ class _FullEmojiBottomSheetState extends State<_FullEmojiBottomSheet> {
   }
 }
 
-class _MessageBubble extends StatelessWidget {
-  final Message message;
-  final String userId;
-  final bool isDark;
-  final Color textPrimary;
+// class _MessageBubble extends StatelessWidget {
+//   final Message message;
+//   final String userId;
+//   final bool isDark;
+//   final Color textPrimary;
 
-  const _MessageBubble({
-    required this.message,
-    required this.userId,
-    required this.isDark,
-    required this.textPrimary,
-  });
+//   const _MessageBubble({
+//     required this.message,
+//     required this.userId,
+//     required this.isDark,
+//     required this.textPrimary,
+//   });
 
-  @override
-  Widget build(BuildContext context) {
-    final isOwn = message.isFromUser(userId);
-    final hasAttachments =
-        message.attachments != null && message.attachments!.isNotEmpty;
+//   @override
+//   Widget build(BuildContext context) {
+//     final isOwn = message.isFromUser(userId);
+//     final hasAttachments =
+//         message.attachments != null && message.attachments!.isNotEmpty;
 
-    return Align(
-      alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
-        ),
-        margin: EdgeInsets.only(
-          bottom: 8,
-          left: isOwn ? MediaQuery.of(context).size.width * 0.2 : 0,
-          right: isOwn ? 0 : MediaQuery.of(context).size.width * 0.2,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        decoration: BoxDecoration(
-          color: isOwn
-              ? HoopTheme.primaryBlue
-              : (isDark ? const Color(0xFF1A1D27) : Colors.grey[200]),
-          borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(20),
-            topRight: const Radius.circular(20),
-            bottomLeft: isOwn
-                ? const Radius.circular(20)
-                : const Radius.circular(4),
-            bottomRight: isOwn
-                ? const Radius.circular(4)
-                : const Radius.circular(20),
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (hasAttachments)
-              Container(
-                margin: const EdgeInsets.only(bottom: 6),
-                child: Row(
-                  children: [
-                    Icon(
-                      _getAttachmentIcon(message.messageType ?? 'text'),
-                      size: 16,
-                      color: isOwn
-                          ? Colors.white70
-                          : textPrimary.withOpacity(0.7),
-                    ),
-                    const SizedBox(width: 6),
-                    Text(
-                      '${message.attachments?.length} attachment${message.attachments!.length > 1 ? 's' : ''}',
-                      style: TextStyle(
-                        color: isOwn
-                            ? Colors.white70
-                            : textPrimary.withOpacity(0.7),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            Text(
-              message.content,
-              style: TextStyle(
-                color: isOwn ? Colors.white : textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (message.edited == true)
-                  Text(
-                    'edited • ',
-                    style: TextStyle(
-                      color: isOwn
-                          ? Colors.white70
-                          : textPrimary.withOpacity(0.5),
-                      fontSize: 11,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                if (message.createdAt != null)
-                  Text(
-                    _formatTime(message.createdAt!),
-                    style: TextStyle(
-                      color: isOwn
-                          ? Colors.white70
-                          : textPrimary.withOpacity(0.5),
-                      fontSize: 11,
-                    ),
-                  ),
-                if (isOwn && message.status != null)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Icon(
-                      _getStatusIcon(message.status!),
-                      size: 11,
-                      color: _getStatusColor(message.status!, isOwn),
-                    ),
-                  ),
-              ],
-            ),
-            if (message.reactions != null && message.reactions!.isNotEmpty)
-              Container(
-                margin: const EdgeInsets.only(top: 6),
-                child: Wrap(
-                  spacing: 4,
-                  runSpacing: 2,
-                  children: message.reactions!.map((reaction) {
-                    if (reaction is Map) {
-                      final emoji = reaction['emoji']?.toString() ?? '👍';
-                      final count = reaction['count']?.toString() ?? '1';
-                      return Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.15)
-                              : Colors.white.withOpacity(0.9),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '$emoji $count',
-                          style: const TextStyle(fontSize: 12),
-                        ),
-                      );
-                    }
-                    return const SizedBox();
-                  }).toList(),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+//     return Align(
+//       alignment: isOwn ? Alignment.centerRight : Alignment.centerLeft,
+//       child: Container(
+//         constraints: BoxConstraints(
+//           maxWidth: MediaQuery.of(context).size.width * 0.8,
+//         ),
+//         margin: EdgeInsets.only(
+//           bottom: 8,
+//           left: isOwn ? MediaQuery.of(context).size.width * 0.2 : 0,
+//           right: isOwn ? 0 : MediaQuery.of(context).size.width * 0.2,
+//         ),
+//         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+//         decoration: BoxDecoration(
+//           color: isOwn
+//               ? HoopTheme.primaryBlue
+//               : (isDark ? const Color(0xFF1A1D27) : Colors.grey[200]),
+//           borderRadius: BorderRadius.only(
+//             topLeft: const Radius.circular(20),
+//             topRight: const Radius.circular(20),
+//             bottomLeft: isOwn
+//                 ? const Radius.circular(20)
+//                 : const Radius.circular(4),
+//             bottomRight: isOwn
+//                 ? const Radius.circular(4)
+//                 : const Radius.circular(20),
+//           ),
+//         ),
+//         child: Column(
+//           crossAxisAlignment: CrossAxisAlignment.start,
+//           children: [
+//             if (hasAttachments)
+//               Container(
+//                 margin: const EdgeInsets.only(bottom: 6),
+//                 child: Row(
+//                   children: [
+//                     Icon(
+//                       _getAttachmentIcon(message.messageType ?? 'text'),
+//                       size: 16,
+//                       color: isOwn
+//                           ? Colors.white70
+//                           : textPrimary.withOpacity(0.7),
+//                     ),
+//                     const SizedBox(width: 6),
+//                     Text(
+//                       '${message.attachments?.length} attachment${message.attachments!.length > 1 ? 's' : ''}',
+//                       style: TextStyle(
+//                         color: isOwn
+//                             ? Colors.white70
+//                             : textPrimary.withOpacity(0.7),
+//                         fontSize: 12,
+//                         fontWeight: FontWeight.w500,
+//                       ),
+//                     ),
+//                   ],
+//                 ),
+//               ),
+//             Text(
+//               message.content,
+//               style: TextStyle(
+//                 color: isOwn ? Colors.white : textPrimary,
+//                 fontSize: 16,
+//                 fontWeight: FontWeight.w400,
+//               ),
+//             ),
+//             const SizedBox(height: 6),
+//             Row(
+//               mainAxisSize: MainAxisSize.min,
+//               children: [
+//                 if (message.edited == true)
+//                   Text(
+//                     'edited • ',
+//                     style: TextStyle(
+//                       color: isOwn
+//                           ? Colors.white70
+//                           : textPrimary.withOpacity(0.5),
+//                       fontSize: 11,
+//                       fontStyle: FontStyle.italic,
+//                     ),
+//                   ),
+//                 if (message.createdAt != null)
+//                   Text(
+//                     _formatTime(message.createdAt!),
+//                     style: TextStyle(
+//                       color: isOwn
+//                           ? Colors.white70
+//                           : textPrimary.withOpacity(0.5),
+//                       fontSize: 11,
+//                     ),
+//                   ),
+//                 if (isOwn && message.status != null)
+//                   Padding(
+//                     padding: const EdgeInsets.only(left: 4),
+//                     child: Icon(
+//                       _getStatusIcon(message.status!),
+//                       size: 11,
+//                       color: _getStatusColor(message.status!, isOwn),
+//                     ),
+//                   ),
+//               ],
+//             ),
+//             if (message.reactions != null && message.reactions!.isNotEmpty)
+//               Container(
+//                 margin: const EdgeInsets.only(top: 6),
+//                 child: Wrap(
+//                   spacing: 4,
+//                   runSpacing: 2,
+//                   children: message.reactions!.map((reaction) {
+//                     if (reaction is Map) {
+//                       final emoji = reaction['emoji']?.toString() ?? '👍';
+//                       final count = reaction['count']?.toString() ?? '1';
+//                       return Container(
+//                         padding: const EdgeInsets.symmetric(
+//                           horizontal: 6,
+//                           vertical: 3,
+//                         ),
+//                         decoration: BoxDecoration(
+//                           color: isDark
+//                               ? Colors.white.withOpacity(0.15)
+//                               : Colors.white.withOpacity(0.9),
+//                           borderRadius: BorderRadius.circular(12),
+//                         ),
+//                         child: Text(
+//                           '$emoji $count',
+//                           style: const TextStyle(fontSize: 12),
+//                         ),
+//                       );
+//                     }
+//                     return const SizedBox();
+//                   }).toList(),
+//                 ),
+//               ),
+//           ],
+//         ),
+//       ),
+//     );
+//   }
+// }
 
 class _MessageInfoSheet extends StatelessWidget {
   final Message message;
@@ -2153,68 +2621,68 @@ String _formatDateTime(DateTime date) {
   return '${date.day}/${date.month}/${date.year} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
 }
 
-IconData _getAttachmentIcon(String type) {
-  switch (type.toLowerCase()) {
-    case 'image':
-      return Icons.image;
-    case 'video':
-      return Icons.videocam;
-    case 'audio':
-      return Icons.audiotrack;
-    case 'file':
-      return Icons.insert_drive_file;
-    default:
-      return Icons.attachment;
-  }
-}
+// IconData _getAttachmentIcon(String type) {
+//   switch (type.toLowerCase()) {
+//     case 'image':
+//       return Icons.image;
+//     case 'video':
+//       return Icons.videocam;
+//     case 'audio':
+//       return Icons.audiotrack;
+//     case 'file':
+//       return Icons.insert_drive_file;
+//     default:
+//       return Icons.attachment;
+//   }
+// }
 
-String _formatTime(DateTime date) {
-  final now = DateTime.now();
-  final today = DateTime(now.year, now.month, now.day);
-  final yesterday = DateTime(now.year, now.month, now.day - 1);
-  final messageDate = DateTime(date.year, date.month, date.day);
+// String _formatTime(DateTime date) {
+//   final now = DateTime.now();
+//   final today = DateTime(now.year, now.month, now.day);
+//   final yesterday = DateTime(now.year, now.month, now.day - 1);
+//   final messageDate = DateTime(date.year, date.month, date.day);
 
-  if (messageDate == today) {
-    return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  } else if (messageDate == yesterday) {
-    return 'Yesterday ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  } else {
-    return '${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-  }
-}
+//   if (messageDate == today) {
+//     return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+//   } else if (messageDate == yesterday) {
+//     return 'Yesterday ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+//   } else {
+//     return '${date.day}/${date.month} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+//   }
+// }
 
-IconData _getStatusIcon(String status) {
-  switch (status.toLowerCase()) {
-    case 'sent':
-      return Icons.check;
-    case 'delivered':
-      return Icons.done_all;
-    case 'read':
-      return Icons.done_all;
-    case 'edited':
-      return Icons.edit;
-    case 'deleted':
-      return Icons.delete;
-    default:
-      return Icons.access_time;
-  }
-}
+// IconData _getStatusIcon(String status) {
+//   switch (status.toLowerCase()) {
+//     case 'sent':
+//       return Icons.check;
+//     case 'delivered':
+//       return Icons.done_all;
+//     case 'read':
+//       return Icons.done_all;
+//     case 'edited':
+//       return Icons.edit;
+//     case 'deleted':
+//       return Icons.delete;
+//     default:
+//       return Icons.access_time;
+//   }
+// }
 
-Color _getStatusColor(String status, bool isOwn) {
-  if (!isOwn) return Colors.transparent;
+// Color _getStatusColor(String status, bool isOwn) {
+//   if (!isOwn) return Colors.transparent;
 
-  switch (status.toLowerCase()) {
-    case 'read':
-      return Colors.blue;
-    case 'delivered':
-      return Colors.grey;
-    case 'sent':
-      return Colors.grey.withOpacity(0.5);
-    case 'edited':
-      return Colors.orange;
-    case 'deleted':
-      return Colors.red;
-    default:
-      return Colors.grey;
-  }
-}
+//   switch (status.toLowerCase()) {
+//     case 'read':
+//       return Colors.blue;
+//     case 'delivered':
+//       return Colors.grey;
+//     case 'sent':
+//       return Colors.grey.withOpacity(0.5);
+//     case 'edited':
+//       return Colors.orange;
+//     case 'deleted':
+//       return Colors.red;
+//     default:
+//       return Colors.grey;
+//   }
+// }

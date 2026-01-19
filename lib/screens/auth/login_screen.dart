@@ -8,7 +8,6 @@ import 'package:hoop/dtos/responses/AuthResponse.dart';
 import 'package:hoop/screens/auth/signup/ignup_step1_screen.dart';
 import 'package:hoop/screens/auth/signup/signup_step3_personal_info_screen.dart';
 import 'package:hoop/screens/auth/signup/signup_step4_facial_verification_screen.dart';
-import 'package:hoop/screens/features/home_screen.dart';
 import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/utils/forms/validators.dart';
 import 'package:hoop/utils/helpers/toasters/SnackBar.dart';
@@ -298,11 +297,7 @@ class _LoginScreenState extends State<LoginScreen> {
     switch (status) {
       case OperationStatus.OK:
       case OperationStatus.TEMPORARY_REDIRECT:
-        Navigator.pushAndRemoveUntil(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-          (_) => false,
-        );
+        Navigator.pushNamedAndRemoveUntil(context, '/home', (_) => false);
         break;
       case OperationStatus.MOVED_PERMANENTLY:
         Navigator.push(

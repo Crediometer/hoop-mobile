@@ -414,7 +414,10 @@ class ChatIsolateWorker {
 
   void _processTypingData(Map<String, dynamic> data) {
     try {
-      final indicator = TypingIndicator.fromJson(data);
+      final indicator = TypingIndicator.fromJson({
+        ...data,
+        'groupId': num.parse(data['groupId']),
+      });
       _typingData[indicator.groupId] = indicator.typingUsers;
 
       _sendPort.send(
@@ -1911,7 +1914,10 @@ class ChatWebSocketHandler with ChangeNotifier {
 
   // Typing handlers
   void _handleTypingStart(dynamic data) {
-    final indicator = TypingIndicator.fromJson(data);
+    final indicator = TypingIndicator.fromJson({
+      ...data,
+      'groupId': num.parse('${data['groupId']}'),
+    });
     final currentUserId = _userId;
 
     final isMeTyping = indicator.typingUsers.any(
@@ -2483,9 +2489,7 @@ class ChatWebSocketHandler with ChangeNotifier {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (navigatorKey.currentState != null &&
               navigatorKey.currentState!.mounted) {
-            print(
-              '🚀 Navigating to CallScreen with call: ${callData.callId}',
-            );
+            print('🚀 Navigating to CallScreen with call: ${callData.callId}');
 
             // Close any existing dialogs or modals
             navigatorKey.currentState!.popUntil((route) => route.isFirst);

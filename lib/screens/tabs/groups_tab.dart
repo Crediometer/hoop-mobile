@@ -39,8 +39,12 @@ class _GroupsTabState extends State<GroupsTab> {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final authProvider = context.read<AuthProvider>();
+      final groupProvider = context.read<GroupCommunityProvider>();
       userId = authProvider.user?.id.toString();
       _loadGroupCounts();
+
+      // if(groupProvider.activeGroups)
+      // groupProvider.ge
     });
   }
 
@@ -231,109 +235,39 @@ class _GroupsTabState extends State<GroupsTab> {
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.grey[50],
       body: SafeArea(
-        child: Consumer<ChatWebSocketHandler>(
-          builder: (context, handler, child) {
-            print("${handler.messages.value.length} dfgdfds");
-            return Column(
-              children: [
-                // HEADER
-                Container(
-                  color: isDark ? const Color(0xFF0F111A) : Colors.white,
-                  padding: const EdgeInsets.only(
-                    left: 20,
-                    right: 20,
-                    bottom: 12,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 300),
-                        child: _showSearch
-                            ? _buildSearchHeader(
-                                isDark,
-                                textPrimary,
-                                textSecondary,
-                              )
-                            : _buildTitleHeader(
-                                isDark,
-                                textPrimary,
-                                textSecondary,
-                                displayedItems,
-                                selectedSegment,
-                                handler,
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
+        child: Column(
+          children: [
+            // HEADER - Only rebuilds when websocket connection changes
+            Consumer<ChatWebSocketHandler>(
+              builder: (context, handler, child) {
+                return _buildHeader(
+                  isDark,
+                  textPrimary,
+                  textSecondary,
+                  handler,
+                );
+              },
+            ),
 
-                const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-                // SEGMENTED CONTROL with counts
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Container(
-                    padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? const Color(0xFF1A1D27)
-                          : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildSegmentButtonFixed(
-                          "Current (${_groupCounts['current']})",
-                          0,
-                          isDark,
-                        ),
-                        _buildSegmentButtonFixed(
-                          "Finished (${_groupCounts['finished']})",
-                          1,
-                          isDark,
-                        ),
-                        _buildSegmentButtonFixed(
-                          "Pending (${_groupCounts['pending']})",
-                          2,
-                          isDark,
-                        ),
-                        _buildSegmentButtonFixed(
-                          "Rejected (${_groupCounts['rejected']})",
-                          3,
-                          isDark,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+            // SEGMENTED CONTROL - Fixed counts, no websocket dependency
+            _buildSegmentedControl(isDark),
 
-                const SizedBox(height: 16),
+            const SizedBox(height: 16),
 
-                // CONTENT AREA
-                ValueListenableBuilder<List<MessageGroup>>(
-                  valueListenable: handler.messages,
-                  builder: (context, value, child) {
-                    return Expanded(
-                      child: _buildSegmentContent(
-                        isDark,
-                        textPrimary,
-                        textSecondary,
-                        value,
-                        provider,
-                      ),
-                    );
-                  },
-                ),
-              ],
-            );
-          },
+            // CONTENT AREA - Optimized with multiple Consumers
+            Expanded(
+              child: _buildContentArea(
+                isDark,
+                textPrimary,
+                textSecondary,
+                provider,
+              ),
+            ),
+          ],
         ),
       ),
-
-      // FLOATING ACTION BUTTON
       floatingActionButton: Consumer<GroupCommunityProvider>(
         builder: (context, provider, child) {
           return StreamBuilder<bool>(
@@ -371,7 +305,7 @@ class _GroupsTabState extends State<GroupsTab> {
                         backgroundColor: Colors.transparent,
                         elevation: 0,
                         child: const Icon(
-                          Icons.add,
+                          Iconsax.add,
                           size: 28,
                           color: Colors.white,
                         ),
@@ -384,11 +318,78 @@ class _GroupsTabState extends State<GroupsTab> {
     );
   }
 
-  Widget _buildSegmentContent(
+  Widget _buildHeader(
+    bool isDark,
+    Color? textPrimary,
+    Color? textSecondary,
+    ChatWebSocketHandler handler,
+  ) {
+    return Container(
+      color: isDark ? const Color(0xFF0F111A) : Colors.white,
+      padding: const EdgeInsets.only(left: 20, right: 20, bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 300),
+            child: _showSearch
+                ? _buildSearchHeader(isDark, textPrimary, textSecondary)
+                : _buildTitleHeader(
+                    isDark,
+                    textPrimary,
+                    textSecondary,
+                    displayedItems,
+                    handler,
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSegmentedControl(bool isDark) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildSegmentButtonFixed(
+              "Current (${_groupCounts['current']})",
+              0,
+              isDark,
+            ),
+            _buildSegmentButtonFixed(
+              "Finished (${_groupCounts['finished']})",
+              1,
+              isDark,
+            ),
+            _buildSegmentButtonFixed(
+              "Pending (${_groupCounts['pending']})",
+              2,
+              isDark,
+            ),
+            _buildSegmentButtonFixed(
+              "Rejected (${_groupCounts['rejected']})",
+              3,
+              isDark,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContentArea(
     bool isDark,
     Color textPrimary,
     Color? textSecondary,
-    List<MessageGroup> messages,
     GroupCommunityProvider provider,
   ) {
     if (_isLoading && !_isLoaded) {
@@ -448,23 +449,13 @@ class _GroupsTabState extends State<GroupsTab> {
           if (selectedSegment <= 1) {
             // Render group card with SmartOverlayMenu
             final group = items[index] as Group;
-            MessageGroup? mgs;
-            try {
-              mgs = messages.firstWhere(
-                (m) => m.groupId.toString() == group.id,
-              );
-            } catch (e) {}
-
             return _GroupCardWithPreview(
               group: group,
               isDark: isDark,
               textPrimary: textPrimary,
               userId: userId,
               textSecondary: textSecondary,
-              message: (mgs != null && mgs.messages.isNotEmpty)
-                  ? mgs.messages.last
-                  : null,
-              allMessages: messages,
+              selectedSegment: selectedSegment,
             );
           } else {
             // Render join request card
@@ -736,7 +727,6 @@ class _GroupsTabState extends State<GroupsTab> {
     Color? textPrimary,
     Color? textSecondary,
     List displayedGroups,
-    int selectedSegment,
     ChatWebSocketHandler handler,
   ) {
     return Column(
@@ -757,14 +747,15 @@ class _GroupsTabState extends State<GroupsTab> {
               ),
             ),
 
-            ValueListenableBuilder<bool>(
-              valueListenable: handler.isConnected,
-              builder: (context, value, child) {
-                if (value) return SizedBox.shrink();
+            // Connection status - only rebuilds when isConnected changes
+            Consumer<ChatWebSocketHandler>(
+              builder: (context, handler, child) {
+                if (handler.isConnected.value) return const SizedBox.shrink();
 
                 return Row(
                   children: [
-                    CupertinoActivityIndicator(),
+                    const CupertinoActivityIndicator(),
+                    const SizedBox(width: 4),
                     Text(
                       "Connecting...",
                       style: TextStyle(
@@ -778,6 +769,7 @@ class _GroupsTabState extends State<GroupsTab> {
                 );
               },
             ),
+
             Row(
               children: [
                 // Search icon
@@ -788,7 +780,11 @@ class _GroupsTabState extends State<GroupsTab> {
                   ),
                   child: IconButton(
                     onPressed: () => setState(() => _showSearch = true),
-                    icon: Icon(Icons.search, color: textPrimary, size: 22),
+                    icon: Icon(
+                      Iconsax.search_favorite,
+                      color: textPrimary,
+                      size: 22,
+                    ),
                     padding: EdgeInsets.zero,
                     constraints: const BoxConstraints(
                       minWidth: 44,
@@ -825,7 +821,7 @@ class _GroupsTabState extends State<GroupsTab> {
         // Subtitle with updates indicator
         Row(
           children: [
-            Icon(Icons.people, size: 16, color: textSecondary),
+            Icon(Iconsax.people, size: 16, color: textSecondary),
             const SizedBox(width: 6),
             Text(
               "${displayedGroups.length} ${selectedSegment == 0
@@ -841,15 +837,22 @@ class _GroupsTabState extends State<GroupsTab> {
             const Text('•', style: TextStyle(color: Colors.redAccent)),
             const SizedBox(width: 8),
 
-            if (handler.totalUnreadMessages > 0)
-              Text(
-                '${handler.totalUnreadMessages > 99 ? '99+' : handler.totalUnreadMessages} new messages',
-                style: TextStyle(
-                  color: const Color(0xFFFF6F21),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
+            // Unread messages - only rebuilds when unreadMessages changes
+            Consumer<ChatWebSocketHandler>(
+              builder: (context, handler, child) {
+                final totalUnread = handler.totalUnreadMessages;
+                if (totalUnread <= 0) return const SizedBox.shrink();
+
+                return Text(
+                  '${totalUnread > 99 ? '99+' : totalUnread} new messages',
+                  style: TextStyle(
+                    color: const Color(0xFFFF6F21),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                );
+              },
+            ),
           ],
         ),
       ],
@@ -973,8 +976,7 @@ class _GroupCardWithPreview extends StatefulWidget {
   final String? userId;
   final Color textPrimary;
   final Color? textSecondary;
-  final Message? message;
-  final List<MessageGroup> allMessages;
+  final int selectedSegment;
 
   const _GroupCardWithPreview({
     required this.group,
@@ -982,8 +984,7 @@ class _GroupCardWithPreview extends StatefulWidget {
     required this.textPrimary,
     required this.textSecondary,
     required this.userId,
-    required this.message,
-    required this.allMessages,
+    required this.selectedSegment,
   });
 
   @override
@@ -1001,7 +1002,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
   @override
   void dispose() {
-    // _previewController.dispose();
     super.dispose();
   }
 
@@ -1087,223 +1087,236 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
   }
 
   Widget _buildPreviewContent() {
-    // Get the current user ID from your authentication state
-    // Find messages for this group
-    MessageGroup? groupMessages;
-    try {
-      groupMessages = widget.allMessages.firstWhere(
-        (msg) => msg.groupId.toString() == widget.group.id.toString(),
-      );
-    } catch (e) {
-      // Handle case where no messages are found
-    }
+    // Use Consumer to only rebuild when messages or typingUsers change
+    return Consumer<ChatWebSocketHandler>(
+      builder: (context, handler, child) {
+        // Find messages for this group
+        MessageGroup? groupMessages;
+        final typingUsers = handler.getTypingUsers(widget.group.id);
 
-    final messages = (groupMessages?.messages ?? [])
-        .where((m) => m.content.isNotEmpty)
-        .toList()
-        .reversed
-        .take(5)
-        .toList();
+        try {
+          groupMessages = handler.messages.value.firstWhere(
+            (msg) => msg.groupId.toString() == widget.group.id.toString(),
+          );
+        } catch (e) {
+          // Handle case where no messages are found
+        }
 
-    final avatarColor = _getAvatarColor(widget.group.id.toString());
-    final initials = HoopFormatters.getInitials(widget.group.name);
+        final messages = (groupMessages?.messages ?? [])
+            .where((m) => m.content.isNotEmpty)
+            .toList()
+            .reversed
+            .take(5)
+            .toList();
 
-    return Container(
-      width: 350,
-      decoration: BoxDecoration(
-        color: widget.isDark ? const Color(0xFF1A1D27) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            spreadRadius: 5,
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Header
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              color: widget.isDark ? const Color(0xFF2D3139) : Colors.grey[50],
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
+        final avatarColor = _getAvatarColor(widget.group.id.toString());
+        final initials = HoopFormatters.getInitials(widget.group.name);
+
+        return Container(
+          width: 350,
+          decoration: BoxDecoration(
+            color: widget.isDark ? const Color(0xFF1A1D27) : Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 20,
+                spreadRadius: 5,
               ),
-            ),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () {
-                    _previewController.close();
-                    Navigator.pushNamed(
-                      context,
-                      '/chat/detail',
-                      arguments: _groupToMap(widget.group),
-                    );
-                  },
-                  child: Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: avatarColor,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Center(
-                      child: Text(
-                        initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () {
-                      _previewController.close();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => ChatDetailScreen(
-                            group: _groupToMap(widget.group),
-                          ),
-                        ),
-                      );
-                    },
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.group.name,
-                          style: TextStyle(
-                            color: widget.textPrimary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w700,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          messages.isEmpty
-                              ? 'No messages yet'
-                              : '${messages.length} message${messages.length > 1 ? 's' : ''}',
-                          style: TextStyle(
-                            color: widget.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                GestureDetector(
-                  onTap: () => _previewController.close(),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: widget.isDark ? Colors.white10 : Colors.grey[100],
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.close,
-                      color: widget.textSecondary,
-                      size: 18,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+            ],
           ),
-
-          // Divider
-          Container(
-            height: 1,
-            color: widget.isDark ? Colors.white10 : Colors.grey[200],
-          ),
-
-          // Messages preview
-          Container(
-            constraints: const BoxConstraints(maxHeight: 350),
-            child: messages.isEmpty
-                ? Container(
-                    height: 120,
-                    child: Center(
-                      child: Text(
-                        'No messages yet',
-                        style: TextStyle(
-                          color: widget.textSecondary,
-                          fontSize: 12,
-                        ),
-                      ),
-                    ),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
-                    ),
-                    reverse: true,
-                    shrinkWrap: true,
-                    physics: const ClampingScrollPhysics(),
-                    itemCount: min(messages.length, 7),
-                    itemBuilder: (context, index) {
-                      final message = messages[index];
-                      final isOwn = message.isFromUser(widget.userId ?? '');
-
-                      return Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                decoration: BoxDecoration(
+                  color: widget.isDark
+                      ? const Color(0xFF2D3139)
+                      : Colors.grey[50],
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                    topRight: Radius.circular(16),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () {
+                        _previewController.close();
+                        Navigator.pushNamed(
+                          context,
+                          '/chat/detail',
+                          arguments: _groupToMap(widget.group),
+                        );
+                      },
+                      child: Container(
+                        width: 40,
+                        height: 40,
                         decoration: BoxDecoration(
-                          color: isOwn
-                              ? const Color(0xFF6366F1).withOpacity(0.2)
-                              : (widget.isDark
-                                    ? Colors.white10
-                                    : Colors.grey[100]),
-                          borderRadius: BorderRadius.circular(8),
+                          color: avatarColor,
+                          borderRadius: BorderRadius.circular(12),
                         ),
+                        child: Center(
+                          child: Text(
+                            initials,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () {
+                          _previewController.close();
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => ChatDetailScreen(
+                                group: _groupToMap(widget.group),
+                              ),
+                            ),
+                          );
+                        },
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              message.content,
+                              widget.group.name,
                               style: TextStyle(
                                 color: widget.textPrimary,
-                                fontSize: 11,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
                               ),
-                              maxLines: 2,
+                              maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
+                            const SizedBox(height: 2),
                             Text(
-                              _formatPreviewTime(
-                                message.createdAt ?? DateTime.now(),
-                              ),
+                              messages.isEmpty
+                                  ? 'No messages yet'
+                                  : '${messages.length} message${messages.length > 1 ? 's' : ''}',
                               style: TextStyle(
                                 color: widget.textSecondary,
-                                fontSize: 9,
+                                fontSize: 12,
                               ),
                             ),
                           ],
                         ),
-                      );
-                    },
-                  ),
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () => _previewController.close(),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: widget.isDark
+                              ? Colors.white10
+                              : Colors.grey[100],
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          Icons.close,
+                          color: widget.textSecondary,
+                          size: 18,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Divider
+              Container(
+                height: 1,
+                color: widget.isDark ? Colors.white10 : Colors.grey[200],
+              ),
+
+              // Messages preview
+              Container(
+                constraints: const BoxConstraints(maxHeight: 350),
+                child: messages.isEmpty
+                    ? Container(
+                        height: 120,
+                        child: Center(
+                          child: Text(
+                            'No messages yet',
+                            style: TextStyle(
+                              color: widget.textSecondary,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        reverse: true,
+                        shrinkWrap: true,
+                        physics: const ClampingScrollPhysics(),
+                        itemCount: min(messages.length, 7),
+                        itemBuilder: (context, index) {
+                          final message = messages[index];
+                          final isOwn = message.isFromUser(widget.userId ?? '');
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: isOwn
+                                  ? const Color(0xFF6366F1).withOpacity(0.2)
+                                  : (widget.isDark
+                                        ? Colors.white10
+                                        : Colors.grey[100]),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  message.content,
+                                  style: TextStyle(
+                                    color: widget.textPrimary,
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  _formatPreviewTime(
+                                    message.createdAt ?? DateTime.now(),
+                                  ),
+                                  style: TextStyle(
+                                    color: widget.textSecondary,
+                                    fontSize: 9,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1313,19 +1326,20 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
     final statusColor = _getGroupStatusColor(widget.group.status);
     final initials = HoopFormatters.getInitials(widget.group.name);
     final dueDate = _getDueDate(widget.group);
-    final handler = context.watch<ChatWebSocketHandler>();
 
     return SmartOverlayMenu(
       controller: _previewController,
       topWidgetAlignment: Alignment.center,
-
-      openWithTap: false, // We handle opening with onLongPress
+      openWithTap: false,
       topWidget: _buildPreviewContent(),
-      repositionAnimationDuration: Duration(microseconds: 1),
-
+      repositionAnimationDuration: const Duration(microseconds: 1),
       bottomWidgetAlignment: Alignment.centerLeft,
       repositionAnimationCurve: Curves.easeInOut,
-      bottomWidget: _buildMessageMenu(handler, widget.group),
+      bottomWidget: Consumer<ChatWebSocketHandler>(
+        builder: (context, handler, child) {
+          return _buildMessageMenu(handler, widget.group);
+        },
+      ),
       child: Container(
         margin: const EdgeInsets.only(bottom: 12),
         decoration: BoxDecoration(
@@ -1383,31 +1397,52 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
 
                   const SizedBox(width: 12),
 
-                  // Group info
+                  // Group info with message and unread count
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    child: Consumer<ChatWebSocketHandler>(
+                      builder: (context, handler, child) {
+                        // Find messages for this group
+                        MessageGroup? groupMessages;
+                        try {
+                          groupMessages = handler.messages.value.firstWhere(
+                            (msg) =>
+                                msg.groupId.toString() ==
+                                widget.group.id.toString(),
+                          );
+                        } catch (e) {
+                          // No messages for this group
+                        }
+
+                        final lastMessage = groupMessages?.messages.lastOrNull;
+                        final unreadCount =
+                            handler
+                                .unreadMessages
+                                .value[widget.group.id]
+                                ?.length ??
+                            0;
+                        print(
+                          "handler.unreadMessages.value?? ${handler.unreadMessages.value}",
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Expanded(
-                              child: Text(
-                                widget.group.name,
-                                style: TextStyle(
-                                  color: widget.textPrimary,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w700,
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    widget.group.name,
+                                    style: TextStyle(
+                                      color: widget.textPrimary,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            ValueListenableBuilder<Map<num, Set<String>>>(
-                              valueListenable: handler.unreadMessages,
-                              builder: (context, value, child) {
-                                return Container(
+                                const SizedBox(width: 8),
+                                Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 8,
                                     vertical: 4,
@@ -1417,57 +1452,51 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Text(
-                                    (value[num.parse(
-                                                  widget.group.id.toString(),
-                                                )]
-                                                ?.length ??
-                                            dueDate)
-                                        .toString(),
-
+                                    unreadCount > 0 ? '$unreadCount' : dueDate,
                                     style: TextStyle(
                                       color: statusColor,
                                       fontSize: 11,
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
-                                );
-                              },
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 4),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Expanded(
-                              child: Text(
-                                widget.message?.message ??
-                                    widget.group.description ??
-                                    'No description',
-                                style: TextStyle(
-                                  color: widget.textSecondary,
-                                  fontSize: 12,
                                 ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              ],
                             ),
-                            const SizedBox(width: 8),
-                            Text(
-                              widget.message?.createdAt != null
-                                  ? HoopFormatters.formatTime(
-                                      widget.message!.createdAt!,
-                                    )
-                                  : '₦${widget.group.contributionAmount}',
-                              style: TextStyle(
-                                color: widget.textSecondary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    lastMessage?.content ??
+                                        widget.group.description ??
+                                        'No description',
+                                    style: TextStyle(
+                                      color: widget.textSecondary,
+                                      fontSize: 12,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  lastMessage?.createdAt != null
+                                      ? HoopFormatters.formatTime(
+                                          lastMessage!.createdAt!,
+                                        )
+                                      : '₦${widget.group.contributionAmount}',
+                                  style: TextStyle(
+                                    color: widget.textSecondary,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                        ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -1494,7 +1523,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
           ),
         ],
       ),
-      // width: 200,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1526,7 +1554,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
               _previewController.close();
               final callData = await handler.startWebRTCCall(
                 context,
-                type: 'video',
+                type: 'audio',
                 groupId: group.id.toInt(),
                 groupName: group.name,
               );
@@ -1546,7 +1574,6 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
             },
           ),
           const SizedBox(height: 4),
-
           _buildMenuTile(
             icon: Iconsax.profile_delete,
             label: 'Leave Group',

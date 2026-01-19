@@ -8,6 +8,7 @@ import 'package:hoop/screens/settings/community_preference.dart';
 import 'package:hoop/screens/tabs/market_storm.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/states/ws/notification_socket.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:provider/provider.dart';
 import 'package:swipe_cards/swipe_cards.dart';
 
@@ -216,7 +217,7 @@ class _CommunityScreenState extends State<CommunityScreen> {
                           return Badge.count(
                             count: value,
                             child: _buildIconButton(
-                              Icons.notifications_outlined,
+                              Iconsax.notification_status,
                               textPrimary,
                               isDark,
                               () {
@@ -492,7 +493,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   Widget _buildActionButtons() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),

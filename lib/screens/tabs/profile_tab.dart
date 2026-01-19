@@ -7,6 +7,7 @@ import 'package:hoop/screens/settings/community_preference.dart';
 import 'package:hoop/screens/supports/SupportTicket.dart';
 import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:provider/provider.dart';
 
 class ProfileTab extends StatefulWidget {
@@ -225,7 +226,7 @@ class _ProfileTabState extends State<ProfileTab> {
                         Navigator.pushNamed(context, '/settings/profile');
                       },
                       icon: Icon(
-                        Icons.settings,
+                        Iconsax.settings,
                         color: textSecondary,
                         size: 22,
                       ),
@@ -247,7 +248,7 @@ class _ProfileTabState extends State<ProfileTab> {
               const SizedBox(height: 16),
 
               _buildMenuItem(
-                icon: Icons.group_add,
+                icon: Iconsax.people,
                 iconColor: const Color(0xFF3B82F6),
                 title: 'Create Group',
                 subtitle: 'Start a new thrift group',
@@ -259,7 +260,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 },
               ),
               _buildMenuItem(
-                icon: Icons.account_balance,
+                icon: Iconsax.money,
                 iconColor: const Color(0xFF10B981),
                 title: 'Primary Account',
                 subtitle: 'Manage your withdraw accounts',
@@ -271,7 +272,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 },
               ),
               _buildMenuItem(
-                icon: Icons.person_outline,
+                icon: Iconsax.user,
                 iconColor: const Color(0xFFF97316),
                 title: 'Profile Details',
                 subtitle: 'Edit your personal information',
@@ -283,7 +284,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 },
               ),
               _buildMenuItem(
-                icon: Icons.palette,
+                icon: Iconsax.color_swatch,
                 iconColor: const Color(0xFF8B5CF6),
                 title: 'Appearance',
                 subtitle: 'Theme and display preferences',
@@ -297,7 +298,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 },
               ),
               _buildMenuItem(
-                icon: Icons.notifications_outlined,
+                icon: Iconsax.notification,
                 iconColor: const Color(0xFFEF4444),
                 title: 'Notifications',
                 subtitle: 'Notification preferences',
@@ -309,7 +310,7 @@ class _ProfileTabState extends State<ProfileTab> {
                 },
               ),
               _buildMenuItem(
-                icon: Icons.map_outlined,
+                icon: Iconsax.setting_2,
                 iconColor: const Color(0xFFF59E0B),
                 title: 'Community Settings',
                 subtitle: 'Location & group preferences',
@@ -326,7 +327,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
             
               _buildMenuItem(
-                icon: Icons.security,
+                icon: Iconsax.security,
                 iconColor: const Color(0xFF06B6D4),
                 title: 'Security',
                 subtitle: 'Privacy & security settings',
@@ -339,7 +340,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
 
               _buildMenuItem(
-                icon: Icons.logout,
+                icon: Iconsax.logout,
                 iconColor: const Color(0xFFDC2626),
                 title: 'Logout',
                 subtitle: 'Logout of your account',
@@ -1000,7 +1001,7 @@ class _ProfileTabState extends State<ProfileTab> {
               ),
             ),
 
-            Icon(Icons.chevron_right, color: textSecondary, size: 24),
+            Icon(Iconsax.arrow_right, color: textSecondary, size: 24),
           ],
         ),
       ),

@@ -4,6 +4,7 @@ import 'package:hoop/components/state/empty_state.dart';
 import 'package:hoop/dtos/responses/SpotlightVideo.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:provider/provider.dart';
 
 class ShinersTab extends StatefulWidget {
@@ -84,7 +85,7 @@ class _ShinersTabState extends State<ShinersTab> {
                                     child: IconButton(
                                       onPressed: () {},
                                       icon: Icon(
-                                        Icons.search,
+                                        Iconsax.search_favorite,
                                         color: textPrimary,
                                         size: 24,
                                       ),
@@ -102,7 +103,7 @@ class _ShinersTabState extends State<ShinersTab> {
                                       onPressed: () =>
                                           provider.refreshSpotlights(),
                                       icon: Icon(
-                                        Icons.refresh,
+                                        Iconsax.refresh,
                                         color: textPrimary,
                                         size: 24,
                                       ),

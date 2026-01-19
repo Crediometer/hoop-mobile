@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/states/auth_state.dart';
@@ -148,7 +149,7 @@ class _ActivityTabState extends State<ActivityTab> {
                                   ),
                                   const SizedBox(width: 8),
                                   Icon(
-                                    Icons.remove_red_eye_outlined,
+                                    Iconsax.eye,
                                     color: Colors.white70,
                                     size: 18,
                                   ),
@@ -166,7 +167,7 @@ class _ActivityTabState extends State<ActivityTab> {
                           ),
                           padding: const EdgeInsets.all(8),
                           child: Icon(
-                            Icons.account_balance_wallet_outlined,
+                            Iconsax.money,
                             color: Colors.white,
                             size: 22,
                           ),
@@ -326,6 +327,35 @@ class _ActivityTabState extends State<ActivityTab> {
                         ),
                       ),
                     ),
+                    // Expanded(
+                    //   child: GestureDetector(
+                    //     onTap: () => setState(() => selectedIndex = 2),
+                    //     child: Container(
+                    //       padding: const EdgeInsets.symmetric(vertical: 12),
+                    //       decoration: BoxDecoration(
+                    //         color: selectedIndex == 2
+                    //             ? (isDark
+                    //                   ? const Color(0xFF1E2430)
+                    //                   : Colors.white)
+                    //             : Colors.transparent,
+                    //         borderRadius: BorderRadius.circular(8),
+                    //       ),
+                    //       child: Center(
+                    //         child: Text(
+                    //           'POS',
+                    //           style: TextStyle(
+                    //             color: selectedIndex == 2
+                    //                 ? (isDark ? Colors.white : Colors.black87)
+                    //                 : (isDark
+                    //                       ? Colors.white70
+                    //                       : Colors.black54),
+                    //             fontWeight: FontWeight.w500,
+                    //           ),
+                    //         ),
+                    //       ),
+                    //     ),
+                    //   ),
+                    // ),
                   ],
                 ),
               ),

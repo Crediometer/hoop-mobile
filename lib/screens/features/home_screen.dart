@@ -9,6 +9,7 @@ import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/onesignal_state.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
 import 'package:hoop/states/ws/notification_socket.dart';
+import 'package:iconsax/iconsax.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:provider/provider.dart';
 
@@ -34,11 +35,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // Icons for bottom nav
   final List<IconData> _navIcons = [
-    Icons.people_outline,
-    Icons.chat_bubble_outline,
-    Icons.videocam_outlined,
-    Icons.credit_card,
-    Icons.person_outline,
+    Iconsax.people,
+    Iconsax.message,
+    Iconsax.video,
+    Iconsax.card,
+    Iconsax.user,
   ];
 
   // Tab labels

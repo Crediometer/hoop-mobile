@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
 import 'package:hoop/screens/auth/signup/signup_step5_primary_account_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class PrimarySetupRequiredScreen extends StatelessWidget {
   const PrimarySetupRequiredScreen({super.key});
@@ -109,7 +108,7 @@ class PrimarySetupRequiredScreen extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (_) =>
-                          const SetupPrimaryAccountScreen(popOnAdd: true),
+                          const SetupPrimaryAccountScreen(),
                     ),
                   );
 
