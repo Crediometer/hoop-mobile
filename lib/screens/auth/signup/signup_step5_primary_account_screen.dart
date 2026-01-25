@@ -463,8 +463,7 @@ class _VerifyPrimaryAccountScreenState
                           onPressed: isAgreed
                               ? () async {
                                   try {
-                                    
-
+                                    await OnboardingService.markOnboardingComplete();
                                     Navigator.push(
                                       context,
                                       MaterialPageRoute(
@@ -472,7 +471,6 @@ class _VerifyPrimaryAccountScreenState
                                             MandateActivatedScreen(),
                                       ),
                                     );
-                                    await OnboardingService.markOnboardingComplete();
                                   } on Exception catch (e) {
                                     debugPrint(
                                       "Stakkkkk -==== " + e.toString(),

@@ -4,7 +4,7 @@ import 'package:hoop/screens/tabs/activity_tab.dart';
 import 'package:hoop/screens/tabs/community_tab.dart';
 import 'package:hoop/screens/tabs/groups_tab.dart';
 import 'package:hoop/screens/tabs/profile_tab.dart';
-import 'package:hoop/screens/tabs/shiners_tab.dart';
+import 'package:hoop/screens/tabs/spotlight_tab.dart';
 import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/onesignal_state.dart';
 import 'package:hoop/states/ws/chat_sockets.dart';
@@ -409,7 +409,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
-    _onboardingService.dispose();
     super.dispose();
   }
 }

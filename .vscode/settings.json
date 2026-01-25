@@ -1,4 +1,5 @@
 {
     "dart.flutterHotReloadOnSave": "manual",
-    "dart.flutterSdkPath":  ".fvm/flutter_sdk",
+    "dart.flutterSdkPath": ".fvm/flutter_sdk",
+    "snyk.advanced.autoSelectOrganization": true,
 }

@@ -800,7 +800,9 @@ class _GroupsTabState extends State<GroupsTab> {
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
-                    onPressed: () {},
+                    onPressed: () {
+                      handler.markAllMessagesAsRead();
+                    },
                     icon: Icon(
                       Iconsax.message_tick,
                       color: textPrimary,
@@ -1603,6 +1605,7 @@ class __GroupCardWithPreviewState extends State<_GroupCardWithPreview> {
         borderRadius: BorderRadius.circular(8),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          width: 220,
           child: Row(
             children: [
               Icon(

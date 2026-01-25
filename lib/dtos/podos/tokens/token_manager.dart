@@ -19,7 +19,7 @@ abstract class TokenManager {
 
   static TokenManager get instance {
     if (_instance == null) {
-      _instance = SharedPrefsTokenManager();
+      _instance = HiveTokenManager();
     }
     return _instance!;
   }

@@ -1,4 +1,3 @@
-// device_info_manager.dart
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
@@ -7,7 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 class DeviceInfoManager {
@@ -21,6 +20,15 @@ class DeviceInfoManager {
 
   final DeviceInfoPlugin _deviceInfoPlugin = DeviceInfoPlugin();
   final Uuid _uuid = const Uuid();
+  
+  static const String _deviceBox = 'device_box';
+
+  Future<Box> _openBox() async {
+    if (!Hive.isBoxOpen(_deviceBox)) {
+      return await Hive.openBox(_deviceBox);
+    }
+    return Hive.box(_deviceBox);
+  }
 
   Future<String> getDeviceId() async {
     if (_cachedDeviceId != null) return _cachedDeviceId!;
@@ -129,9 +137,9 @@ class DeviceInfoManager {
   }
 
   Future<String> _getFallbackDeviceId() async {
-    // Only use SharedPreferences as LAST RESORT fallback
-    final prefs = await SharedPreferences.getInstance();
-    final storedId = prefs.getString('fallback_device_id');
+    // Use Hive as LAST RESORT fallback
+    final box = await _openBox();
+    final storedId = box.get('fallback_device_id');
 
     if (storedId != null) {
       _cachedDeviceId = storedId;
@@ -139,14 +147,14 @@ class DeviceInfoManager {
     }
 
     final newId = _uuid.v4();
-    await prefs.setString('fallback_device_id', newId);
+    await box.put('fallback_device_id', newId);
     _cachedDeviceId = newId;
     return newId;
   }
 
   Future<String> _getPersistentWebId(WebBrowserInfo deviceInfo) async {
-    final prefs = await SharedPreferences.getInstance();
-    String? storedId = prefs.getString('web_device_id');
+    final box = await _openBox();
+    String? storedId = box.get('web_device_id');
 
     if (storedId != null) return storedId;
 
@@ -165,7 +173,7 @@ class DeviceInfoManager {
     final digest = sha256.convert(bytes);
     storedId = digest.toString();
 
-    await prefs.setString('web_device_id', storedId);
+    await box.put('web_device_id', storedId);
     return storedId;
   }
 
@@ -176,6 +184,14 @@ class DeviceInfoManager {
     _cachedDeviceFingerprint = null;
   }
 
+  // Clear persistent device data from Hive
+  Future<void> clearPersistentData() async {
+    final box = await _openBox();
+    await box.delete('fallback_device_id');
+    await box.delete('web_device_id');
+    clearCache();
+  }
+
   // Get all device info as a map for API calls
   Future<Map<String, String>> getDeviceInfoForApi() async {
     return {
@@ -184,5 +200,12 @@ class DeviceInfoManager {
       'deviceFingerprint': await getDeviceFingerprint(),
       'platform': Platform.operatingSystem,
     };
+  }
+  
+  // Close the Hive box when done
+  Future<void> close() async {
+    if (Hive.isBoxOpen(_deviceBox)) {
+      await Hive.box(_deviceBox).close();
+    }
   }
 }

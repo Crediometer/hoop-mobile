@@ -2,11 +2,11 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:hoop/components/indicators/loader.dart';
 import 'package:hoop/constants/themes.dart';
 import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/screens/groups/join_group_modal.dart';
-import 'package:hoop/services/group_services.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/utils/helpers/formatters/hoop_formatter.dart';
 import 'package:provider/provider.dart';
@@ -227,335 +227,355 @@ class _GroupDetailPublicScreenState extends State<GroupDetailPublicScreen> {
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F111A) : Colors.grey[50],
-      body: SingleChildScrollView(
-        child: Stack(
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // GRADIENT HEADER WITH BACK BUTTON - GREEN GRADIENT
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                  ),
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-                  child: Column(
+      body: _isLoading
+          ? Center(
+              child: WaveLoader(size: 150, waveDuration: Duration(seconds: 3)),
+            )
+          : SingleChildScrollView(
+              child: Stack(
+                children: [
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Back button and settings icon
-                      SizedBox(height: 34.0),
-                      GestureDetector(
-                        onTap: () => Navigator.pop(context),
-                        child: Container(
-                          width: 42,
-                          height: 42,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12),
+                      // GRADIENT HEADER WITH BACK BUTTON - GREEN GRADIENT
+                      Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
                           ),
-                          child: const Icon(
-                            Icons.arrow_back,
-                            color: Colors.white,
-                            size: 22,
-                          ),
+                        ),
+                        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Back button and settings icon
+                            SizedBox(height: 34.0),
+                            GestureDetector(
+                              onTap: () => Navigator.pop(context),
+                              child: Container(
+                                width: 42,
+                                height: 42,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: const Icon(
+                                  Icons.arrow_back,
+                                  color: Colors.white,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+
+                            const SizedBox(height: 16),
+
+                            // Status badge + rating (pill-shaped)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: Colors.white.withOpacity(0.2),
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (displayGroup is GroupDetailsPublic &&
+                                      displayGroup.requireApproval == true)
+                                    const Text(
+                                      "Approval Required",
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                  if (displayGroup is GroupDetailsPublic &&
+                                      displayGroup.requireApproval == true)
+                                    const SizedBox(width: 8),
+                                  const Text(
+                                    "⭐ 4.8",
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            const SizedBox(height: 14),
+
+                            // Group name
+                            Text(
+                              groupName ?? '',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 32,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: -0.8,
+                              ),
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // Members + Location
+                            Row(
+                              children: [
+                                const Icon(
+                                  Icons.people_outline,
+                                  size: 16,
+                                  color: Colors.white70,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  "$membersCount / $maxMembers members",
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                const SizedBox(width: 20),
+                                const Icon(
+                                  Icons.location_on_outlined,
+                                  size: 16,
+                                  color: Colors.white70,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    (location != null) &&
+                                            (location ?? '').isNotEmpty
+                                        ? location
+                                        : "Location not specified",
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            const SizedBox(height: 10),
+
+                            // Group ID / Description
+                            Text(
+                              (description != null) && description.isNotEmpty
+                                  ? description
+                                  : "No description available",
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w400,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 64),
+
+                      // TAB BUTTONS (Overview | Members | Settings)
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 20),
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: isDark
+                              ? const Color(0xFF1A1D27)
+                              : Colors.grey[100],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            _buildTabButton(
+                              "Overview",
+                              Icons.bar_chart,
+                              0,
+                              isDark,
+                            ),
+                            _buildTabButton("Members", Icons.people, 1, isDark),
+                          ],
                         ),
                       ),
 
                       const SizedBox(height: 16),
 
-                      // Status badge + rating (pill-shaped)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: Colors.white.withOpacity(0.2),
-                            width: 1,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (displayGroup is GroupDetailsPublic &&
-                                displayGroup.requireApproval == true)
-                              const Text(
-                                "Approval Required",
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  letterSpacing: 0.2,
-                                ),
+                      // TAB CONTENT
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: selectedTab == 0
+                            ? _buildOverviewTab(
+                                isDark,
+                                textPrimary,
+                                textSecondary,
+                                textTertiary,
+                                displayGroup,
+                              )
+                            : _buildMembersTab(
+                                isDark,
+                                textPrimary,
+                                textSecondary,
                               ),
-                            if (displayGroup is GroupDetailsPublic &&
-                                displayGroup.requireApproval == true)
-                              const SizedBox(width: 8),
-                            const Text(
-                              "⭐ 4.8",
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // Action buttons at bottom
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 20),
+                        child: HoopButton(
+                          buttonText:
+                              "Join Group • ₦${contributionAmount?.toStringAsFixed(0)}/$frequency",
+                          isLoading: _isProcessingAction,
+                          onPressed: () {
+                            // Show the modal
+                            JoinGroupModal.show(
+                              context: context,
+                              group: {
+                                'allowPairing': true,
+                                'availableSlots': 10,
+                                'maxSlotsPerUser': 5,
+                                'contributionAmount': 50000,
+                              },
+                              onJoin: (slots, message) async {
+                                _handleJoinGroup(slots, message);
+                              },
+                            );
+                          },
                         ),
                       ),
 
-                      const SizedBox(height: 14),
+                      const SizedBox(height: 20),
+                    ],
+                  ),
 
-                      // Group name
-                      Text(
-                        groupName ?? '',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 32,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
-                        ),
-                      ),
-
-                      const SizedBox(height: 10),
-
-                      // Members + Location
-                      Row(
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: 16,
+                      right: 16,
+                      top: 220,
+                    ),
+                    child: Container(
+                      child: Row(
                         children: [
-                          const Icon(
-                            Icons.people_outline,
-                            size: 16,
-                            color: Colors.white70,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            "$membersCount / $maxMembers members",
-                            style: const TextStyle(
-                              color: Colors.white70,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF1A1D27)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        "💵",
+                                        style: TextStyle(fontSize: 20),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        "Contribution",
+                                        style: TextStyle(
+                                          color: textTertiary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    "₦${contributionAmount?.toStringAsFixed(0)}",
+                                    style: TextStyle(
+                                      color: const Color(0xFF4CAF50),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
-                          const SizedBox(width: 20),
-                          const Icon(
-                            Icons.location_on_outlined,
-                            size: 16,
-                            color: Colors.white70,
-                          ),
-                          const SizedBox(width: 6),
+
+                          const SizedBox(width: 12),
+
+                          // Cycle chip
                           Expanded(
-                            child: Text(
-                              (location != null) && (location ?? '').isNotEmpty
-                                  ? location
-                                  : "Location not specified",
-                              style: const TextStyle(
-                                color: Colors.white70,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 14,
+                                vertical: 12,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? const Color(0xFF1A1D27)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        "⏱️",
+                                        style: TextStyle(fontSize: 20),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        "Cycle",
+                                        style: TextStyle(
+                                          color: textTertiary,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(
+                                    frequency ?? '',
+                                    style: TextStyle(
+                                      color: const Color(0xFF9C27B0),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 10),
-
-                      // Group ID / Description
-                      Text(
-                        (description != null) && description.isNotEmpty
-                            ? description
-                            : "No description available",
-                        style: TextStyle(
-                          color: Colors.white.withOpacity(0.6),
-                          fontSize: 13,
-                          fontWeight: FontWeight.w400,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 64),
-
-                // TAB BUTTONS (Overview | Members | Settings)
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 20),
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1A1D27) : Colors.grey[100],
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      _buildTabButton("Overview", Icons.bar_chart, 0, isDark),
-                      _buildTabButton("Members", Icons.people, 1, isDark),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // TAB CONTENT
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: selectedTab == 0
-                      ? _buildOverviewTab(
-                          isDark,
-                          textPrimary,
-                          textSecondary,
-                          textTertiary,
-                          displayGroup,
-                        )
-                      : _buildMembersTab(isDark, textPrimary, textSecondary),
-                ),
-
-                const SizedBox(height: 20),
-
-                // Action buttons at bottom
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: HoopButton(
-                    buttonText:
-                        "Join Group • ₦${contributionAmount?.toStringAsFixed(0)}/$frequency",
-                    isLoading: _isProcessingAction,
-                    onPressed: () {
-                      // Show the modal
-                      JoinGroupModal.show(
-                        context: context,
-                        group: {
-                          'allowPairing': true,
-                          'availableSlots': 10,
-                          'maxSlotsPerUser': 5,
-                          'contributionAmount': 50000,
-                        },
-                        onJoin: (slots, message) async {
-                          _handleJoinGroup(slots, message);
-                        },
-                      );
-                    },
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-              ],
-            ),
-
-            Padding(
-              padding: const EdgeInsets.only(left: 16, right: 16, top: 220),
-              child: Container(
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1A1D27)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  "💵",
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Contribution",
-                                  style: TextStyle(
-                                    color: textTertiary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              "₦${contributionAmount?.toStringAsFixed(0)}",
-                              style: TextStyle(
-                                color: const Color(0xFF4CAF50),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
                     ),
-
-                    const SizedBox(width: 12),
-
-                    // Cycle chip
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? const Color(0xFF1A1D27)
-                              : Colors.white,
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  "⏱️",
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  "Cycle",
-                                  style: TextStyle(
-                                    color: textTertiary,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Text(
-                              frequency ?? '',
-                              style: TextStyle(
-                                color: const Color(0xFF9C27B0),
-                                fontSize: 16,
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 

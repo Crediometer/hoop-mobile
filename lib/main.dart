@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:hoop/dtos/podos/tokens/shared_preferences.dart';
+import 'package:hoop/screens/auth/login_otp_screen.dart';
 import 'package:hoop/screens/auth/login_screen.dart';
 import 'package:hoop/screens/auth/signup/signup_step5_primary_account_screen.dart';
 import 'package:hoop/screens/features/home_screen.dart';
@@ -17,6 +20,7 @@ import 'package:hoop/screens/settings/primary_account_info.dart';
 import 'package:hoop/screens/settings/profile_setting.dart';
 import 'package:hoop/screens/settings/security_setting.dart';
 import 'package:hoop/services/websocket_service.dart';
+import 'package:hoop/states/OnboardingService.dart';
 import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/states/group_state.dart';
 import 'package:hoop/states/onesignal_state.dart';
@@ -30,7 +34,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Ensure that the Flutter binding is initialized.
-  WidgetsFlutterBinding.ensureInitialized();
+  await Hive.initFlutter();
+
+  // Initialize storage service
+  final storageService = HiveStorageService();
+  await storageService.init();
+  await OnboardingService.init();
 
   // Force portrait mode only
   await SystemChrome.setPreferredOrientations([
@@ -140,6 +149,20 @@ Route<dynamic> _generateRoute(RouteSettings settings) {
     case '/':
       return MaterialPageRoute(
         builder: (_) => const AuthWrapper(),
+        settings: settings,
+      );
+    case '/login/otp':
+      var arguments = settings.arguments as Map<String, dynamic>;
+      return MaterialPageRoute(
+        builder: (_) =>  LoginOtpScreen(
+          email: arguments['email'],
+          password: arguments['password'],
+          is2FARequired: arguments['is2FARequired'] as bool,
+          isDeviceVerificationRequired:
+              arguments['isDeviceVerificationRequired'] as bool,
+          sessionId: arguments['sessionId'],
+          requestId: arguments['requestId'],
+        ),
         settings: settings,
       );
 

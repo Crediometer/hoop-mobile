@@ -346,58 +346,95 @@ log("response?? $response");
     );
   }
 
-  // File upload method
-  Future<http.Response> uploadFile(
-    String endpoint,
-    List<int> fileBytes,
-    String fileName, {
-    Map<String, String>? fields,
-    Map<String, String>? headers,
-    bool requiresAuth = true,
-  }) async {
-    try {
-      var url = '$baseUrl/$endpoint';
-      final request = http.MultipartRequest('POST', Uri.parse(url));
+ Future<http.Response> uploadFile(
+  String endpoint,
+  List<int> fileBytes,
+  String fileName, {
+  Map<String, String>? fields,
+  Map<String, String>? headers,
+  bool requiresAuth = true,
+  void Function(double progress)? onProgress, // Changed to accept percentage
+}) async {
+  try {
+    var url = '$baseUrl/$endpoint';
+    final request = http.MultipartRequest('POST', Uri.parse(url));
 
-      // Add file
-      request.files.add(http.MultipartFile.fromBytes(
-        'file',
-        fileBytes,
-        filename: fileName,
-      ));
+    // Add file
+    request.files.add(http.MultipartFile.fromBytes(
+      'file',
+      fileBytes,
+      filename: fileName,
+    ));
 
-      // Add fields
-      if (fields != null) {
-        fields.forEach((key, value) {
-          request.fields[key] = value;
-        });
-      }
-
-      // Add headers
-      final requestHeaders = await _interceptRequest(
-        headers: {
-          ...defaultHeaders,
-          if (headers != null) ...headers,
-        },
-        requiresAuth: requiresAuth,
-      );
-
-      requestHeaders.remove('Content-Type'); // Remove for multipart
-      request.headers.addAll(requestHeaders);
-
-      final streamedResponse = await request.send().timeout(timeoutDuration);
-      final response = await http.Response.fromStream(streamedResponse);
-
-      return await _interceptResponse(response);
-    } on TimeoutException catch (_) {
-      throw NetworkException('Upload timed out');
-    } catch (e) {
-      if (e is NetworkException || e is UnauthorizedException || e is ValidationException) {
-        rethrow;
-      }
-      throw NetworkException('Upload failed: ${e.toString()}');
+    // Add fields
+    if (fields != null) {
+      fields.forEach((key, value) {
+        request.fields[key] = value;
+      });
     }
+
+    // Add headers
+    final requestHeaders = await _interceptRequest(
+      headers: {
+        ...defaultHeaders,
+        if (headers != null) ...headers,
+      },
+      requiresAuth: requiresAuth,
+    );
+
+    requestHeaders.remove('Content-Type'); // Remove for multipart
+    request.headers.addAll(requestHeaders);
+
+    // Track progress if callback is provided
+    final totalBytes = request.contentLength ?? fileBytes.length;
+    int sentBytes = 0;
+    final streamedRequest = request.send();
+
+    if (onProgress != null) {
+      // Wrap the stream to track progress
+      final streamedResponse = await streamedRequest.timeout(timeoutDuration);
+      
+      // Create a new stream that tracks progress
+      final List<int> bytes = [];
+      await for (var chunk in streamedResponse.stream) {
+        bytes.addAll(chunk);
+        sentBytes += chunk.length;
+        
+        // Calculate and report progress percentage
+        final progress = (sentBytes / totalBytes * 100).clamp(0, 100).toDouble();
+        onProgress(progress);
+      }
+      
+      // Create response from accumulated bytes
+      final response = http.Response.bytes(
+        bytes,
+        streamedResponse.statusCode,
+        headers: streamedResponse.headers,
+        request: http.Request(
+          'POST',
+          Uri.parse(url),
+        ),
+        isRedirect: streamedResponse.isRedirect,
+        persistentConnection: streamedResponse.persistentConnection,
+        reasonPhrase: streamedResponse.reasonPhrase,
+      );
+      
+      return await _interceptResponse(response);
+    } else {
+      // Original behavior without progress tracking
+      final streamedResponse = await streamedRequest.timeout(timeoutDuration);
+      final response = await http.Response.fromStream(streamedResponse);
+      return await _interceptResponse(response);
+    }
+  } on TimeoutException catch (_) {
+    throw NetworkException('Upload timed out');
+  } catch (e) {
+    if (e is NetworkException || e is UnauthorizedException || e is ValidationException) {
+      rethrow;
+    }
+    throw NetworkException('Upload failed: ${e.toString()}');
   }
+}
 
   // ADDED: Typed file upload method
   Future<ApiResponse<T>> uploadFileTyped<T>(

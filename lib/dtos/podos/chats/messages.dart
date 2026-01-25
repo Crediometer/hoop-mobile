@@ -89,6 +89,7 @@ class Message {
   final DateTime? editedAt;
   final bool? deleted;
   final DateTime? deletedAt;
+  final Map<String, dynamic>? replyTo;
   final String? deletedBy;
 
   Message({
@@ -112,6 +113,7 @@ class Message {
     this.callData,
     this.edited,
     this.editedAt,
+    this.replyTo,
     this.deleted,
     this.deletedAt,
     this.deletedBy,
@@ -122,6 +124,7 @@ class Message {
       id: json['id'] ?? json['_id'] ?? '',
       group: json['groupId'] ?? json['group'],
       tempId: json['tempId'],
+      replyTo: json['replyTo'],
       sender: json['sender'] ?? json['userId'],
       content: json['content'] ?? json['message'] ?? '',
       message: json['message'],
@@ -192,6 +195,7 @@ class Message {
       'userId': sender,
       'content': content,
       'message': content,
+      'replyTo':replyTo,
       'createdAt':
           createdAt?.toIso8601String() ?? DateTime.now().toIso8601String(),
       if (senderName != null) 'senderName': senderName,
@@ -231,6 +235,7 @@ class Message {
     List<dynamic>? reactions,
     List<dynamic>? readBy,
     Map<String, dynamic>? pollData,
+    Map<String, dynamic>? replyTo,
     String? paymentStatus,
     Map<String, dynamic>? systemInfo,
     Map<String, dynamic>? callData,
@@ -250,6 +255,7 @@ class Message {
       createdAt: createdAt ?? this.createdAt,
       senderName: senderName ?? this.senderName,
       type: type ?? this.type,
+      replyTo: replyTo,
       messageType: messageType ?? this.messageType,
       status: status ?? this.status,
       attachments: attachments ?? this.attachments,
@@ -498,3 +504,42 @@ class MessageGroup {
   }
 }
 
+
+
+
+// Upload progress data
+class UploadProgress {
+  final String tempId;
+  final double progress;
+  final bool isUploading;
+  final bool isComplete;
+  final String? error;
+  final String? localPreviewUrl;
+
+  UploadProgress({
+    required this.tempId,
+    required this.progress,
+    this.isUploading = true,
+    this.isComplete = false,
+    this.error,
+    this.localPreviewUrl,
+  });
+
+  UploadProgress copyWith({
+    String? tempId,
+    double? progress,
+    bool? isUploading,
+    bool? isComplete,
+    String? error,
+    String? localPreviewUrl,
+  }) {
+    return UploadProgress(
+      tempId: tempId ?? this.tempId,
+      progress: progress ?? this.progress,
+      isUploading: isUploading ?? this.isUploading,
+      isComplete: isComplete ?? this.isComplete,
+      error: error ?? this.error,
+      localPreviewUrl: localPreviewUrl ?? this.localPreviewUrl,
+    );
+  }
+}

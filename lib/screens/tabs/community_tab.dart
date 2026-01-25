@@ -214,8 +214,11 @@ class _CommunityScreenState extends State<CommunityScreen> {
                       return ValueListenableBuilder(
                         valueListenable: notification.unreadCount,
                         builder: (context, value, child) {
-                          return Badge.count(
-                            count: value,
+                          return Badge(
+                            label: value != 0
+                                ? Text(value > 999 ? '999+' : '$value')
+                                : null,
+
                             child: _buildIconButton(
                               Iconsax.notification_status,
                               textPrimary,
@@ -493,7 +496,6 @@ class _CommunityScreenState extends State<CommunityScreen> {
   }
 
   Widget _buildActionButtons() {
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 30, vertical: 8),
       child: Row(

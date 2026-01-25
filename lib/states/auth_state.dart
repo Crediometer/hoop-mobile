@@ -6,6 +6,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/status/OperationStatus.dart';
 import 'package:hoop/dtos/podos/tokens/shared_preferences.dart';
+import 'package:hoop/dtos/podos/tokens/token_pref.dart';
 import 'package:hoop/dtos/requests/FacialVerificationData.dart';
 import 'package:hoop/dtos/requests/PersonalInfoData.dart';
 import 'package:hoop/dtos/requests/PhoneVerificationData.dart';
@@ -17,7 +18,8 @@ import 'package:hoop/dtos/responses/User.dart';
 import 'package:hoop/main.dart';
 import 'package:hoop/services/auth_service.dart';
 import 'package:hoop/services/device_manager.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:hoop/states/OnboardingService.dart';
 
 class AuthProvider extends ChangeNotifier {
   User? _user;
@@ -32,10 +34,22 @@ class AuthProvider extends ChangeNotifier {
   // Session management
   String? _currentSessionId;
   String? _pendingDeviceChangeSessionId;
-
+  final HiveStorageService _storage = HiveStorageService();
+  final HiveTokenManager _tokenManager = HiveTokenManager();
+  
   // Getter for device ID
-
   Future<String?> get deviceId async => await _deviceInfoManager.getDeviceId();
+
+  // Initialize services
+  Future<void> initializeServices() async {
+    try {
+      await OnboardingService.init();
+      await _storage.init();
+      initializeDeviceInfo();
+    } catch (e) {
+      print('Error initializing services: $e');
+    }
+  }
 
   // Simplified initializeDeviceInfo method
   Future<void> initializeDeviceInfo() async {
@@ -206,57 +220,33 @@ class AuthProvider extends ChangeNotifier {
 
   String get isDark => _isDark;
 
-  /// Initialize the appearance from SharedPreferences and fallback to system theme
+  /// Initialize the appearance from Hive
   Future<void> init() async {
-    _isDark = await StorageService().getUserAppearance();
-
-    // if (appearance == 0) {
-    //   // Use system brightness
-    //   _isDark = Theme.of(context).brightness == Brightness.dark;
-    // } else {
-    //   // 1 = light, 2 = dark? adjust based on your logic
-    //   _isDark = appearance != 1;
-    // }
-
+    _isDark = await _storage.getUserAppearance();
     notifyListeners();
   }
 
-  /// Change the theme and optionally save to SharedPreferences
+  /// Change the theme and save to Hive
   Future<void> setDark(String value) async {
     _isDark = value;
     notifyListeners();
-    await StorageService().storeUserAppearance(
-      value.toString(),
-    ); // 1=light, 2=dark
+    await _storage.storeUserAppearance(value);
   }
 
   Future<void> _initialize() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
+      // Initialize Hive services
+      await initializeServices();
 
-      // Load stored onboarding preferences IMMEDIATELY
-      final stored = prefs.getString('needsAccountOnboarding');
-      if (stored != null) {
-        _needsAccountOnboarding = stored == 'true';
-      } else {
-        _needsAccountOnboarding = true;
-        await prefs.setString('needsAccountOnboarding', 'true');
-      }
-
-      final userOnboarding = prefs.getString('needsUserOnboarding'); // Fix typo
-      if (userOnboarding != null) {
-        _needsUserOnboarding = userOnboarding == 'true'; // Load immediately
-      } else {
-        _needsUserOnboarding = true;
-        await prefs.setString('needsUserOnboarding', 'true');
-      }
+      // Load stored onboarding preferences from Hive
+      _needsAccountOnboarding = OnboardingService.needsAccountOnboarding;
+      _needsUserOnboarding = OnboardingService.needsUserOnboarding;
 
       // Check if user is already logged in
       await getProfile();
 
       _isLoading = false; // Make sure to set loading to false
       notifyListeners(); // Notify listeners after initialization
-      initializeDeviceInfo();
     } catch (e) {
       print('Initialization error: $e');
       _isLoading = false;
@@ -271,8 +261,10 @@ class AuthProvider extends ChangeNotifier {
         final response = await _apiService.getProfile();
         if (response.success && response.data != null) {
           _user = response.data;
-
-          // here get users details and save to shared_pref
+          // Save user data to Hive
+          if (_user != null) {
+            await _storage.storeUserData(_user!.toJson());
+          }
         }
       }
     } catch (error) {
@@ -294,13 +286,9 @@ class AuthProvider extends ChangeNotifier {
   }) async {
     try {
       // Clear storage
-      final prefs = await SharedPreferences.getInstance();
-      final joinIntent = prefs.getString('joinIntent');
-
-      await prefs.clear();
-      if (joinIntent != null) {
-        await prefs.setString('joinIntent', joinIntent);
-      }
+      await _storage.clearAll();
+      await OnboardingService.clearAll();
+      await _deviceInfoManager.clearPersistentData();
 
       final deviceInfo = await _deviceInfoManager.getDeviceInfoForApi();
 
@@ -327,36 +315,35 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> handleLoginResponse(ApiResponse<AuthResponse?> response) async {
-    final prefs = await SharedPreferences.getInstance();
     if (response.success && response.data != null) {
       log("Login response: ${response.data?.toJson()}");
       final AuthResponse data = response.data!;
 
-      // Store tokens
-      await _apiService.storeTokens(
-        token: data.token,
-        refreshToken: "",
-        expiresIn: data.expiresIn ?? 0,
-        userId: data.data?.id ?? 0,
-      );
+      // Store tokens using Hive Token Manager
+      await _tokenManager.saveToken(data.token);
+      await _tokenManager.saveUserId(data.data?.id ?? 0);
+      
+      if (data.expiresIn != null) {
+        await _tokenManager.saveTokenExpiry(data.expiresIn!);
+      }
 
       // Store session ID if present
       if (data.sessionId != null) {
         _currentSessionId = data.sessionId;
-        await prefs.setString('current_session_id', data.sessionId!);
+        await _storage.setString('current_session_id', data.sessionId!);
       }
 
       // Handle different response statuses
       if (data.operationStatus != OperationStatus.OK) {
         _needsAccountOnboarding = true;
-        await prefs.setString('needsAccountOnboarding', 'true');
+        await OnboardingService.requireAccountOnboarding();
       } else {
         _needsAccountOnboarding = false;
-        await prefs.setString('needsAccountOnboarding', 'false');
+        await OnboardingService.completeAccountOnboarding();
       }
 
       // Store last login email
-      await prefs.setString('last_login_email', email);
+      await _storage.setString('last_login_email', email);
 
       notifyListeners();
     }
@@ -367,8 +354,6 @@ class AuthProvider extends ChangeNotifier {
     required String biometricToken,
   }) async {
     try {
-      // Ensure device info is initialized
-
       final deviceInfo = await _deviceInfoManager.getDeviceInfoForApi();
 
       final response = await _apiService.biometricLogin(
@@ -382,18 +367,17 @@ class AuthProvider extends ChangeNotifier {
       if (response.success && response.data != null) {
         final AuthResponse data = response.data!;
 
-        await _apiService.storeTokens(
-          token: data.token,
-          refreshToken: "",
-          expiresIn: data.expiresIn ?? 0,
-          userId: data.data?.id ?? 0,
-        );
+        await _tokenManager.saveToken(data.token);
+        await _tokenManager.saveUserId(data.data?.id ?? 0);
+        
+        if (data.expiresIn != null) {
+          await _tokenManager.saveTokenExpiry(data.expiresIn!);
+        }
 
         // Store session ID if present
         if (data.sessionId != null) {
           _currentSessionId = data.sessionId;
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('current_session_id', data.sessionId!);
+          await _storage.setString('current_session_id', data.sessionId!);
         }
 
         notifyListeners();
@@ -492,20 +476,16 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Generate biometric token (to be called from mobile app)
+  // Generate biometric token
   Future<String> generateBiometricToken() async {
     final deviceInfo = await _deviceInfoManager.getDeviceInfoForApi();
 
     final timestamp = (DateTime.now().millisecondsSinceEpoch / 1000).round();
 
-    // In production, this should be signed with a private key
-    // For now, we'll create a simple token format
     return '${deviceInfo['deviceFingerprint']}:${deviceInfo['deviceId']!}:${deviceInfo['deviceName']}:$timestamp:${_generateSignature(deviceInfo['deviceId']!, timestamp)}';
   }
 
   String _generateSignature(String deviceId, int timestamp) {
-    // In production, use proper cryptographic signing
-    // For now, create a simple hash
     final data = '$deviceId:$timestamp';
     final bytes = utf8.encode(data);
     final digest = sha256.convert(bytes);
@@ -515,18 +495,15 @@ class AuthProvider extends ChangeNotifier {
   // Check if biometric login should be offered
   Future<bool> shouldOfferBiometricLogin(String email) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-
       // Check if user has biometric login enabled from backend
       final user = _user;
       if (user?.biometricLoginEnabled == true) {
         return true;
       }
 
-      // Check local preferences
-      final biometricEnabled =
-          prefs.getBool('biometric_enabled_$email') ?? false;
-      final lastLoginEmail = prefs.getString('last_login_email');
+      // Check local preferences from Hive
+      final biometricEnabled = await _storage.getBool('biometric_enabled_$email') ?? false;
+      final lastLoginEmail = await _storage.getString('last_login_email');
 
       return biometricEnabled && lastLoginEmail == email;
     } catch (e) {
@@ -535,13 +512,11 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // Save biometric credentials locally (for auto-fill)
+  // Save biometric credentials locally
   Future<void> saveBiometricCredentials(String email, bool enabled) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      
-      await prefs.setBool('biometric_enabled_$email', enabled);
-      await prefs.setString('biometric_email', email);
+      await _storage.setBool('biometric_enabled_$email', enabled);
+      await _storage.setString('biometric_email', email);
     } catch (e) {
       print('Error saving biometric credentials: $e');
     }
@@ -550,10 +525,9 @@ class AuthProvider extends ChangeNotifier {
   // Clear biometric credentials
   Future<void> clearBiometricCredentials(String email) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.remove('biometric_enabled_$email');
-      await prefs.remove('biometric_email');
-      await prefs.remove('biometric_password');
+      await _storage.remove('biometric_enabled_$email');
+      await _storage.remove('biometric_email');
+      await _storage.remove('biometric_password');
     } catch (e) {
       print('Error clearing biometric credentials: $e');
     }
@@ -562,12 +536,7 @@ class AuthProvider extends ChangeNotifier {
   // Get saved biometric credentials
   Future<String?> getBiometricCredentials() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      final email = prefs.getString('biometric_email');
-
-
-
-      return email;
+      return await _storage.getString('biometric_email');
     } catch (e) {
       print('Error getting biometric credentials: $e');
       return null;
@@ -576,13 +545,21 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> logout() async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.clear();
+      // Clear all Hive storage
+      await _storage.clearAll();
+      await _tokenManager.clearAllTokens();
+      await OnboardingService.clearAll();
+      await _deviceInfoManager.clearPersistentData();
 
+      // Clear local state
       _user = null;
-      _needsAccountOnboarding = false;
+      _needsAccountOnboarding = true;
+      _needsUserOnboarding = true;
       _bvnRequestId = null;
       _banks = null;
+      _currentSessionId = null;
+      _pendingDeviceChangeSessionId = null;
+
       notifyListeners();
     } catch (e) {
       print('Logout error: $e');
@@ -744,7 +721,6 @@ class AuthProvider extends ChangeNotifier {
   Future<bool> verifyTwoFactor(String code) async {
     try {
       final response = await _apiService.verifyTwoFactor(code);
-      // await handleLoginResponse(response);
       return response.success && (response.data?['valid'] == true);
     } catch (error) {
       print('2FA verification failed: $error');
@@ -821,7 +797,6 @@ class AuthProvider extends ChangeNotifier {
     try {
       final response = await _apiService.completePersonalInfo(data);
       if (response.success) {
-        // Show success message
         ScaffoldMessenger.of(navigatorKey.currentContext!).showSnackBar(
           SnackBar(
             content: Text(
@@ -888,17 +863,23 @@ class AuthProvider extends ChangeNotifier {
 
   void setNeedsAccountOnboarding(bool needs) async {
     _needsAccountOnboarding = needs;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('needsAccountOnboarding', needs ? 'true' : 'false');
+    if (needs) {
+      await OnboardingService.requireAccountOnboarding();
+    } else {
+      await OnboardingService.completeAccountOnboarding();
+    }
     notifyListeners();
   }
 
   void setNeedsUserOnboarding(bool needs) async {
     print('setNeedsUserOnboarding called with: $needs');
-    _needsUserOnboarding = needs; // Fix this line too!
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('needsUserOnboarding', needs ? 'true' : 'false');
-    print('Saved to SharedPreferences: needsUserOnboarding = $needs');
-    notifyListeners(); // Add this to update UI immediately
+    _needsUserOnboarding = needs;
+    if (needs) {
+      await OnboardingService.requireUserOnboarding();
+    } else {
+      await OnboardingService.completeUserOnboarding();
+    }
+    print('Saved to Hive: needsUserOnboarding = $needs');
+    notifyListeners();
   }
 }

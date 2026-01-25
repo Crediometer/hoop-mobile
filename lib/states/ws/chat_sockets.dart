@@ -2872,7 +2872,7 @@ class ChatWebSocketHandler with ChangeNotifier {
 
     notifyListeners();
 
-    emit('mark_messages_read', {
+    emit('        ', {
       'messageIds': messageIds,
       'groupId': groupId,
       'userId': _userId,
@@ -2880,41 +2880,53 @@ class ChatWebSocketHandler with ChangeNotifier {
     });
   }
 
-  void markAllGroupMessagesAsRead(num groupId) {
-    if (!_isConnected.value) {
-      _queueMessage('mark_group_read', {'groupId': groupId});
-      return;
-    }
-
-    // Clear unread messages for this group
-    final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
-    currentUnread.remove(groupId);
-    _unreadMessagesUI.value = currentUnread;
-
-    // Update all messages in this group to read status
-    _messages.value = _messages.value.map((group) {
-      if (group.groupId == groupId) {
-        final updatedMessages = group.messages.map((msg) {
-          final readBy = List<dynamic>.from(msg.readBy ?? []);
-          if (!readBy.any(
-            (read) => read is Map
-                ? read['user']?.toString() == _userId ||
-                      read['userId']?.toString() == _userId
-                : read.toString() == _userId,
-          )) {
-            readBy.add(_userId);
-          }
-
-          return msg.copyWith(status: 'read', readBy: readBy);
-        }).toList();
-
-        return MessageGroup(groupId: group.groupId, messages: updatedMessages);
+  void markAllGroupMessagesAsRead(num groupId, {bool fromSocket = false}) {
+    try {
+      if (!_isConnected.value) {
+        _queueMessage('mark_group_read', {'groupId': groupId});
+        return;
       }
-      return group;
-    }).toList();
 
-    emit('mark_group_read', {'groupId': groupId});
-    notifyListeners();
+      // Clear unread messages for this group
+      final currentUnread = Map<num, Set<String>>.from(_unreadMessagesUI.value);
+      currentUnread.remove(groupId);
+      _unreadMessagesUI.value = currentUnread;
+
+      // Update all messages in this group to read status
+      _messages.value = _messages.value.map((group) {
+        if (group.groupId == groupId) {
+          final updatedMessages = group.messages.map((msg) {
+            final readBy = List<dynamic>.from(msg.readBy ?? []);
+            if (!readBy.any(
+              (read) => read is Map
+                  ? read['user']?.toString() == _userId ||
+                        read['userId']?.toString() == _userId
+                  : read.toString() == _userId,
+            )) {
+              readBy.add(_userId);
+            }
+
+            return msg.copyWith(status: 'read', readBy: readBy);
+          }).toList();
+
+          return MessageGroup(
+            groupId: group.groupId,
+            messages: updatedMessages,
+          );
+        }
+        return group;
+      }).toList();
+
+      // Only emit to socket if this is NOT coming from a socket event
+      if (!fromSocket) {
+        emit('mark_group_read', {'groupId': groupId});
+      }
+
+      notifyListeners();
+    } on Exception catch (e) {
+      // TODO: Proper error handling
+      print("Error marking group as read: $e");
+    }
   }
 
   void markAllMessagesAsRead() {

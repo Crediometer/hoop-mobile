@@ -8,12 +8,10 @@ import 'package:hoop/dtos/responses/User.dart';
 import 'package:hoop/dtos/responses/group/group_join_request.dart';
 import 'package:hoop/dtos/responses/group/index.dart';
 import 'package:hoop/services/group_services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class GroupCommunityProvider extends ChangeNotifier {
   // Services
   final GroupHttpService _groupService = GroupHttpService();
-  late SharedPreferences _prefs;
 
   // User State
   User? _user;
@@ -112,7 +110,6 @@ class GroupCommunityProvider extends ChangeNotifier {
 
   // Initialize the provider
   Future<void> initialize({required GroupHttpService groupService}) async {
-    _prefs = await SharedPreferences.getInstance();
     _isLoading = false;
     notifyListeners();
   }

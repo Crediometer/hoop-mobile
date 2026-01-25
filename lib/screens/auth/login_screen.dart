@@ -1,3 +1,16 @@
+import 'package:flutter/material.dart';
+import 'package:hoop/components/buttons/primary_button.dart';
+import 'package:hoop/components/inputs/input.dart';
+import 'package:hoop/screens/auth/login_otp_screen.dart';
+import 'package:hoop/screens/auth/password_reset/password_reset_screen.dart';
+import 'package:hoop/screens/auth/signup/ignup_step1_screen.dart';
+import 'package:hoop/states/auth_state.dart';
+import 'package:hoop/utils/forms/validators.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:provider/provider.dart';
+import '../../../services/auth_service.dart';
+import '../../../widgets/progress_bar.dart';
+
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:hoop/components/buttons/primary_button.dart';
@@ -5,15 +18,14 @@ import 'package:hoop/components/inputs/input.dart';
 import 'package:hoop/components/status/OperationStatus.dart';
 import 'package:hoop/dtos/responses/ApiResponse.dart';
 import 'package:hoop/dtos/responses/AuthResponse.dart';
-import 'package:hoop/screens/auth/signup/ignup_step1_screen.dart';
 import 'package:hoop/screens/auth/signup/signup_step3_personal_info_screen.dart';
 import 'package:hoop/screens/auth/signup/signup_step4_facial_verification_screen.dart';
-import 'package:hoop/states/auth_state.dart';
 import 'package:hoop/utils/forms/validators.dart';
 import 'package:hoop/utils/helpers/toasters/SnackBar.dart';
 import 'package:hoop/widgets/progress_bar.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:provider/provider.dart';
+import '../../../services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -31,11 +43,11 @@ class _LoginScreenState extends State<LoginScreen> {
   final LocalAuthentication _localAuth = LocalAuthentication();
 
   // State variables
-  bool isPasswordVisible = false;
-  bool isLoading = false;
-  bool isBiometricLoading = false;
-  bool biometricAvailable = false;
-  bool biometricEnrolled = false;
+  bool _isPasswordVisible = false;
+  bool _isLoading = false;
+  bool _isBiometricLoading = false;
+  bool _biometricAvailable = false;
+  bool _biometricEnrolled = false;
 
   // Login flow state
   bool _is2FARequired = false;
@@ -65,15 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _initializeDeviceInfo() async {
-    final authProvider = Provider.of<AuthProvider>(context, listen: false);
-    await authProvider.initializeDeviceInfo();
+    final authService = Provider.of<AuthProvider>(context, listen: false);
+    await authService.initializeDeviceInfo();
   }
 
   Future<void> _checkBiometrics() async {
     try {
       final isDeviceSupported = await _localAuth.isDeviceSupported();
       if (!isDeviceSupported) {
-        setState(() => biometricAvailable = false);
+        setState(() => _biometricAvailable = false);
         return;
       }
 
@@ -81,25 +93,24 @@ class _LoginScreenState extends State<LoginScreen> {
       final availableBiometrics = await _localAuth.getAvailableBiometrics();
 
       setState(() {
-        biometricAvailable =
+        _biometricAvailable =
             canCheckBiometrics && availableBiometrics.isNotEmpty;
       });
     } catch (error) {
-      print("Biometric check error: $error");
-      setState(() => biometricAvailable = false);
+      setState(() => _biometricAvailable = false);
     }
   }
 
   Future<void> _loadSavedCredentials() async {
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final credentials = await authProvider.getBiometricCredentials();
+      final authService = Provider.of<AuthProvider>(context, listen: false);
+      final credentials = await authService.getBiometricCredentials();
 
       if (credentials != null) {
-        _emailController.text = credentials ?? '';
+        _emailController.text = credentials;
       }
 
-      biometricEnrolled = await authProvider.shouldOfferBiometricLogin(
+      _biometricEnrolled = await authService.shouldOfferBiometricLogin(
         credentials ?? '',
       );
       if (mounted) setState(() {});
@@ -108,20 +119,20 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  Future<void> _login() async {
+  Future<void> _handleLogin() async {
     if (_formKey.currentState?.validate() != true) {
       return;
     }
 
     setState(() {
-      isLoading = true;
+      _isLoading = true;
       _errorMessage = null;
     });
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authService = Provider.of<AuthProvider>(context, listen: false);
 
-      final response = await authProvider.login(
+      final response = await authService.login(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         otp: _otpController.text.isNotEmpty ? _otpController.text : null,
@@ -143,15 +154,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _handleLoginResponse(AuthResponse response) async {
-    print("response??? ${response.toJson()}");
     // Check for special status codes
     if (response.needs2FA) {
-      setState(() {
-        _is2FARequired = true;
-        _currentRequestId = response.requestId;
-        isLoading = false;
-      });
-
       context.showInfoSnackBar('OTP sent to your email for 2FA verification');
       return;
     }
@@ -161,10 +165,24 @@ class _LoginScreenState extends State<LoginScreen> {
         _isDeviceVerificationRequired = true;
         _currentRequestId = response.requestId;
         _currentSessionId = response.sessionId;
-        isLoading = false;
+        _isLoading = false;
       });
 
       context.showInfoSnackBar('OTP sent to verify this new device');
+    }
+    if (response.needsDeviceVerification || response.needs2FA) {
+      Navigator.pushNamed(
+        context,
+        '/login/otp',
+        arguments: {
+          "email": _emailController.text,
+          "is2FARequired": response.needs2FA,
+          "password": _passwordController.text,
+          "isDeviceVerificationRequired": response.needsDeviceVerification,
+          "requestId": response.requestId,
+          "sessionId": response.sessionId,
+        },
+      );
       return;
     }
 
@@ -185,7 +203,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
     setState(() {
       _errorMessage = errorMessage;
-      isLoading = false;
+      _isLoading = false;
       _isVerifyingOTP = false;
     });
 
@@ -193,20 +211,20 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Future<void> _performBiometricLogin() async {
-    if (!biometricAvailable) {
+    if (!_biometricAvailable) {
       context.showErrorSnackBar('Biometric authentication not available');
       return;
     }
 
-    setState(() => isBiometricLoading = true);
+    setState(() => _isBiometricLoading = true);
 
     try {
       // Get saved credentials
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final credentials = await authProvider.getBiometricCredentials();
+      final authService = Provider.of<AuthProvider>(context, listen: false);
+      final credentials = await authService.getBiometricCredentials();
 
       if (credentials == null) {
-        setState(() => isBiometricLoading = false);
+        setState(() => _isBiometricLoading = false);
         context.showErrorSnackBar('No saved credentials found');
         return;
       }
@@ -220,16 +238,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
 
       if (!didAuthenticate) {
-        setState(() => isBiometricLoading = false);
+        setState(() => _isBiometricLoading = false);
         return;
       }
 
       // Generate biometric token
-      final biometricToken = await authProvider.generateBiometricToken();
+      final biometricToken = await authService.generateBiometricToken();
 
       // Perform biometric login
-      final response = await authProvider.biometricLogin(
-        email: credentials!,
+      final response = await authService.biometricLogin(
+        email: credentials,
         biometricToken: biometricToken,
       );
 
@@ -243,7 +261,7 @@ class _LoginScreenState extends State<LoginScreen> {
       }
     } catch (error) {
       _handleLoginError(error);
-      setState(() => isBiometricLoading = false);
+      setState(() => _isBiometricLoading = false);
     }
   }
 
@@ -256,25 +274,39 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isVerifyingOTP = true);
 
     try {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final authService = Provider.of<AuthProvider>(context, listen: false);
 
       AuthResponse? response;
 
       if (_isDeviceVerificationRequired) {
-        response = (await authProvider.verifyNewDevice(
+        final apiResponse = await authService.verifyNewDevice(
           email: _emailController.text.trim(),
           otp: _otpController.text,
           requestId: _currentRequestId!,
           sessionId: _currentSessionId!,
-        )).data;
+        );
+
+        if (apiResponse.success) {
+          response = apiResponse.data;
+        } else {
+          _handleLoginError(apiResponse);
+          return;
+        }
       } else {
         // Regular login with OTP
-        response = (await authProvider.login(
+        final apiResponse = await authService.login(
           email: _emailController.text.trim(),
           password: _passwordController.text,
           otp: _otpController.text,
           requestId: _currentRequestId,
-        )).data;
+        );
+
+        if (apiResponse.success) {
+          response = apiResponse.data;
+        } else {
+          _handleLoginError(apiResponse);
+          return;
+        }
       }
 
       if (response != null) {
@@ -287,8 +319,8 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _handleNavigation(OperationStatus status) {
     setState(() {
-      isLoading = false;
-      isBiometricLoading = false;
+      _isLoading = false;
+      _isBiometricLoading = false;
       _isVerifyingOTP = false;
     });
 
@@ -321,83 +353,11 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
-  void _resetLoginFlow() {
-    setState(() {
-      _is2FARequired = false;
-      _isDeviceVerificationRequired = false;
-      _otpController.clear();
-      _currentRequestId = null;
-      _currentSessionId = null;
-    });
-  }
 
-  Widget _buildOTPInput() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black87;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            GestureDetector(
-              onTap: _resetLoginFlow,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.arrow_back_ios_new_rounded,
-                    color: textColor,
-                    size: 20,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    "Back to Login",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: textColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-
-        Text(
-          _isDeviceVerificationRequired
-              ? 'Enter OTP sent to verify this device'
-              : 'Enter 2FA OTP',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface,
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        const SizedBox(height: 8),
-        HoopInput(
-          controller: _otpController,
-          hintText: 'Enter 6-digit OTP',
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          onChanged: (value) {
-            if (value.length == 6) {
-              _verifyOTP();
-            }
-          },
-        ),
-        const SizedBox(height: 16),
-        HoopButton(
-          buttonText: 'Verify OTP',
-          isLoading: _isVerifyingOTP,
-          onPressed: _verifyOTP,
-        ),
-      ],
-    );
-  }
 
   Widget _buildBiometricButton() {
     return GestureDetector(
-      onTap: isBiometricLoading ? null : _performBiometricLogin,
+      onTap: _isBiometricLoading ? null : _performBiometricLogin,
       child: Container(
         width: 60,
         height: 60,
@@ -417,7 +377,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ],
         ),
         child: Center(
-          child: isBiometricLoading
+          child: _isBiometricLoading
               ? CircularProgressIndicator(
                   color: Theme.of(context).colorScheme.primary,
                 )
@@ -433,10 +393,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDarkMode ? const Color(0xFF0C0E1A) : Colors.grey[100],
+      backgroundColor: isDark ? const Color(0xFF0C0E1A) : Colors.grey[100],
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -452,7 +412,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isDarkMode ? const Color(0xFF1C1F2E) : Colors.white,
+                    color: isDark ? const Color(0xFF1C1F2E) : Colors.white,
                     borderRadius: BorderRadius.circular(16),
                   ),
                   child: const Icon(
@@ -469,14 +429,14 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: isDarkMode ? Colors.white : Colors.black,
+                    color: isDark ? Colors.white : Colors.black,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   "Sign in to your Hoop account",
                   style: TextStyle(
-                    color: isDarkMode ? Colors.grey : Colors.grey[700],
+                    color: isDark ? Colors.grey : Colors.grey[700],
                     fontSize: 14,
                   ),
                 ),
@@ -513,10 +473,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   ),
                 if (_errorMessage != null) const SizedBox(height: 16),
 
-                // Show OTP input if required
-                if (_is2FARequired || _isDeviceVerificationRequired)
-                  _buildOTPInput()
-                else
+              
+
                   Column(
                     children: [
                       // 📧 Email
@@ -525,7 +483,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Text(
                           "Email",
                           style: TextStyle(
-                            color: isDarkMode ? Colors.grey : Colors.grey[700],
+                            color: isDark ? Colors.grey : Colors.grey[700],
                           ),
                         ),
                       ),
@@ -545,7 +503,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         child: Text(
                           "Password",
                           style: TextStyle(
-                            color: isDarkMode ? Colors.grey : Colors.grey[700],
+                            color: isDark ? Colors.grey : Colors.grey[700],
                           ),
                         ),
                       ),
@@ -556,7 +514,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         validator: (value) =>
                             Validators.password(value, minLength: 6),
                         textInputAction: TextInputAction.done,
-                        onSubmitted: (_) => _login(),
+                        onSubmitted: (_) => _handleLogin(),
                       ),
                       const SizedBox(height: 8),
 
@@ -565,7 +523,14 @@ class _LoginScreenState extends State<LoginScreen> {
                         alignment: Alignment.centerRight,
                         child: TextButton(
                           onPressed: () {
-                            // Navigate to forgot password screen
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => PasswordResetScreen(
+                                  initialEmail: _emailController.text,
+                                ),
+                              ),
+                            );
                           },
                           child: const Text(
                             "Forgot password?",
@@ -581,14 +546,14 @@ class _LoginScreenState extends State<LoginScreen> {
                           Expanded(
                             child: HoopButton(
                               buttonText: "Sign In →",
-                              isLoading: isLoading,
-                              onPressed: _login,
+                              isLoading: _isLoading,
+                              onPressed: _handleLogin,
                             ),
                           ),
-                          if (biometricAvailable && biometricEnrolled)
+                          if (_biometricAvailable && _biometricEnrolled)
                             const SizedBox(width: 16),
 
-                          if (biometricAvailable && biometricEnrolled)
+                          if (_biometricAvailable && _biometricEnrolled)
                             _buildBiometricButton(),
                         ],
                       ),
@@ -604,11 +569,11 @@ class _LoginScreenState extends State<LoginScreen> {
                     Text(
                       "Don't have an account? ",
                       style: TextStyle(
-                        color: isDarkMode ? Colors.grey : Colors.grey[700],
+                        color: isDark ? Colors.grey : Colors.grey[700],
                       ),
                     ),
                     GestureDetector(
-                      onTap: isLoading
+                      onTap: _isLoading
                           ? null
                           : () {
                               Navigator.push(
@@ -622,7 +587,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       child: Text(
                         "Sign Up",
                         style: TextStyle(
-                          color: isLoading ? Colors.grey : Colors.blueAccent,
+                          color: _isLoading ? Colors.grey : Colors.blueAccent,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
